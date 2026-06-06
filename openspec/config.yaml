@@ -1,0 +1,127 @@
+schema: spec-driven
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Project: quant-btc-lttd-system
+# Domain:  Quantitative Bitcoin Long-Term Trend Direction (LTTD) Trading System
+# Research: pi_final_research_lttd_01.md (Confidence: 98%, Exhaustive depth)
+# ─────────────────────────────────────────────────────────────────────────────
+
+context: |
+  ## System Identity
+  This is a quantitative, statistically-grounded Bitcoin LTTD (Long-Term Trend
+  Direction) trading system. The goal is to classify BTC's macro directional bias
+  (BULL / BEAR / SIDEWAYS) over a 120–350 day horizon using an orthogonal
+  ensemble of technical indicators and on-chain metrics.
+
+  ## Architecture (5-Layer Pipeline)
+  ```
+  Layer 1: Regime Detection     → 3-state HMM on daily log returns + realized vol
+  Layer 2: Signal Engine        → Causal-only indicators, output ∈ {-1, +1}
+  Layer 3: Feature Processing   → PCA orthogonalization + VIF pruning (threshold: 10)
+  Layer 4: Ensemble Aggregation → L1-Lasso Logistic Regression, WFO-trained
+  Layer 5: Execution Engine     → Regime-weighted position sizing
+  ```
+
+  ## Technology Stack
+  - Python 3.11+ (primary implementation language)
+  - pandas, numpy, scipy (data pipeline)
+  - scikit-learn, hmmlearn, xgboost (ML models)
+  - scipy.signal — causal filters ONLY (no centered/symmetric windows)
+  - brk-client (pip install brk-client) — BRK Python client for bitview.space
+  - Base URL: https://bitview.space — NO API key required, free & open-source
+  - On-chain series: sth_mvrv, sth_nupl, sth_sopr_24h, sth_supply_in_profit
+  - Presentation Layer (Layer 6):
+    - Backend: Hono v4 API on Bun runtime (backend/index.ts)
+    - Frontend: React 18 + TypeScript + Vite (frontend/)
+    - Charts: TradingView Lightweight Charts
+    - Persistence: SQLite WAL mode (database/lttd.db)
+    - Same architecture as quant-btc-valuation-system and lttf-system
+    - Package manager for JS/TS: bun (NOT npm or pnpm)
+  - Architecture now has 6 layers: Regime → Signal → Feature → Ensemble → Execution → Presentation
+  - pytest + pytest-cov (testing)
+  - OpenSpec (change management: proposal → specs → design → tasks → implement)
+
+  ## Domain Language (Ubiquitous Language — always use these exact terms)
+  - LTTD: Long-Term Trend Direction (the macro signal this system produces)
+  - Regime: Bull / Bear / Sideways (HMM-inferred state)
+  - Indicator Score: ∈ {-1, +1}, output of a single indicator
+  - Final Score: ∈ [-1.0, +1.0], weighted ensemble output
+  - Technical Indicator: OHLCV-derived signal (Kalman RSI, FDI, Supertrend, etc.)
+  - On-Chain Metric: Blockchain-behavioral signal fetched from BRK/bitview.space API
+    - sth_mvrv → STH-MVRV ratio (STH cost basis vs market price)
+    - sth_nupl → STH Net Unrealized Profit/Loss
+    - sth_sopr_24h → STH Spent Output Profit Ratio (24h window)
+    - sth_supply_in_profit → STH supply held at profit (in BTC)
+    - Bulk endpoint: GET /api/series/bulk?index=day&series=sth_mvrv,sth_nupl,sth_sopr_24h,sth_supply_in_profit&start=-N
+  - STH: Short-Term Holder (BTC addresses holding < 155 days)
+  - LTH: Long-Term Holder (BTC addresses holding > 155 days)
+  - OU Half-Life: Ornstein-Uhlenbeck mean-reversion half-life (~300+ days post-2020)
+  - Causal Filter: Real-time filter referencing only t and past bars (no lookahead)
+  - Lookahead Bias: Use of future data — ALWAYS invalidates backtest results
+  - WFO: Walk-Forward Optimization (train 3yr → validate 6mo → test 6mo, rolling)
+  - CPCV: Combinatorial Purged Cross-Validation
+  - VIF: Variance Inflation Factor (drop indicators with VIF > 10 unless PCA applied)
+  - Pratt's Measure: dⱼ = βⱼ · rⱼ / R² (indicator importance after controlling collinearity)
+  - PCA Orthogonalization: Applied to indicator matrix before aggregation
+  - BRK Stamp: The `stamp` field in every BRK API response; use as `data_as_of` timestamp, NOT datetime.now()
+  - BRK Series: Name-indexed time-series from bitview.space (e.g., sth_mvrv, nupl, realized_price)
+
+  ## Critical Research Findings (from pi_final_research_lttd_01.md)
+  1. Bitcoin's OU half-life expanded to 300+ days post-2020 (institutional era)
+  2. Symmetric SGF (Savitzky-Golay) introduces lookahead bias — never use it real-time
+  3. 12 correlated technical indicators → VIF > 10 → synchronized failure risk
+  4. On-chain arrays hardcoded to historical dates → silently breaks in live trading
+  5. MVRV/NUPL lead price at cycle tops by 3–14 days; use as regime filter, not trigger
+  - On-chain data source: BRK (Bitcoin Research Kit) via bitview.space
+    - Python client: brk-client (pip install brk-client)
+    - No authentication, no rate limit concerns for daily data
+    - Series confirmed available: sth_mvrv, sth_nupl, sth_sopr_24h, sth_supply_in_profit
+    - Also available: lth_mvrv, lth_nupl, lth_sopr_24h, nupl, mvrv, realized_price, realized_cap
+    - Bulk fetch: GET https://bitview.space/api/series/bulk?index=day&series=s1,s2&start=-N
+    - Latest value: GET https://bitview.space/api/series/{name}/day/latest
+    - Response shape: {"version": int, "index": str, "stamp": ISO8601, "data": [float, ...]}
+    - Always check response `stamp` field >= yesterday before using data in ensemble
+  6. Glassnode feature discovery study found optimal BTC uptrend detection uses 800-1,200 day windows
+  7. HMM + specialized sub-models per regime achieves R² = 0.93 on BTC forecasting
+
+  ## Conventions
+  - Package manager: pip (python -m pip install)
+  - Fast test: python -m pytest -xvs
+  - Full test: python -m pytest --cov
+  - All API keys loaded from env vars; NEVER hardcoded
+  - No auth required for bitview.space API — do NOT add BITVIEW_API_KEY or similar env vars
+  - Exchange API keys loaded from env vars only (EXCHANGE_API_KEY)
+  - Commit format: feat(layer): description (e.g., feat(regime): add 3-state HMM)
+  - Branch format: feature/LTTD-{issue}-{short-desc}
+  - Never force push; always git pull --rebase before pushing
+
+rules:
+  proposal:
+    - State the mathematical/statistical motivation for the change (e.g., why this indicator, what statistical property it captures)
+    - Identify which architecture layer(s) are affected (Regime / Signal / Feature / Ensemble / Execution)
+    - Include a "Backtest Impact" section estimating effect on Sharpe ratio and max drawdown
+    - Explicitly state if the change introduces ANY new data dependency (API, dataset, feature)
+    - If adding an indicator, justify why it is NOT redundant with existing indicators (VIF argument)
+
+  specs:
+    - Use Given/When/Then format for ALL scenarios
+    - Every scenario MUST include a measurable acceptance criterion (e.g., "THEN the HMM posterior P(Bull) > 0.70")
+    - Reference the LTTD ubiquitous language defined in context — no synonyms or paraphrases
+    - Specify whether each requirement applies at bar level, daily level, or regime level
+    - Include a "Non-Goals" section to prevent scope creep
+    - Cross-reference pi_final_research_lttd_01.md section for any mathematical specification
+
+  design:
+    - Map every design decision to a specific architecture layer
+    - Justify filter choice by proving it is causal (no future bar access)
+    - Include a VIF analysis plan when adding new technical indicators
+    - Specify the WFO window parameters (train/validate/test split)
+    - Document the Glassnode API endpoint + field name for any on-chain metric used
+    - If using PCA, specify minimum explained variance threshold (default: 85%)
+
+  tasks:
+    - Break tasks into units completable in one coding session (≤ 2 hours)
+    - Every indicator implementation task MUST include a paired task: "Write test_no_lookahead() for [indicator]"
+    - "Tag tasks by layer: [REGIME], [SIGNAL], [FEATURE], [ENSEMBLE], [EXECUTION]"
+    - Include a final task: "Run WFO backtest and document Sharpe/MaxDD delta vs baseline"
+    - "Mark tasks that modify the on-chain data pipeline with [DATA] — these require Glassnode API key"
