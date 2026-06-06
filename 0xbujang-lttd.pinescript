@@ -1,0 +1,1902 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+
+//@version=6
+strategy(
+ "0xBujang - LTTD", 
+ overlay=false, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, initial_capital = 1000000000, calc_on_order_fills = true, calc_on_every_tick = true, margin_long = 0, margin_short = 0, slippage = 1)
+
+string ichimoku_group = "=== Ichimoku ==="
+show_ichimoku = input.bool(true, "Show Ichimoku", group = ichimoku_group)
+
+var string strategy_settings  = "════════ Strategy Settings ════════"
+final_long_threshold = input.float(-0.4,"Final Long Threshold", group=strategy_settings)
+final_short_threshold = input.float(0.4,"Final Short Threshold", group=strategy_settings)
+
+half_long_threshold = input.float(-0.2, "Half Long Threshold", group=strategy_settings)
+half_short_threshold = input.float(0.55, "Half Short Threshold", group=strategy_settings)
+
+use_indicator_group = " Use Indicator ==="
+use_indicator1 = input.bool(true, "1", inline="row1", group=strategy_settings + use_indicator_group)
+use_indicator2 = input.bool(true, "2", inline="row1", group=strategy_settings + use_indicator_group)
+use_indicator3 = input.bool(true, "3", inline="row1", group=strategy_settings + use_indicator_group)
+use_indicator4 = input.bool(true, "4", inline="row1", group=strategy_settings + use_indicator_group)
+use_indicator5 = input.bool(true, "5", inline="row2", group=strategy_settings + use_indicator_group)
+use_indicator6 = input.bool(true, "6", inline="row2", group=strategy_settings + use_indicator_group)
+use_indicator7 = input.bool(true, "7", inline="row2", group=strategy_settings + use_indicator_group)
+use_indicator8 = input.bool(true, "8", inline="row2", group=strategy_settings + use_indicator_group)
+use_indicator9 = input.bool(true, "9", inline="row3", group=strategy_settings + use_indicator_group)
+use_indicator10 = input.bool(true, "10", inline="row3", group=strategy_settings + use_indicator_group)
+use_indicator11 = input.bool(true, "11", inline="row3", group=strategy_settings + use_indicator_group)
+use_indicator12 = input.bool(true, "12", inline="row3", group=strategy_settings + use_indicator_group)
+use_onchain1 = input.bool(true, "F1", inline="row4", group=strategy_settings + use_indicator_group)
+use_onchain2 = input.bool(true, "F2", inline="row4", group=strategy_settings + use_indicator_group)
+use_onchain3 = input.bool(true, "F3", inline="row4", group=strategy_settings + use_indicator_group)
+use_onchain4 = input.bool(true, "F4", inline="row4", group=strategy_settings + use_indicator_group)
+
+
+
+
+
+// ======================================== Start of Indicator 1 ============================
+
+string kalman_group = "Indicator 1 - "
+
+// Kalman Filter parameters
+series float        pricesource          = input.source(ohlc4, "Kalman Price Source", group = kalman_group + "Calculation")
+simple float        processNoise         = input.float(0.75, title="Process Noise", step = 0.01, group = kalman_group + "Calculation")
+simple float        measurementNoise     = input.float(205, title="Measurement Noise", group = kalman_group + "Calculation")
+simple int          N                    = input.int(3, title="Filter Order", minval=1, group = kalman_group + "Calculation")
+simple int          rsiPeriod            = input.int(250, "RSI Calculation Period", group = kalman_group + "Calculation")
+simple bool         smooth               = input.bool(false, "Smooth RSI?", group = kalman_group + "Smoothing")
+string   modeSwitch                        = input.string(
+                                         'Ema', 
+                                         title='Smoothing Type:', 
+                                         options=[
+                                                     'Hma', 
+                                                     'Thma', 
+                                                     'Ehma', 
+                                                     'SMA', 
+                                                     'Ema', 
+                                                     'Wma',
+                                                     'Tema', 
+                                                     'Vwma'
+                                                     ]
+                                         , 
+                                         group = kalman_group + "Smoothing", 
+                                         inline = "3"
+                                         )
+simple int          smoothlen            = input.int(7, "Smoothing Period:", group = kalman_group + "Smoothing")
+simple bool         showkalman           = input.bool(true, "Show Kalman RSI?", group = kalman_group + "UI Settings")
+simple bool         paintCandles         = input.bool(true, "Paint candles according to Trend? (RSI Midline Crossover)", group = kalman_group + "UI Settings")
+
+var float[] stateEstimate = array.new_float(N, na)
+var float[] errorCovariance = array.new_float(N, 100.0)
+
+f_init(series float pricesource) =>
+    if na(array.get(stateEstimate, 0))
+        for i = 0 to N-1
+            array.set(stateEstimate, i, pricesource)
+            array.set(errorCovariance, i, 1.0)
+
+f_kalman(series float pricesource) =>
+    // Prediction Step
+    predictedStateEstimate = array.new_float(N)
+    predictedErrorCovariance = array.new_float(N)
+    for i = 0 to N-1
+        array.set(predictedStateEstimate, i, array.get(stateEstimate, i)) // Simplified prediction
+        array.set(predictedErrorCovariance, i, array.get(errorCovariance, i) + processNoise)
+    
+    kalmanGain = array.new_float(N)
+    for i = 0 to N-1
+        kg = array.get(predictedErrorCovariance, i) / (array.get(predictedErrorCovariance, i) + measurementNoise)
+        array.set(kalmanGain, i, kg)
+        array.set(stateEstimate, i, array.get(predictedStateEstimate, i) + kg * (pricesource - array.get(predictedStateEstimate, i)))
+        array.set(errorCovariance, i, (1 - kg) * array.get(predictedErrorCovariance, i))
+    
+    array.get(stateEstimate, 0)
+
+f_init(pricesource)
+kalmanFilteredPrice = f_kalman(pricesource)
+
+// Conditional Trend
+
+rsi = ta.rsi(kalmanFilteredPrice, rsiPeriod)
+
+import TradingView/ta/7 as ta
+// Exponential Hull Moving Average Function
+EHMA(_src, _length) =>
+    ta.ema(2 * ta.ema(_src, _length / 2) - ta.ema(_src, _length), math.round(math.sqrt(_length)))
+// Triple Hull Moving Average Function    
+THMA(_src, _length) =>
+    ta.wma(ta.wma(_src, _length / 3) * 3 - ta.wma(_src, _length / 2) - ta.wma(_src, _length), _length)
+// Smoothing MA Switch
+Mode(modeSwitch, src, len) =>
+                 modeSwitch == 'Hma' ? ta.hma(src, len) 
+                 : modeSwitch == 'Ehma' ? EHMA(src, len) 
+                 : modeSwitch == 'Thma' ? THMA(src, len / 2) 
+                 : modeSwitch == 'SMA' ? ta.sma(src, len) 
+                 : modeSwitch == 'Ema' ? ta.ema(src, len) 
+                 : modeSwitch == 'Wma' ? ta.wma(src, len)
+                 : modeSwitch == 'Tema' ? ta.tema(src, len)
+                 : modeSwitch == 'Vwma' ? ta.vwma(src, len) 
+                 : na
+
+// Fisher Smoothing 
+if smooth == true
+    rsi:=Mode(modeSwitch, rsi, smoothlen)
+
+
+// Normalize the oscillator
+lowest = ta.lowest(rsi, 100)
+highest = ta.highest(rsi, 100)
+rsi := (rsi - lowest) / (highest - lowest) - 0.5
+
+
+posroc = rsi > rsi[1]
+negroc = rsi < rsi[1]
+var color col = #4caf50
+if rsi > 0 and posroc
+    col := #00ff08
+if rsi > 0 and negroc
+    col := #00bbd4
+if rsi < 0 and negroc
+    col := #ff0000
+if rsi < 0 and posroc
+    col := #771515
+
+var indicator1_score = 0
+indicator1_color = color.gray
+
+if barstate.isconfirmed
+    indicator1_score := rsi >= 0 ? 1 : -1
+    indicator1_color := indicator1_score == 1 ? color.green : color.red
+
+
+// ======================================== End of Indicator 1 ============================
+
+
+// ======================================== Start of Indicator 2 ============================
+
+zenith_group = "Indicator 2 - "
+
+EMA_src = ta.ema(ohlc4,14)
+
+i2_length = input(80, title='Linear Regression Length', group = zenith_group)
+stdv_length = input(75, title='Standard Deviation Length', group = zenith_group)
+vwap_length = input(129, title='VWAP Length', group = zenith_group)
+smaLength = input(400, title='SMA Length') , group = zenith_group 
+// src = input(ohlc4, title='Source')
+i2_src = EMA_src
+
+// Calculate Linear Regression
+linregValue = ta.linreg(i2_src, i2_length, 0)
+
+// Calculate Deviation from Linear Regression
+deviation = i2_src - linregValue
+
+// Calculate Standard Deviation of Deviations
+stdevValue = ta.stdev(deviation, stdv_length)
+
+// Calculate VWAP
+vwapValue = ta.vwma(i2_src, vwap_length)
+
+// Calculate VWAP Divergence
+vwapDivergence = i2_src - vwapValue
+
+// Calculate Dynamic Multiplier
+dynamicMultiplier = ta.stdev(close, stdv_length)
+
+// Combine VWAP Divergence with Standard Deviation using Dynamic Multiplier
+combinedValue = stdevValue * (1 + vwapDivergence / dynamicMultiplier)
+
+// Calculate the Centered Oscillator by subtracting SMA
+centeredOscillator = combinedValue - ta.sma(combinedValue, smaLength)
+
+colorG = centeredOscillator > 0 ? centeredOscillator > centeredOscillator[1] ? color.new(color.aqua, 50) : color.new(color.teal, 50) : centeredOscillator < centeredOscillator[1] ? color.new(color.fuchsia, 50) : color.new(color.purple, 50)
+
+
+var indicator2_score = 0
+indicator2_color = color.gray
+
+if barstate.isconfirmed
+    indicator2_score := centeredOscillator >= 0 ? 1 : -1
+    indicator2_color := indicator2_score == 1 ? color.green : color.red
+
+
+
+// ======================================== End of Indicator 2 ============================
+
+
+// ======================================== Start of Indicator 3 ==========================
+supertrend_group = "Indicator 3 - "
+
+// Input Groups
+gr1 = supertrend_group + "Range Settings"
+ma1 = supertrend_group + "Moving Average Settings"
+
+// Range Settings
+i3_p          = input.int  (18, title="Length", minval=1 , group=gr1)
+i3_t          = input.int  (47, title="Lookback Alpha", group=gr1, minval=1)
+i3_d          = input.int  (82, title="Lookback Beta", group=gr1, minval=1)
+i3_s          = input.float(0.98, step=0.01, title="Multiplier Alpha", group=gr1, minval=0.01)
+i3_x          = input.float(0.98, step=0.01, title="Multiplier Beta", group=gr1, minval=0.01)
+i3_sou        = input.source(ohlc4,title = 'Source', group=gr1)
+
+// Calculations for Range
+
+
+hgh        = ta.highest(i3_sou, i3_p)
+ss         = hgh * i3_s
+dd         = hgh * i3_x
+avgsd        = math.avg(ss[i3_t], dd[i3_d])
+useavg     = input.bool(false, title="Use Average Range", group=gr1)
+
+// Moving Average Settings
+i3_ma_type    = input.string("EMA", title="Type", options=["SMA", "EMA", "SMMA", "WMA", "VWMA", "TEMA", "DEMA", "LSMA", "HMA", "ALMA"], group=ma1)
+i3_len        = input.int(60, title="Length", minval=1, group=ma1)
+i3_src        = input(close, title="Source", group=ma1)
+
+// Moving Average Calculation Function
+function_ma(src, len, type) =>
+    switch type
+        "TEMA" =>
+            ema1 = ta.ema(src, len)
+            ema2 = ta.ema(ema1, len)
+            ema3 = ta.ema(ema2, len)
+            3 * (ema1 - ema2) + ema3
+        "DEMA" =>
+            ema1 = ta.ema(src, len)
+            ema2 = ta.ema(ema1, len)
+            2 * ema1 - ema2
+        "SMA" => ta.sma(src, len)
+        "EMA" => ta.ema(src, len)
+        "SMMA" => ta.rma(src, len)
+        "WMA" => ta.wma(src, len)
+        "LSMA" => ta.linreg(src, len, 0)
+        "HMA" => ta.wma(2 * ta.wma(src, len / 2) - ta.wma(src, len), math.floor(math.sqrt(len)))
+        "ALMA" => ta.alma(src, len, 0.85, 6)
+        "VWMA" => ta.vwma(src, len)
+// Apply Moving Average
+ma           = function_ma(i3_src, i3_len, i3_ma_type)
+
+var color cc = na 
+var int g    = 0
+var int g2   = 0
+var int h    = 0
+
+if ma < close 
+    h  := 1 
+if ma > close 
+    h  := -1 
+if close > avgsd 
+    g  := 1
+if close < avgsd 
+    g  := -1
+if close > ss[i3_t] 
+    g2 := 1
+if close < dd[i3_d]
+    g2 := -1
+
+i3_score           = useavg?math.avg(g,h) : math.avg(g2,h)
+i3_long_condition  = ta.crossover(i3_score,0)
+i3_short_condition = ta.crossunder(i3_score,0)
+
+cup= input.color(#00a444,title = "Bullish Color")
+cdn= input.color(#df0000f3,title = "Bearish Color")
+
+
+var int indicator3_score = 0
+
+if barstate.isconfirmed
+    //Color Conditions 
+    if i3_long_condition
+        cc := cup
+        indicator3_score := 1
+    if i3_short_condition
+        cc:= cdn
+        indicator3_score := -1
+    
+
+// ======================================== End of Indicator 3 ============================
+
+
+// ======================================== Start of Indicator 4 ============================
+FDI_Group = "Indicator 4 - "
+
+// ─── Boolean Inputs to Select Oscillators ───────────────────────────────
+useRSI = input.bool(true, title="Use RSI", group=FDI_Group + "RSI")
+useCCI = input.bool(true, title="Use CCI", group=FDI_Group + "CCI")
+useCMO = input.bool(false, title="Use CMO", group=FDI_Group + "CMO")
+useMFI = input.bool(false, title="Use MFI", group=FDI_Group + "MFI")
+
+
+// ─── Relative Strength Index (RSI) ────────────────────────────────
+RSI_length  = input.int(55, minval=1, title="RSI Length", group=FDI_Group + "RSI")
+RSI_src     = input.source(ohlc4, "RSI Source", group=FDI_Group + "RSI")
+RSI_FDI_chop_LongThreshold  = input.float(55, title="RSI FDI Chop Long Threshold", group=FDI_Group + "RSI",minval=50,tooltip = "Setting to 50 disables filtering on the upside")
+RSI_FDI_chop_ShortThreshold = input.float(45, title="RSI FDI Chop Short Threshold", group=FDI_Group + "RSI",maxval=50,tooltip = "Setting to 50 disables filtering on the downside")
+
+
+// ─── Commodity Channel Index (CCI) ────────────────────────────────
+CCI_length  = input.int(55, minval=1, title="CCI Length", group=FDI_Group + "CCI")
+CCI_src     = input.source(ohlc4, "CCI Source", group=FDI_Group + "CCI")
+CCI_FDI_chop_LongThreshold  = input.float(100, title="CCI FDI Chop Long Threshold", group=FDI_Group + "CCI",minval=0,tooltip = "Setting to 0 disables filtering on the upside")
+CCI_FDI_chop_ShortThreshold = input.float(-100, title="CCI FDI Chop Short Threshold", group=FDI_Group + "CCI",maxval=0,tooltip = "Setting to 0 disables filtering on the downside")
+
+
+// ─── Chande Momentum OScillator (CMO) ────────────────────────────────
+CMO_length  = input.int(30, minval=1, title="CMO Length", group=FDI_Group + "CMO")
+CMO_src     = input.source(close, "CMO Source", group=FDI_Group + "CMO")
+CMO_FDI_chop_LongThreshold  = input.float(30, title="CMO FDI Chop Long Threshold", group=FDI_Group + "CMO",minval=0,tooltip = "Setting to 0 disables filtering on the upside")
+CMO_FDI_chop_ShortThreshold = input.float(-30, title="CMO FDI Chop Short Threshold", group=FDI_Group + "CMO",maxval=0,tooltip = "Setting to 0 disables filtering on the downside")
+
+// ─── Money Flow Index (MFI) ────────────────────────────────
+MFI_length  = input.int(30, minval=1, title="MFI Length", group=FDI_Group + "MFI")
+MFI_src     = input.source(hlc3, "MFI Source", group=FDI_Group + "MFI")
+MFI_FDI_chop_LongThreshold  = input.float(55, title="MFI FDI Chop Long Threshold", group=FDI_Group + "MFI",minval=50,tooltip = "Setting to 50 disables filtering on the upside")
+MFI_FDI_chop_ShortThreshold = input.float(45, title="MFI FDI Chop Short Threshold", group=FDI_Group + "MFI",maxval=50,tooltip = "Setting to 50 disables filtering on the downside")
+
+
+// ─── FDI Filter ────────────────────────────────────────────────
+i4_N = input.int(70, title="FDI Length",group = FDI_Group + "FDI Filter")
+FDI_threshold = input.float(1.9,"FDI Chopping Threshold",step=0.01,group = FDI_Group + "FDI Filter",tooltip = "The usual implemetation measures ranging above 1.50 and trending below (with <= 1.3 - 1.35 being unsustainable trending), but you may change this depending on your lookback length.")
+i4_S = input.source(ohlc4,"FDI Source",group = FDI_Group + "FDI Filter")
+
+plotcandles = input.bool(true,"Color Candles",group = FDI_Group + "General Styling")
+longColor = input(#00ffe5,"Long Condition Color",group = FDI_Group + "General Styling")
+shortColor = input(#ff0055,"Short Condition Color",group = FDI_Group + "General Styling")
+
+// Calculate the current FDI
+i4_hh = ta.highest(i4_S, i4_N)
+i4_ll = ta.lowest(i4_S, i4_N)
+
+// Precompute the diff array for each i in [1..N]
+var float[] diffs = array.new_float(i4_N)
+for i = 0 to i4_N - 1
+    val = (i4_S[i] - i4_ll) / (i4_hh - i4_ll)
+    array.set(diffs, i, val)
+
+// Calculate length as sum of sqrt of squared differences + (1/N)^2
+float length = 0.0
+for i = 0 to i4_N - 2
+    diff_i = array.get(diffs, i)
+    diff_ip1 = array.get(diffs, i + 1)
+    length += math.sqrt(math.pow(diff_i - diff_ip1, 2) + math.pow(1.0 / i4_N, 2))
+
+FDI = 1 + (math.log(length) + math.log(2)) / math.log(2 * i4_N)
+
+// Define regime: chopping when FDI > threshold, otherwise trending
+FDI_Chopping = FDI >= FDI_threshold
+
+
+i4_rsi = ta.rsi(RSI_src,RSI_length)
+i4_cci = ta.cci(CCI_src,CCI_length)
+i4_cmo = ta.cmo(CMO_src,CMO_length)
+i4_mfi = ta.mfi(MFI_src,MFI_length)
+
+// ─── Signal Generation ────────────────────────────────────────────────
+var int RSI_signal = 0
+var int CCI_signal = 0
+var int CMO_signal = 0
+var int MFI_signal = 0
+
+if barstate.isconfirmed
+    if FDI_Chopping
+        // In FDI chop regime simple midline crossing.
+        RSI_signal := i4_rsi > 50 ? 1 : i4_rsi < 50 ? -1 : RSI_signal[1]
+        CCI_signal := i4_cci > 0 ? 1 : i4_cci < 0 ? -1 : CCI_signal[1]
+        CMO_signal := i4_cmo > 0 ? 1 : i4_cmo < 0 ? -1 : CMO_signal[1]
+        MFI_signal := i4_mfi > 50 ? 1 : i4_mfi < 50 ? -1 : MFI_signal[1]
+    else
+        // In FDI chop regime, require the pierce of adjustable thresholds.
+        RSI_signal := i4_rsi > RSI_FDI_chop_LongThreshold ? 1 : i4_rsi < RSI_FDI_chop_ShortThreshold ? -1 : RSI_signal[1]
+        CCI_signal := i4_cci > CCI_FDI_chop_LongThreshold ? 1 : i4_cci < CCI_FDI_chop_ShortThreshold ? -1 : CCI_signal[1]
+        CMO_signal := i4_cmo > CMO_FDI_chop_LongThreshold ? 1 : i4_cmo < CMO_FDI_chop_ShortThreshold ? -1 : CMO_signal[1]
+        MFI_signal := i4_mfi > MFI_FDI_chop_LongThreshold ? 1 : i4_mfi < MFI_FDI_chop_ShortThreshold ? -1 : MFI_signal[1]
+
+// ─── Combine Enabled Oscillator Signals ─────────────────────────────────
+// Count how many oscillators are enabled
+oscCount = (useRSI ? 1: 0) + (useCCI ? 1 : 0) + (useCMO ? 1 : 0) + (useMFI ? 1 : 0) 
+
+// Persistent combined trend signal:  1 = long, -1 = short, 0 = no change/undefined
+var int trendSignal = 0
+
+
+sumSig = 0
+if barstate.isconfirmed
+    // 1) Compute the sum of all enabled oscillator signals
+    sumSig += useCCI ? CCI_signal : 0
+    sumSig += useCMO ? CMO_signal : 0
+    sumSig += useMFI ? MFI_signal : 0
+    sumSig += useRSI ? RSI_signal : 0
+
+
+    // 2) If the count of enabled oscillators is ODD → sumSig cannot be zero,
+    //    so trendSignal is simply the sign of sumSig (±1).
+    if (oscCount % 2) == 1
+        trendSignal := sumSig > 0 ? 1 : sumSig < 0 ? -1 : sumSig[1]
+    else
+        // 3) If the count is EVEN → we need to check for a “tie” (sumSig == 0).
+        //    • If sumSig == 0, that means exactly half are +1 and half are –1.
+        //      In that case, CONTINUE the previous trend: trendSignal[1].
+        //    • Otherwise, take the sign of sumSig as usual.
+        trendSignal := sumSig == 0 ? trendSignal[1] : (sumSig > 0 ? 1 : sumSig < 0 ? -1 : sumSig[1])
+
+
+// ─── Visual Styling ─────────────────────────────────────────────────────
+consensusStrength = oscCount > 0 ? sumSig / oscCount : 0
+currentColor = trendSignal == 1 ? longColor : trendSignal == -1 ? shortColor : color.gray
+
+indicator4_score = trendSignal
+
+
+
+// ======================================== End of Indicator 4 ============================
+
+
+// ======================================== Start of Indicator 5 ============================
+
+//              ╔════════════════════════════════╗              //
+//              ║      USER-DEFINED SETTINGS     ║              //
+//              ╚════════════════════════════════╝              //
+
+// Input Groups
+var i5_group = "Indicator 5 - "
+var string core_settings     = i5_group + "════════ Core Settings ════════"
+var string fourier_settings  = i5_group + "════════ Fourier Settings ════════"
+var string supertrend_settings = i5_group + "════════ Supertrend Settings ════════"
+var string visual_settings   = i5_group + "════════ Visual Settings ════════"
+
+// Tooltips
+tooltip_source     = "Select the price data to analyze (Close, Open, High, Low, etc.)"
+tooltip_period     = "Base period for Fourier transform calculations. Affects trend detection sensitivity."
+tooltip_smooth     = "Smoothing period for the Fourier output. Higher values create smoother signals."
+tooltip_weight     = "Weight for harmonic components. Higher values increase sensitivity to shorter trends."
+tooltip_vol_len    = "Period for volatility calculations. Affects band width adaptability."
+tooltip_vol_mult   = "Multiplier for volatility bands. Higher values create wider bands."
+tooltip_vol_smooth = "Smoothing period for volatility. Higher values create more stable bands."
+tooltip_bars       = "Enable/disable coloring of price bars based on the trend."
+tooltip_signals    = "Show/hide trend change signals on the chart."
+tooltip_bull_color = "Color for bullish signals and uptrends."
+tooltip_bear_color = "Color for bearish signals and downtrends."
+
+// Core Settings
+i5_price_source = input.source(ohlc4, "Price Source", 
+     group=core_settings, 
+     tooltip=tooltip_source)
+     
+// Fourier Settings
+fft_period = input.int(84, "Base Period", 
+     minval=4, 
+     group=fourier_settings, 
+     tooltip=tooltip_period)
+fft_smooth = input.int(14, "Smoothing", 
+     minval=1, 
+     group=fourier_settings, 
+     tooltip=tooltip_smooth)
+harmonic_weight = input.float(0.2, "Harmonic Weight", 
+     minval=0, maxval=1, step=0.1, 
+     group=fourier_settings, 
+     tooltip=tooltip_weight)
+
+// Volatility Settings
+i5_vol_length = input.int(76, "Volatility Length", 
+     minval=1, 
+     group=supertrend_settings, 
+     tooltip=tooltip_vol_len)
+i5_vol_mult = input.float(2.0, "Volatility Multiplier", 
+     minval=0.1, step=0.1, 
+     group=supertrend_settings, 
+     tooltip=tooltip_vol_mult)
+i5_vol_smooth = input.int(28, "Volatility Smoothing", 
+     minval=1, 
+     group=supertrend_settings, 
+     tooltip=tooltip_vol_smooth)
+
+// Visual Settings
+i5_bull_color = input.color(#00ffaa, "Bullish Color", 
+     group=visual_settings, 
+     tooltip=tooltip_bull_color)
+i5_bear_color = input.color(#ff0000, "Bearish Color", 
+     group=visual_settings, 
+     tooltip=tooltip_bear_color)
+i5_enable_bars = input.bool(true, "Color Price Bars", 
+     group=visual_settings, 
+     tooltip=tooltip_bars)
+i5_show_signals = input.bool(true, "Show Signals", 
+     group=visual_settings, 
+     tooltip=tooltip_signals)
+
+//              ╔════════════════════════════════╗              //
+//              ║          CALCULATIONS          ║              //
+//              ╚════════════════════════════════╝              //
+
+// FFT Trend Function
+get_fft_trend(src, len) =>
+    wave1 = ta.ema(src, len)
+    wave2 = ta.ema(src, math.floor(len/2))
+    wave3 = ta.ema(src, math.floor(len/3))
+    trend = wave1 + harmonic_weight * (wave2 - wave1) + harmonic_weight * harmonic_weight * (wave3 - wave2)
+    trend
+
+// Volatility Function
+get_adaptive_volatility() =>
+    atr = ta.atr(i5_vol_length)
+    std = ta.stdev(close, i5_vol_length)
+    vol = math.avg(atr, std)
+    vol
+
+// Main calculations
+fft_trend = get_fft_trend(i5_price_source, fft_period)
+fft_trend := ta.ema(fft_trend, fft_smooth)
+
+i5_volatility = get_adaptive_volatility()
+i5_volatility := ta.ema(i5_volatility, i5_vol_smooth)
+
+i5_upper_band = fft_trend + i5_volatility * i5_vol_mult
+i5_lower_band = fft_trend - i5_volatility * i5_vol_mult
+
+//              ╔════════════════════════════════╗              //
+//              ║        SIGNAL GENERATION       ║              //
+//              ╚════════════════════════════════╝              //
+
+// Trend determination
+var int i5_trend = 0
+var float i5_trend_band = na
+
+if close > i5_trend_band and close > fft_trend
+    i5_trend := 1
+    i5_trend_band := i5_lower_band
+else if close < i5_trend_band and close < fft_trend
+    i5_trend := -1
+    i5_trend_band := i5_upper_band
+else
+    i5_trend_band := i5_trend == 1 ? i5_lower_band : i5_trend == -1 ? i5_upper_band : fft_trend
+
+// Track trend changes
+var i5_prev_trend = 0
+i5_trend_changed = i5_trend != i5_prev_trend
+i5_prev_trend := i5_trend
+
+indicator5_score = i5_trend
+
+
+//              ╔════════════════════════════════╗              //
+//              ║         VISUALIZATION          ║              //
+//              ╚════════════════════════════════╝              //
+
+// Transparency values
+i5_transparency_bullish = 70
+i5_transparency_bearish = 95
+
+
+// Bar coloring
+var color i5_bar_color = #ffffff
+if i5_trend == 1
+    i5_bar_color := i5_bull_color
+else if i5_trend == -1
+    i5_bar_color := i5_bear_color
+
+
+
+
+
+
+
+//              ╔════════════════════════════════╗              //
+//              ║             ALERTS             ║              //
+//              ╚════════════════════════════════╝              //
+
+
+// ======================================== End of Indicator 5 ============================
+
+
+// ======================================== Start of Indicator 6 ============================
+i6_group = "Indicator 6 - "
+
+// Inputs {
+i6_trend_data_count             = input.int(100, step=4, minval=10, title="Trend Length", inline = "RT", group=i6_group+ "Relative Trend Index [RTI]", tooltip="This variable determines the number of data points used in the calculation. \n\nIn short: A high value returns the long-term trend and a low value returns the short-term trend. \n\nIf a user increases the 'Trend Length', the trend will take into account a larger number of data points. This makes the trends smoother and more resistant to sudden changes in the market, as they're based on a broader set of data. It  also makes the trends slower to react to recent changes, as they're diluted by older data. \n\nOn the other hand, if a user decreases the 'Trend Length', the trend will take into account fewer data points. This could make the trends more responsive to recent market changes, as they're based on a narrower set of data. It also makes the trends more susceptible to noise and rapid fluctuations, as each new piece of data has a greater impact.")
+i6_trend_sensitivity_percentage = input.int(98, step=1,minval=50, maxval=98,title='Sensitivity    ', inline = "RT1", group=i6_group+ "Relative Trend Index [RTI]", tooltip="This variable determines the specific indices in the sorted trend arrays that are used for the upper and lower trend. It's used as a percentage of the 'Trend length'. \n\nIf a user increases the 'Sensitivity', the trend will be based on higher and lower positions in the sorted arrays, respectively. This makes the trend less sensitive.  \n\nConversely, if a user decreases the 'Sensitivity', the trend will be based on positions closer to the middle of the sorted arrays. This makes the trend more sensitive.")
+i6_signal_length                = input.int(13, step=1,minval=1, maxval=200,title='Signal Length', inline = "", group=i6_group+ "Signal Line", tooltip="Set the Ma period.")
+i6_ob  = input.float(70, step=1, minval=0, maxval=100, title="", inline = "obos", group=i6_group+ "Overbought/Oversold", tooltip="")
+i6_os  = input.float(50,step=1, minval=0, maxval=100,title="", inline = "obos", group=i6_group+ "Overbought/Oversold", tooltip="Set the OB/OS levels.")
+//~~~~~~~~~~~~~~~~~~~~~~~}
+
+// Relative Trend Index Calculation {
+i6_upper_trend = close + ta.stdev(close, 2)
+i6_lower_trend = close - ta.stdev(close, 2)
+
+i6_upper_array = array.new<float>(0)
+i6_lower_array = array.new<float>(0)
+for i = 0 to i6_trend_data_count - 1 
+    i6_upper_array.push(i6_upper_trend[i])
+    i6_lower_array.push(i6_lower_trend[i])
+i6_upper_array.sort()
+i6_lower_array.sort()
+
+i6_upper_index  = math.round(i6_trend_sensitivity_percentage / 100 * i6_trend_data_count) - 1
+i6_lower_index  = math.round((100 - i6_trend_sensitivity_percentage) / 100 * i6_trend_data_count) - 1
+i6_UpperTrend   = i6_upper_array.get(i6_upper_index)
+i6_LowerTrend   = i6_lower_array.get(i6_lower_index)
+i6_RelativeTrendIndex = ((close - i6_LowerTrend) / (i6_UpperTrend - i6_LowerTrend))*100
+//~~~~~~~~~~~~~~~~~~~~~~~}
+
+// Plots {
+i6_MA_RelativeTrendIndex = ta.ema(i6_RelativeTrendIndex,i6_signal_length)
+
+//~~~~~~~~~~~~~~~~~~~~~~~}
+
+
+// Signal
+var indicator6_score = 0
+var i6_trend_color = color.gray
+
+i6_long_condition = ta.crossover(i6_MA_RelativeTrendIndex, i6_ob)
+i6_short_condition = ta.crossunder(i6_MA_RelativeTrendIndex, i6_os)
+
+if i6_long_condition 
+    indicator6_score := 1
+    i6_trend_color := color.green
+
+if i6_short_condition 
+    indicator6_score := -1
+    i6_trend_color := color.red
+
+
+
+
+
+// ======================================== End of Indicator 6 ============================
+
+// ======================================== Start of Indicator 7 ============================
+import InvestorUnknown/BacktestLibrary/2 as backtestlib
+
+
+indicator7_group = "Indicator 7 - "
+// - - - - - FUNCTIONS - - - - - //{
+type bar
+    float o             = open
+    float h             = high
+    float l             = low
+    float c             = close
+
+method calc_src(bar b, simple string src) =>
+    float x = switch src
+        "open"          => b.o
+        "high"          => b.h
+        "low"           => b.l
+        "close"         => b.c
+        "oc2"           => math.avg(b.o, b.c          )
+        "hl2"           => math.avg(b.h, b.l          )
+        "occ3"          => math.avg(b.o, b.c, b.c     )
+        "hlc3"          => math.avg(b.h, b.l, b.c     )
+        "ohlc4"         => math.avg(b.o, b.h, b.l, b.c)
+        "hlcc4"         => math.avg(b.h, b.l, b.c, b.c)
+    x
+
+// Function to calculate the Median Absolute Deviation (MAD)
+mad(series float src, simple int length) =>
+    med = ta.median(src, length)  // Calculate median
+    abs_deviations = math.abs(src - med)  // Calculate absolute deviations from median
+    ta.median(abs_deviations, length)  // Return the median of the absolute deviations
+
+MADTrend(series float src, simple int length, simple float mad_mult) =>
+    // Calculate MAD (volatility measure)
+    mad_value = mad(close, length)
+
+    // Calculate the MAD-based moving average by scaling the price data with MAD
+    median = ta.median(close, length)  
+    med_p = median + (mad_value * mad_mult)
+    med_m = median - (mad_value * mad_mult)
+
+    var direction = 0
+    if ta.crossover(src, med_p)
+        direction := 1
+    else if ta.crossunder(src, med_m)
+        direction := -1
+
+    [direction, median, med_p, med_m]
+//}
+
+
+// - - - - - STRINGS - - - - - //{
+var string i7_G1                       = indicator7_group + "General Settings"
+var string i7_G2                       = indicator7_group + "Indicator Settings"
+var string i7_G3                       = indicator7_group + "Backtest Mode"
+
+var string intrabar_tooltip         = "Updates the Long/Short signal within the bar, but may cause intra-bar signal repainting. This setting also affects alerts."
+
+var string use_endDate_tooltip      = "If turned-off, the backtest will run until the current day."
+var string bah_tooltip              = "Plots Buy and Hold Equity for the Backtest Period"
+//}
+
+
+// - - - - - INPUTS - - - - - //{
+
+// General
+simple string i7_disp_mode             = input.string("Overlay", "Display Mode", options = ["Overlay", "Backtest Mode"], group = i7_G1, display = display.none)
+simple bool   i7_intrabar              = input.bool(false, "Allow Intra-bar Updating", tooltip = intrabar_tooltip, group = i7_G1)
+simple bool   i7_color_bars            = input.bool(false, "Color Bars?", group = i7_G1)
+
+// Indicator
+simple string i7_input_src             = input.string("ohlc4", "Source", options = ["open", "high", "low", "close", "oc2", "hl2", "occ3", "hlc3", "ohlc4", "hlcc4"], group = i7_G2)
+simple int    i7_length                = input.int(110, "Median Length", minval = 1, group = i7_G2)
+simple float  i7_mad_mult              = input.float(1.0, "Median Absolute Distance Multiplier", step = 0.05, minval = 0.05, group = i7_G2)
+
+// Plot Settings
+
+
+// Backtesting Mode
+simple string i7_signals               = input.string("Long & Short", "Allowed Signals", options = ["Long & Short", "Long Only", "Short Only"], group = i7_G3, display = display.none)
+simple float  i7_startDate             = input.time(timestamp("2023-1-1"), "Backtest Start Date", group = i7_G3)
+simple bool   i7_plot_bah              = input.bool(true, "Plot Buy & Hold equity?", tooltip = bah_tooltip, group = i7_G3)
+simple bool   i7_plot_metric_t         = input.bool(true, "Plot Performance Metrics Table", group = i7_G3)
+
+simple int    i7_initial_capital       = input.int(1000, "Initial Capital For Trade Metrics", group = i7_G3, display = display.none)
+simple float  i7_trade_size            = input.float(0.01, "Trade Size % (decimal)", minval = 0.001, maxval = 1.0, group = i7_G3, display = display.none)
+//}
+
+
+// - - - - - CALCULATIONS - - - - - //{
+
+i7_b                                   = bar.new()
+float i7_src                           = i7_b.calc_src(i7_input_src)
+
+[dir, median, med_p, med_m]         = MADTrend(i7_src, i7_length, i7_mad_mult)
+//}
+
+// - - - - - DEFINE COLORS - - - - - //{
+color bcol                          =color.rgb(54, 208, 19)
+color scol                          =color.rgb(227, 34, 34)
+//}
+
+
+// - - - - - PLOTS - - - - - //{
+bool  i7_is_backtest                   = i7_disp_mode == "Backtest Mode"
+float i7_candle_h_l                    = i7_src > med_p ? high : i7_src < med_m ? low : math.avg(open, close)
+int   i7_i                             = i7_intrabar ? 0 : 1 // simple index instead of writing it manually every time
+
+
+// Backtest Mode
+float i7_r                             = 0.0
+float i7_eq                            = 1.0
+float i7_bah                           = 1.0
+
+series int i7_since                    = backtestlib.since(i7_startDate, i7_is_backtest)
+
+if i7_is_backtest
+    i7_r                               := (close[0] - close[1]) / close[1]
+    i7_eq                              := backtestlib.equity(dir, 0, i7_r, i7_startDate, i7_signals)
+    i7_bah                             := backtestlib.buy_and_hold(i7_r, i7_startDate)
+
+if i7_is_backtest and barstate.islast
+    label.new(bar_index + 5, i7_eq, "Strategy", color = dir[1] > 0 ? bcol : scol, textcolor = color.white, style = label.style_label_left)
+    label.new(bar_index + 5, i7_bah, "Buy and Hold", color = color.rgb(24, 42, 237), textcolor = color.white, style = label.style_label_left)
+
+// Performance Metrics Table
+float[] i7_eq_array                    = na
+float[] i7_bah_array                   = na
+
+if i7_is_backtest
+    i7_eq_array                        := backtestlib.PerformanceMetrics(i7_eq,  i7_since, i7_startDate)
+    i7_bah_array                       := backtestlib.PerformanceMetrics(i7_bah, i7_since, i7_startDate)
+
+var table t                         = table.new(position.bottom_left, 20, 20, frame_color = color.gray, frame_width = 1)
+
+bool i7_long_entry                     = ta.crossover(dir, 0)
+bool i7_entry_short                    = ta.crossunder(dir, 0)
+
+[signal, closed_trades_count, closed_long, closed_short, win_trades, win_long, win_short, gross_profit, gross_losses, gross_L_profit, gross_L_losses, gross_S_profit, gross_S_losses] = backtestlib.TradeMetrics(
+ i7_startDate, i7_initial_capital, i7_trade_size, i7_long_entry, i7_entry_short, false, false)
+
+if barstate.islast and i7_is_backtest
+    backtestlib.PerfMetricTable(i7_bah_array, i7_eq_array)
+    backtestlib.TradeMetricsTable(i7_initial_capital, closed_trades_count, closed_long, closed_short, win_trades, win_long, win_short, gross_profit, gross_losses, gross_L_profit, gross_L_losses, gross_S_profit, gross_S_losses)
+//}
+
+
+
+var indicator7_score = 0
+var i7_trend_color = color.gray
+
+i7_long_condition = ta.crossover(dir[i7_i], 0)
+i7_short_condition = ta.crossunder(dir[i7_i], 0)
+
+if barstate.isconfirmed
+    if i7_long_condition 
+        indicator7_score :=  1
+        i7_trend_color := color.green
+
+    if i7_short_condition
+        indicator7_score :=  -1
+        i7_trend_color := color.red
+
+
+// ======================================== End of Indicator 7 ============================
+
+
+// ======================================== Start of Indicator 8 ============================
+indicator8_group = "Indicator 8 - "
+
+// Design Setup
+i8_ColMode = input.string("Strategy", title = "Color Mode", group = "Visual | QuantEdgeB", options = ["Strategy", "Solar","Warm","Cool","Classic","Magic"])
+i8_LABEL   = input.bool(false,"Long/Cash Signal Lable" , group = "Visual | QuantEdgeB")
+
+
+[i8_color_up, i8_color_dn, i8_color_nu] = switch i8_ColMode
+    "Strategy"=> [color.rgb(23, 191, 238), color.rgb(103, 2, 2),color.gray]
+    "Solar"   => [color.rgb(43, 56, 247), #ee6728,color.gray]
+    "Warm"    => [#ffbb00, #770737,color.gray]
+    "Cool"    => [#0aede9, color.rgb(12, 16, 218),color.gray]
+    "Classic" => [#04f7e7, color.maroon,color.gray]
+    "Magic"   => [color.rgb(114, 44, 246), color.rgb(214, 245, 42),color.gray]
+
+
+// Color Palette
+color i8_col_up1     = i8_color_up
+color i8_col_up2     = color.new(i8_color_up, 30)
+color i8_col_up3     = color.new(i8_color_up, 100)
+color i8_col_dn1     = i8_color_dn
+color i8_col_dn2     = color.new(i8_color_dn, 30)
+color i8_col_nu2     = color.new(i8_color_dn, 70)
+
+//###############################################################################################################################################################################################################################################//
+// DEMA Function
+F_DEMA(SRC, LEN) =>
+    E1 = ta.ema(SRC, LEN)
+    E2 = ta.ema(E1, LEN)
+
+    DEMA = 2 * E1 - E2
+
+    DEMA
+
+// SuperTrend Function
+F_SupTrend(DEMA,len,len_atr,mult_up,mult_dn,SD_Filter) =>
+    lowerATR = ta.percentile_nearest_rank(DEMA,len,25) - ta.atr(len_atr) * mult_up
+    upperATR = ta.percentile_nearest_rank(DEMA,len,75) + ta.atr(len_atr) * mult_dn
+
+    previous_LATR = nz(lowerATR[1])
+    previous_UATR = nz(upperATR[1])
+
+    lowerATR := lowerATR > previous_LATR or close[1] < previous_LATR ? lowerATR : previous_LATR
+    upperATR := upperATR < previous_UATR or close[1] > previous_UATR ? upperATR : previous_UATR
+    int ST_Direction = na
+    float Super_Trend = na
+   
+    if na(SD_Filter[1])
+        ST_Direction := 1
+        ST_Direction
+    else if Super_Trend[1] == previous_UATR
+        ST_Direction := close > upperATR ? -1 : 1
+        ST_Direction
+    else
+        ST_Direction := close < lowerATR ? 1 : -1
+        ST_Direction
+
+    Super_Trend := ST_Direction == -1 ? lowerATR : upperATR
+
+    [Super_Trend, ST_Direction]
+
+//###############################################################################################################################################################################################################################################//
+// DEMA
+i8_len_dema      = input.int(251,"Dema Length", group = "DEMA")
+i8_len_perc      = input.int(15, "Percentile Filter", group = "DEMA")
+i8_filtered_src  = ta.percentile_nearest_rank(close,i8_len_perc , 50)
+
+
+DEMA_Base = F_DEMA(i8_filtered_src, i8_len_dema)
+
+//###############################################################################################################################################################################################################################################//
+// ATR 
+i8_len_atr = input.int(200, "ATR Length", group = "Volatility")
+i8_mult_up = input.float(0.5,"Long Multiplier",step = 0.1, group = "Volatility")
+i8_mult_dn = input.float(1.2,"Short Multiplier",step = 0.1, group = "Volatility")
+
+//###############################################################################################################################################################################################################################################//
+//Final Supertrend 
+i8_len_demaST = input.int(20,"DEMA Supertrend Length",group = "SuperTrend")
+i8_len_p      = input.int(20,"Percenteil Filter length",group = "SuperTrend")
+i8_len_SD     = input.int(30, "SD Length", group = "Standard Deviation")
+
+DEMA       = F_DEMA(DEMA_Base,i8_len_demaST)
+SD_Filter  = ta.stdev(i8_filtered_src, i8_len_SD)
+
+[Super_Trend, ST_Direction] = F_SupTrend(DEMA, i8_len_p,i8_len_atr, i8_mult_up, i8_mult_dn,SD_Filter)
+
+//###############################################################################################################################################################################################################################################//
+//Final Signal 
+i8_Long_C  = ta.crossunder(ST_Direction, 0)
+i8_Short_C = ta.crossover(ST_Direction, 0)
+
+var i8_QB = 0
+
+if i8_Long_C and not i8_Short_C
+    i8_QB := 1
+    i8_QB
+
+if i8_Short_C
+    i8_QB := -1
+    i8_QB
+
+i8_trend_color = i8_QB == 1 ? i8_color_up : i8_QB == -1 ? i8_color_dn : i8_color_nu
+
+indicator8_score = i8_QB
+
+// Plot Labels
+if i8_QB == -1 and i8_QB[1] == -1 and  i8_QB[2] == 1 and i8_LABEL// Only plot when the signal changes
+    label.new(x=bar_index, y= Super_Trend, text= "𝓢𝓱𝓸𝓻𝓽" , color=  i8_color_dn, style=  label.style_label_down  ,textcolor=color.white, size=size.tiny)
+
+if i8_QB == 1 and i8_QB[1] == 1 and  i8_QB[2] == -1 and i8_LABEL// Only plot when the signal changes
+    label.new(x=bar_index, y= Super_Trend, text= "𝓛𝓸𝓷𝓰" , color=  i8_color_up, style=  label.style_label_up  ,textcolor=color.white, size=size.tiny)
+
+
+// ======================================== End of Indicator 8 ============================
+
+
+// ======================================== Start of Indicator 9 ============================
+
+
+indicator9_group = "Indicator 9 - "
+
+//Inverted SD Dema RSI | viResearch
+i9_sublen = input.int(70,"dema len", group = indicator9_group+ "Inverted SD Dema RSI | viResearch")
+i9_sublen_2 = input.int(41,"sd len", group = indicator9_group+ "Inverted SD Dema RSI | viResearch")
+i9_len = input.int(47,"rsi len", group = indicator9_group+ "Inverted SD Dema RSI | viResearch")
+i9_dema = ta.dema(close, i9_sublen)
+i9_rsi = ta.rsi(i9_dema, i9_len)
+
+i9_stdev = ta.stdev(i9_dema , i9_sublen_2)
+i9_u = i9_dema + i9_stdev
+i9_d = i9_dema - i9_stdev
+
+i9_supl = close > i9_d
+i9_sups = close < i9_u
+
+i9_Threshold_L = input.int( 50,title = "Threshold uptrend", step = 1, group = indicator9_group+ "Threshold")
+i9_Threshold_S = input.int( 49,title = "Threshold downtrend" , step = 1, group = indicator9_group+ "Threshold") 
+
+i9_L = i9_rsi > i9_Threshold_L and not i9_sups
+i9_S = i9_rsi < i9_Threshold_S 
+
+var i9_vii = 0
+
+if i9_L and not i9_S 
+	i9_vii := 1
+
+if i9_S 
+	i9_vii := -1
+
+
+indicator9_score = i9_vii
+i9_trend_color = indicator9_score ==  1 ?  color.rgb(0, 255, 187) :  color.rgb(255, 0, 157)
+
+
+// ======================================== End of Indicator 9 ============================
+
+// ======================================== Start of Indicator 10 ============================
+indicator10_group = 'Indicator 10 - '
+//Input's
+i10_smoothK = input.int(21, title="%K Smoothing", minval=1, group = indicator10_group + "Stochastic Settings")
+i10_periodD = input.int(5, title="%D Smoothing", minval=1, group = indicator10_group + "Stochastic Settings")
+i10_Score = input.string("k > 50","Score Stoch by", ["k > 50", "k > d", "d > 50"], group = indicator10_group + "Calculation Type")
+i10_a = input.int(1, "Start Length",  group = indicator10_group + "STOCH ForLoop Settings")
+i10_b = input.int(129, "End Length",   group = indicator10_group + "STOCH ForLoop Settings")
+i10_maType = input.string("SMA", "MA Type", ["EMA", "SMA", "WMA","VWMA","DEMA","TMA"], group = indicator10_group + "STOCH ForLoop Settings", inline = "M")
+i10_c = input.int(23,  "MA Length",   group = indicator10_group + "STOCH ForLoop Settings", inline = "M")
+
+
+i10_sigmode = input.string("Thresholds Crossing", "Signal Mode", options = ["Fast", "Slow", "Thresholds Crossing", "Fast Threshold"], group = indicator10_group + "Signal Settings")
+i10_longth =  input.float(-0.9,   "Long Threshold", step = 0.01, group = indicator10_group + "Signal Settings", inline = "T")
+i10_shortth = input.float(0.95, "Short Threshold", step = 0.01, group = indicator10_group + "Signal Settings", inline = "T")
+i10_fastth =  input.float(0.1,  "Fast Threshold",   step = 0.01, group = indicator10_group + "Signal Settings")
+
+i10_colup = input.color(color.lime,"Bull Color",  group = indicator10_group + "Visualisation")
+i10_coldn = input.color(color.fuchsia  ,"Bull Color",  group = indicator10_group + "Visualisation")
+i10_barcol = input.bool(true,         "Color Bars?", group = indicator10_group + "Visualisation")
+
+i10_barconfirm = input.bool(false, "Wait for bar close for Alert?", group = indicator10_group + "Alert Settings")
+
+// Function's to calculate an array of STOCH values over a range of lengths
+STOCH(a, b, c) =>
+    var T = 0.0
+    var SignalArray = array.new_float(b - a + 1, 0.0)
+    for x = 0 to (b - a)
+        len = a + x
+
+        k = ta.sma(ta.stoch(close, high, low, len), i10_smoothK)
+        d = ta.sma(k, i10_periodD)
+        if i10_Score == "k > 50"
+            if k > 50
+                T := 1
+            if k < 50
+                T := -1
+        else if i10_Score == "k > d"
+            if k > d
+                T := 1
+            if k < d
+                T := -1
+        else
+            if d > 50
+                T := 1
+            if d < 50
+                T := -1
+
+        trend = T == 1 ? 1 : -1
+        array.set(SignalArray, x, trend)
+    Avg = array.avg(SignalArray)
+    float MA = switch i10_maType
+        "EMA" =>   ta.ema(Avg,    c)
+        "SMA" =>   ta.sma(Avg,    c)
+        "WMA" =>   ta.wma(Avg,    c)
+        "VWMA" =>  ta.vwma(Avg,   c)
+        "DEMA" =>  ta.dema(Avg,  c)
+        "TMA" =>   ta.trima(Avg,  c)
+        => 
+            runtime.error("No matching MA type found.")
+            float(na)
+    [SignalArray, Avg, MA]
+
+//}
+
+//Calculation's
+
+[SignalArray,Avg,MA] = STOCH(i10_a, i10_b, i10_c)
+
+col1 = MA > 0 ? i10_colup : i10_coldn
+var color col2 = na
+if MA > MA[1] or MA > 0.99
+    col2 := i10_colup
+if MA < MA[1] or MA < -0.99
+    col2 := i10_coldn
+var color col3 = na
+if ta.crossover(MA,i10_longth)
+    col3 := i10_colup
+if ta.crossunder(MA,i10_shortth)
+    col3 := i10_coldn
+var color col4 = na 
+if (MA > MA[1] + i10_fastth)
+    col4 := i10_colup
+if (MA < MA[1] - i10_fastth)
+    col4 := i10_coldn
+
+color i10_col = na
+if i10_sigmode == "Slow"
+    i10_col := col1
+if i10_sigmode == "Fast"
+    i10_col := col2
+if i10_sigmode == "Thresholds Crossing"
+    i10_col := col3
+if i10_sigmode == "Fast Threshold"
+    i10_col := col4
+else
+    na
+
+
+
+//Alert's
+var int alertsignal = na
+if i10_col == i10_colup
+    alertsignal := 1
+if i10_col == i10_coldn
+    alertsignal := -1
+Long  = ta.crossover(alertsignal,  0)
+Short = ta.crossunder(alertsignal, 0)
+
+var indicator10_score = 0
+i10_trend_color = i10_col
+
+if barstate.isconfirmed
+    indicator10_score := alertsignal
+
+// ======================================== End of Indicator 10 ============================
+
+// ======================================== Start of Indicator 11 ==========================
+
+indicator11_group = 'Indicator 11 '
+
+i11_vwma_length = input.int(145, title="VWMA Length", minval=1)
+i11_atr_length = input.int(50, title="ATR Length", minval=1)
+i11_trend_enter = input.float(1.5, step=0.1, title="Trend Enter", minval=0.1)
+i11_trend_exit = input.float(1.0, step=0.1, title="Trend Exit", minval=0.1)
+
+// Signal Options
+i11_enable_alerts = input.bool(false, "Enable Alerts", group=indicator11_group + "Signals")
+
+// Color Inputs 
+i11_col_strong = input.color(color.lime, "Strong Trend", group=indicator11_group + "Visual Style", inline="colors")
+i11_col_weak = input.color(color.rgb(255, 0, 0), "Weak Trend", group=indicator11_group + "Visual Style", inline="colors")
+i11_col_neutral = input.color(color.gray, "Neutral", group=indicator11_group + "Visual Style", inline="colors")
+
+// Enhanced Visual Options
+i11_show_colored_candles = input.bool(true, "Show Colored Candles", group=indicator11_group + "Visual Style")
+i11_show_gradient_background = input.bool(true, "Show Gradient Background", group=indicator11_group + "Visual Style")
+i11_line_thickness = input.int(2, "Line Thickness", minval=1, maxval=5, group=indicator11_group + "Visual Style")
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════════════
+// DYNAMIC GRADIENT FUNCTION
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+// Dynamic gradient function based on trend thresholds
+f_dynamic_gradient(value, enter_threshold, exit_threshold) =>
+    abs_value = math.abs(value)
+    is_positive = value >= 0
+    
+    if abs_value >= enter_threshold
+        is_positive ? color.lime : color.rgb(180, 0, 0)
+    else if abs_value >= exit_threshold
+        if is_positive
+            intensity = (abs_value - exit_threshold) / (enter_threshold - exit_threshold)
+            color.rgb(int(120 + 135 * intensity), int(200 + 55 * intensity), int(80))
+        else
+            intensity = (abs_value - exit_threshold) / (enter_threshold - exit_threshold)
+            color.rgb(int(200 + intensity * -20), int(20 + intensity * -20), int(20))
+    else
+        if value > 0
+            intensity = abs_value / exit_threshold
+            color.rgb(int(180 + 60 * intensity), int(140 + 60 * intensity), int(60 + 20 * intensity))
+        else if value < 0
+            intensity = abs_value / exit_threshold  
+            color.rgb(int(240), int(80 + 40 * (1 - intensity)), int(60 - 20 * intensity))
+        else
+            color.gray
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════════════
+// CALCULATIONS
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+// 1. Volume Weighted Moving Average (VWMA)
+i11_vwma = ta.vwma(close, i11_vwma_length)
+
+// 2. Average True Range (ATR)
+i11_atr = ta.atr(i11_atr_length)
+
+// 3. Trend Strength Calculation 
+i11_price_distance_raw = (close - i11_vwma) / i11_atr  
+i11_trend_strength = math.max(-2.0, math.min(2.0, i11_price_distance_raw))  
+
+// 4. Additional Statistical Measures
+i11_trend_momentum_raw = ta.change(i11_trend_strength, 3)  
+i11_trend_momentum = math.max(-2.0, math.min(2.0, i11_trend_momentum_raw))  
+i11_trend_smooth = ta.ema(i11_trend_strength, 5)       
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════════════
+// SIGNAL GENERATION LOGIC
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+// Previous values for signal detection
+i11_prev_trend_strength = i11_trend_strength[1]
+i11_abs_trend_strength = math.abs(i11_trend_strength)
+i11_prev_abs_trend_strength = math.abs(i11_prev_trend_strength)
+
+// Signal conditions
+i11_bull_entry_signal = i11_trend_strength > i11_trend_enter and i11_prev_trend_strength <= i11_trend_enter
+i11_bear_entry_signal = i11_trend_strength < -i11_trend_enter and i11_prev_trend_strength >= -i11_trend_enter
+
+i11_bull_exit_signal = i11_trend_strength < i11_trend_exit and i11_prev_trend_strength >= i11_trend_exit and i11_prev_trend_strength > 0
+i11_bear_exit_signal = i11_trend_strength > -i11_trend_exit and i11_prev_trend_strength <= -i11_trend_exit and i11_prev_trend_strength < 0
+
+// Signal states for tracking
+var bool i11_in_bull_trend = false
+var bool i11_in_bear_trend = false
+
+// Update trend states
+if i11_bull_entry_signal
+    i11_in_bull_trend := true
+    i11_in_bear_trend := false
+else if i11_bear_entry_signal
+    i11_in_bear_trend := true
+    i11_in_bull_trend := false
+else if i11_bull_exit_signal and i11_in_bull_trend
+    i11_in_bull_trend := false
+else if i11_bear_exit_signal and i11_in_bear_trend
+    i11_in_bear_trend := false
+
+// Combined signal logic for cleaner detection
+any_entry_signal = i11_bull_entry_signal or i11_bear_entry_signal
+any_exit_signal = i11_bull_exit_signal or i11_bear_exit_signal
+
+// Current trend state
+current_trend_state = i11_in_bull_trend ? "BULL TREND" : i11_in_bear_trend ? "BEAR TREND" : "NO TREND"
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════════════
+// DYNAMIC COLOR CALCULATIONS 
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+// Main trend strength color 
+trend_color = f_dynamic_gradient(i11_trend_strength, i11_trend_enter, i11_trend_exit)
+
+// Momentum color using dynamic gradient
+momentum_color = f_dynamic_gradient(i11_trend_momentum, i11_trend_enter, i11_trend_exit)
+
+// Background color gradient
+bg_intensity = math.abs(i11_trend_strength) / 2.0  
+bg_color = i11_show_gradient_background ? 
+     color.new(color.from_gradient(bg_intensity, 0, 1, i11_col_neutral, 
+     i11_trend_strength > 0 ? i11_col_strong : i11_col_weak), 95) : na
+
+// Candle coloring based on trend strength using dynamic gradient
+color candle_color = na
+if i11_show_colored_candles
+    candle_color := f_dynamic_gradient(i11_trend_strength, i11_trend_enter, i11_trend_exit)
+
+
+
+var indicator11_score = 0
+
+i11_long = ta.crossover(i11_trend_strength, i11_trend_enter)
+i11_short = ta.crossunder(i11_trend_strength, -i11_trend_exit)
+
+if barstate.isconfirmed
+    if i11_long
+        indicator11_score := 1
+    if i11_short
+        indicator11_score := -1
+
+
+// ======================================== End of Indicator 11 ============================
+
+// ======================================== Start of Indicator 12 ==========================
+// --------------------------------------------------------------------------------------------------------------------}
+// 📌 𝙐𝙎𝙀𝙍 𝙄𝙉𝙋𝙐𝙏𝙎
+// --------------------------------------------------------------------------------------------------------------------{
+int   i12_length              = input(121, "Length")
+
+color i12_color_up            = input.color(#31ca45, "Up")
+color i12_color_dn            = input.color(color.rgb(255, 113, 18), "Down")
+
+bool i12_candles              = input.bool(true, "CandleStick Color")
+
+var i12_direction = int(na)
+var i12_count = 0
+
+// --------------------------------------------------------------------------------------------------------------------}
+// 📌 𝙄𝙉𝘿𝙄𝘾𝘼𝙏𝙊𝙍 𝘾𝘼𝙇𝘾𝙐𝙇𝘼𝙏𝙄𝙊𝙉𝙎
+// --------------------------------------------------------------------------------------------------------------------{
+
+savitzky_golay_filter_w_15_vectors(source) =>
+    float sum            = 0.0
+    float polynomial     = 0.0
+    float[] coefficients = array.new<float>(16)
+    // Predefined 15 coefficients
+    for i = -4 to 4
+        coefficients.set(i + 4, i) // from -4 to 5
+        if i == 4
+            for j = 5 to -4
+                for g = 8 to 15 
+                    coefficients.set(g, j) // from 5 to -4
+
+    // Calculate normalization factor as the sum of absolute values of coefficients
+    float norm_factor = coefficients.sum()
+
+    // Loop through coefficients and calculate the weighted sum
+    for i = 0 to coefficients.size()-1
+        sum := sum + coefficients.get(i) * source[i]
+
+    // Calculate the smoothed value
+    for i = 1 to i12_length-1
+        polynomial := math.sum(sum / norm_factor, i) / i
+
+    polynomial
+
+// Apply the filter to close prices
+i12_basis = savitzky_golay_filter_w_15_vectors(close)
+
+
+i12_distance = ta.sma(high-low, 100) * 2
+
+i12_h_band = i12_basis + i12_distance
+i12_l_band = i12_basis - i12_distance
+
+i12_prevLowerBand = nz(i12_l_band[1])
+i12_prevUpperBand = nz(i12_h_band[1])
+
+i12_l_band := i12_l_band > i12_prevLowerBand or close[1] < i12_prevLowerBand ? i12_l_band : i12_prevLowerBand
+i12_h_band := i12_h_band < i12_prevUpperBand or close[1] > i12_prevUpperBand ? i12_h_band : i12_prevUpperBand
+
+if barstate.isconfirmed
+    if close > i12_h_band
+        i12_direction := 1 
+    if close < i12_l_band
+        i12_direction := -1 
+
+i12_change = i12_direction != i12_direction[1]
+
+i12_t_color = i12_basis > i12_basis[2] ? i12_color_up : i12_color_dn
+i12_t_band = i12_direction > 0 ? i12_l_band : i12_h_band
+
+if i12_direction == i12_direction[1]
+    i12_count += 1
+if i12_change
+    i12_count := 0
+
+indicator12_score = i12_direction
+
+// --------------------------------------------------------------------------------------------------------------------}
+// 📌 𝙑𝙄𝙎𝙐𝘼𝙇𝙄𝙕𝘼𝙏𝙄𝙊𝙉
+// --------------------------------------------------------------------------------------------------------------------{
+
+
+candl_col =  (i12_direction > 0 ? i12_color_up : i12_color_dn) 
+
+
+// --------------------------------------------------------------------------------------------------------------------}
+
+
+
+// ======================================== End of Indicator 12 ============================
+
+
+// ======================================== Start of OnChain 1 ==========================
+
+
+// ───────────────────────────────
+// Input
+F1_group = "Onchain 1"
+F1_bullcolor = input.color(#ffdbac, "Bullish Color", group=F1_group)
+F1_bearcolor = input.color(#96a4d3, "Bearish Color", group=F1_group)
+
+// ───────────────────────────────
+// Signal per date
+// Format: "yyyy-MM-dd|float"
+
+var string[] F1_data = array.from(
+    //  "2016-08-27|1","2016-10-26|1","2017-01-16|1","2017-03-20|1","2017-03-31|1","2017-07-15|-1","2017-07-17|1","2017-09-15|1","2017-09-22|1","2018-01-19|1","2018-01-29|-1","2018-02-21|-1","2018-03-06|-1","2018-08-03|-1","2018-09-05|-1","2018-10-10|-1","2018-10-29|-1","2018-11-13|-1","2019-02-23|-1","2019-04-01|1","2019-09-02|1","2019-09-23|-1","2019-10-30|-1","2019-11-02|-1","2019-11-07|-1","2020-01-17|1","2020-01-27|1","2020-03-08|-1","2020-04-09|-1","2020-04-19|-1","2020-04-28|1","2020-07-05|1","2020-10-10|1","2020-10-17|1","2021-05-16|-1","2021-07-31|-1","2021-08-13|1","2021-08-19|1","2021-09-13|1","2021-09-30|1","2021-11-28|1","2021-12-04|-1","2021-12-25|-1","2022-04-07|-1","2022-04-20|-1","2022-11-07|-1","2022-12-14|-1","2023-01-12|1","2023-03-11|1","2023-05-28|1","2023-06-20|1","2023-08-17|-1","2023-08-30|-1","2023-09-16|-1","2023-09-21|-1","2023-09-23|-1","2023-10-21|1","2024-01-26|1","2024-04-18|1","2024-05-04|1","2024-05-15|1","2024-06-24|-1","2024-07-02|-1","2024-08-02|-1","2024-08-27|-1","2024-09-15|-1","2024-10-15|1","2024-10-27|1","2025-01-10|1","2025-02-25|-1","2025-03-03|-1","2025-03-07|-1","2025-05-07|1","2025-06-06|1","2025-06-23|1","2025-08-02|1"
+    //  "2016-08-27|1","2016-10-26|1","2017-01-16|1","2017-03-20|1","2017-03-31|1","2017-07-15|-1","2017-07-17|1","2017-09-15|1","2017-09-22|1","2018-01-19|1","2018-01-29|-1","2018-02-21|-1","2018-03-06|-1","2018-08-03|-1","2018-09-05|-1","2018-10-10|-1","2018-10-29|-1","2018-11-13|-1","2019-02-23|-1","2019-04-01|1","2019-09-02|1","2019-09-23|-1","2019-10-30|-1","2019-11-02|-1","2019-11-07|-1","2020-01-17|1","2020-01-27|1","2020-03-08|-1","2020-04-09|-1","2020-04-19|-1","2020-04-28|1","2020-07-05|1","2020-10-10|1","2020-10-17|1","2021-05-16|-1","2021-07-31|-1","2021-08-13|1","2021-08-19|1","2021-09-13|1","2021-09-30|1","2021-11-28|1","2021-12-04|-1","2021-12-25|-1","2022-04-07|-1","2022-04-20|-1","2022-11-07|-1","2022-12-14|-1","2023-01-12|1","2023-03-11|1","2023-05-28|1","2023-06-20|1","2023-08-17|-1","2023-08-30|-1","2023-09-16|-1","2023-09-21|-1","2023-09-23|-1","2023-10-21|1","2024-01-26|1","2024-04-18|1","2024-05-04|1","2024-05-15|1","2024-06-24|-1","2024-07-02|-1","2024-08-02|-1","2024-08-27|-1","2024-09-15|-1","2024-10-15|1","2024-10-27|1","2025-01-10|1","2025-02-25|-1","2025-03-03|-1","2025-03-07|-1","2025-05-07|1","2025-06-06|1","2025-06-23|1","2025-08-02|1","2025-10-02|1","2025-10-16|-1"
+    // "2025-09-10|1","2025-10-01|-1","2025-11-03|1","2025-11-10|1","2026-01-06|1","2026-01-19|1","2026-04-18|1","2026-05-08|1"
+    "2015-09-10|1","2015-09-12|1","2015-09-19|1","2015-10-15|-1","2015-11-10|-1","2015-11-23|-1","2016-01-18|-1","2016-02-13|-1","2016-04-18|-1","2016-05-25|-1","2016-09-06|-1","2016-10-24|-1","2017-01-15|-1","2017-03-19|-1","2017-03-29|-1","2017-07-14|1","2017-07-16|-1","2017-09-14|-1","2018-01-18|-1","2018-01-29|1","2018-02-20|1","2018-03-05|1","2018-07-18|1","2018-07-23|-1","2018-07-27|-1","2018-08-03|1","2018-09-04|1","2018-09-23|1","2018-10-01|1","2018-10-09|1","2018-11-12|1","2019-02-23|1","2019-03-31|-1","2019-08-31|-1","2019-09-11|-1","2019-09-22|1","2019-11-06|1","2020-01-13|-1","2020-01-15|-1","2020-01-26|-1","2020-03-07|1","2020-04-08|1","2020-04-19|1","2020-04-27|-1","2020-06-27|-1","2020-09-14|-1","2020-10-08|-1","2021-05-15|1","2021-07-30|1","2021-08-12|-1","2021-08-18|-1","2021-09-10|-1","2021-09-29|-1","2021-11-27|-1","2021-12-03|1","2021-12-07|1","2021-12-26|1","2022-04-07|1","2022-04-20|1","2022-11-07|1","2022-12-14|1","2023-01-11|-1","2023-03-10|-1","2023-05-26|-1","2023-06-19|-1","2023-08-16|1","2023-08-30|1","2023-10-19|-1","2024-01-25|-1","2024-05-02|-1","2024-05-13|-1","2024-06-27|1","2024-07-02|1","2024-08-01|1","2024-08-09|1","2024-08-26|1","2024-08-29|1","2024-10-13|-1","2024-10-25|-1"
+     )
+// ───────────────────────────────
+// Fungsi konversi tanggal chart ke string yyyy-MM-dd
+F1_getDateString() =>
+    F1_yyyy = str.tostring(year)
+    F1_mm   = str.tostring(month, "00")
+    F1_dd   = str.tostring(dayofmonth, "00")
+    F1_yyyy + "-" + F1_mm + "-" + F1_dd
+
+// ───────────────────────────────
+// Fungsi cari value dari pasangan "tanggal|value"
+F1_getValueForDate(F1_dateStr, data) =>
+    float F1_result = na
+    for F1_i = 0 to array.size(data) - 1
+        F1_pair = array.get(data, F1_i)
+        F1_sep  = str.split(F1_pair, "|")
+        F1_d    = array.get(F1_sep, 0)
+        F1_v    = str.tonumber(array.get(F1_sep, 1))
+        if F1_d == F1_dateStr
+            F1_result := F1_v
+    F1_result
+
+// ───────────────────────────────
+// Hitung score
+F1_todayStr = F1_getDateString()
+F1_valToday = F1_getValueForDate(F1_todayStr, F1_data)
+
+var F1_score = 0
+var F1_score_color = color.gray
+
+F1_Long_Condition = F1_valToday == 1
+F1_Short_Condition = F1_valToday == -1
+
+if barstate.isconfirmed
+    if F1_Long_Condition 
+        F1_score := 1
+        F1_score_color := F1_bullcolor
+    if F1_Short_Condition 
+        F1_score := -1
+        F1_score_color := F1_bearcolor
+
+// ───────────────────────────────
+
+// ======================================== End of OnChain 1 ============================
+
+// ======================================== Start of OnChain 2 ==========================
+
+
+// ───────────────────────────────
+// Input
+F2_group = "Onchain 2"
+F2_bullcolor = input.color(#ffdbac, "Bullish Color", group=F2_group)
+F2_bearcolor = input.color(#96a4d3, "Bearish Color", group=F2_group)
+
+// ───────────────────────────────
+// Signal per date
+// Format: "yyyy-MM-dd|float"
+
+var string[] F2_data = array.from(
+    //  "2016-08-27|-1","2016-09-14|1","2016-09-20|-1","2016-10-25|1","2017-01-18|-1","2017-01-27|1","2017-03-21|-1","2017-04-08|1","2017-07-14|-1","2017-07-21|1","2017-09-20|-1","2017-09-30|1","2018-01-16|-1","2018-02-26|1","2018-03-07|-1","2018-05-03|1","2018-05-07|-1","2018-07-24|1","2018-08-08|-1","2019-02-23|1","2019-02-24|-1","2019-03-01|1","2019-03-03|-1","2019-03-30|1","2019-07-26|-1","2019-08-02|1","2019-09-08|-1","2019-09-12|1","2019-09-22|-1","2020-01-13|1","2020-02-28|-1","2020-04-26|1","2020-07-12|-1","2020-07-23|1","2020-09-03|-1","2020-10-18|1","2021-04-29|-1","2021-05-06|1","2021-05-16|-1","2021-08-08|1","2021-09-06|-1","2021-10-06|1","2021-11-25|-1","2022-04-02|1","2022-04-05|-1","2023-01-13|1","2023-03-08|-1","2023-03-15|1","2023-05-19|-1","2023-06-24|1","2023-07-26|-1","2023-10-22|1","2024-01-24|-1","2024-01-30|1","2024-04-16|-1","2024-04-21|1","2024-04-22|-1","2024-05-17|1","2024-06-17|-1","2024-07-21|1","2024-08-04|-1","2024-09-22|1","2024-10-10|-1","2024-10-15|1","2025-01-09|-1","2025-01-13|1","2025-02-06|-1","2025-04-27|1","2025-08-24|-1"
+    //  "2016-08-27|-1","2016-09-14|1","2016-09-20|-1","2016-10-25|1","2017-01-18|-1","2017-01-27|1","2017-03-21|-1","2017-04-08|1","2017-07-14|-1","2017-07-21|1","2017-09-20|-1","2017-09-30|1","2018-01-16|-1","2018-02-26|1","2018-03-07|-1","2018-05-03|1","2018-05-07|-1","2018-07-24|1","2018-08-08|-1","2019-02-23|1","2019-02-24|-1","2019-03-01|1","2019-03-03|-1","2019-03-30|1","2019-07-26|-1","2019-08-02|1","2019-09-08|-1","2019-09-12|1","2019-09-22|-1","2020-01-13|1","2020-02-28|-1","2020-04-26|1","2020-07-12|-1","2020-07-23|1","2020-09-03|-1","2020-10-18|1","2021-04-29|-1","2021-05-06|1","2021-05-16|-1","2021-08-08|1","2021-09-06|-1","2021-10-06|1","2021-11-25|-1","2022-04-02|1","2022-04-05|-1","2023-01-13|1","2023-03-08|-1","2023-03-15|1","2023-05-19|-1","2023-06-24|1","2023-07-26|-1","2023-10-22|1","2024-01-24|-1","2024-01-30|1","2024-04-16|-1","2024-04-21|1","2024-04-22|-1","2024-05-17|1","2024-06-17|-1","2024-07-21|1","2024-08-04|-1","2024-09-22|1","2024-10-10|-1","2024-10-15|1","2025-01-09|-1","2025-01-13|1","2025-02-06|-1","2025-04-27|1","2025-08-24|-1","2025-10-02|1"
+    //  "2016-08-27|-1","2016-09-14|1","2016-09-20|-1","2016-10-25|1","2017-01-18|-1","2017-01-27|1","2017-03-21|-1","2017-04-08|1","2017-07-14|-1","2017-07-21|1","2017-09-20|-1","2017-09-30|1","2018-01-16|-1","2018-02-26|1","2018-03-07|-1","2018-05-03|1","2018-05-07|-1","2018-07-24|1","2018-08-08|-1","2019-02-23|1","2019-02-24|-1","2019-03-01|1","2019-03-03|-1","2019-03-30|1","2019-07-26|-1","2019-08-02|1","2019-09-08|-1","2019-09-12|1","2019-09-22|-1","2020-01-13|1","2020-02-28|-1","2020-04-26|1","2020-07-12|-1","2020-07-23|1","2020-09-03|-1","2020-10-18|1","2021-04-29|-1","2021-05-06|1","2021-05-16|-1","2021-08-08|1","2021-09-06|-1","2021-10-06|1","2021-11-25|-1","2022-04-02|1","2022-04-05|-1","2023-01-13|1","2023-03-08|-1","2023-03-15|1","2023-05-19|-1","2023-06-24|1","2023-07-26|-1","2023-10-22|1","2024-01-24|-1","2024-01-30|1","2024-04-16|-1","2024-04-21|1","2024-04-22|-1","2024-05-17|1","2024-06-17|-1","2024-07-21|1","2024-08-04|-1","2024-09-22|1","2024-10-10|-1","2024-10-15|1","2025-01-09|-1","2025-01-13|1","2025-02-06|-1","2025-04-27|1","2025-08-24|-1","2025-09-16|1","2025-09-22|-1","2025-10-02|1","2025-10-15|-1"
+    "2015-09-10|-1","2015-10-12|1","2015-11-18|-1","2015-11-28|1","2016-01-16|-1","2016-02-22|1","2016-03-02|-1","2016-04-23|1","2016-05-10|-1","2016-05-27|1","2016-07-05|-1","2016-07-07|1","2016-07-29|-1","2016-09-13|1","2016-09-19|-1","2016-10-24|1","2017-01-17|-1","2017-01-26|1","2017-03-20|-1","2017-04-07|1","2017-07-13|-1","2017-07-20|1","2017-09-19|-1","2017-09-29|1","2018-01-15|-1","2018-02-25|1","2018-03-06|-1","2018-05-02|1","2018-05-06|-1","2018-07-23|1","2018-08-07|-1","2019-02-22|1","2019-02-23|-1","2019-02-28|1","2019-03-02|-1","2019-03-29|1","2019-07-25|-1","2019-08-01|1","2019-08-29|-1","2019-08-30|1","2019-09-07|-1","2019-09-11|1","2019-09-21|-1","2020-01-12|1","2020-02-27|-1","2020-04-25|1","2020-07-11|-1","2020-07-22|1","2020-09-02|-1","2020-10-17|1","2021-04-29|-1","2021-05-05|1","2021-05-15|-1","2021-08-07|1","2021-09-05|-1","2021-10-05|1","2021-11-24|-1","2022-04-01|1","2022-04-04|-1","2023-01-12|1","2023-03-07|-1","2023-03-14|1","2023-05-18|-1","2023-06-24|1","2023-07-25|-1","2023-10-21|1","2024-01-23|-1","2024-01-29|1","2024-02-02|-1","2024-02-03|1","2024-04-15|-1","2024-04-20|1","2024-04-21|-1","2024-05-16|1","2024-06-16|-1","2024-07-20|1","2024-08-03|-1","2024-09-21|1","2024-10-08|-1","2024-10-14|1"
+     )
+// ───────────────────────────────
+// Hitung score
+F2_todayStr = F1_getDateString()
+F2_valToday = F1_getValueForDate(F2_todayStr, F2_data)
+
+var F2_score = 0
+var F2_score_color = color.gray
+
+F2_Long_Condition = F2_valToday == 1
+F2_Short_Condition = F2_valToday == -1
+
+if barstate.isconfirmed
+    if F2_Long_Condition 
+        F2_score := 1
+        F2_score_color := F2_bullcolor
+    if F2_Short_Condition 
+        F2_score := -1
+        F2_score_color := F2_bearcolor
+
+// ───────────────────────────────
+
+// ======================================== End of OnChain 2 ============================
+
+
+// ======================================== Start of OnChain 3 ==========================
+
+
+// ───────────────────────────────
+// Input
+F3_group = "Onchain 3"
+F3_bullcolor = input.color(#ffdbac, "Bullish Color", group=F3_group)
+F3_bearcolor = input.color(#96a4d3, "Bearish Color", group=F3_group)
+
+// ───────────────────────────────
+// Signal per date
+// Format: "yyyy-MM-dd|float"
+
+var string[] F3_data = array.from(
+    //  "2016-08-27|-1","2018-01-31|-1","2018-08-03|-1","2019-03-30|1","2019-09-26|-1","2020-01-20|1","2020-03-10|-1","2020-05-01|1","2021-05-22|-1","2021-08-18|1","2021-12-10|-1","2023-01-16|1","2023-06-21|1","2023-08-20|-1","2023-10-21|1","2024-06-28|-1","2024-07-28|1","2024-08-04|-1","2024-09-27|1","2024-10-15|1","2025-03-02|-1","2025-05-04|1"
+    //  "2016-08-27|-1","2018-01-31|-1","2018-08-03|-1","2019-03-30|1","2019-09-26|-1","2020-01-20|1","2020-03-10|-1","2020-05-01|1","2021-05-22|-1","2021-08-18|1","2021-12-10|-1","2023-01-16|1","2023-06-21|1","2023-08-20|-1","2023-10-21|1","2024-06-28|-1","2024-07-28|1","2024-08-04|-1","2024-09-27|1","2024-10-15|1","2025-03-02|-1","2025-05-04|1","2025-10-22|-1"
+    "2015-09-10|-1","2015-10-09|1","2015-11-23|1","2016-01-15|-1","2016-02-14|1","2016-03-08|1","2016-03-13|1","2016-03-21|1","2016-03-23|1","2016-07-30|-1","2016-09-05|1","2016-09-20|-1","2016-09-30|1","2017-03-22|-1","2017-03-29|1","2017-07-11|-1","2017-07-19|1","2017-09-24|1","2018-01-15|-1","2018-03-05|-1","2018-07-30|-1","2019-02-21|1","2019-02-24|-1","2019-03-08|1","2019-03-10|1","2019-03-13|1","2019-07-29|1","2019-08-26|-1","2019-09-03|1","2019-09-09|-1","2019-09-15|-1","2020-01-13|1","2020-01-25|1","2020-02-27|-1","2020-04-25|1","2020-06-20|1","2020-06-25|-1","2020-07-08|1","2020-07-16|-1","2020-07-19|1","2020-09-06|-1","2020-09-16|1","2020-09-21|-1","2020-09-28|1","2020-10-01|-1","2020-10-08|1","2021-04-24|1","2021-05-13|-1","2021-08-11|1","2021-09-12|1","2021-09-26|-1","2021-09-29|1","2021-11-22|-1","2021-11-24|-1","2022-03-26|1","2022-04-01|1","2022-04-05|-1","2022-08-16|-1","2022-11-06|-1","2023-01-10|1","2023-03-10|1","2023-05-10|-1","2023-06-20|1","2023-08-02|-1","2023-08-14|-1","2023-10-08|-1","2023-10-18|1","2023-11-27|-1"
+     )
+// ───────────────────────────────
+// Hitung score
+F3_todayStr = F1_getDateString()
+F3_valToday = F1_getValueForDate(F3_todayStr, F3_data)
+
+var F3_score = 0
+var F3_score_color = color.gray
+
+F3_Long_Condition = F3_valToday == 1
+F3_Short_Condition = F3_valToday == -1
+
+if barstate.isconfirmed
+    if F3_Long_Condition 
+        F3_score := 1
+        F3_score_color := F3_bullcolor
+    if F3_Short_Condition 
+        F3_score := -1
+        F3_score_color := F3_bearcolor
+// ======================================== End of OnChain 3 ============================
+
+// ======================================== Start of OnChain 4 ==========================
+
+
+// ───────────────────────────────
+// Input
+F4_group = "Onchain 4"
+F4_bullcolor = input.color(#ffdbac, "Bullish Color", group=F4_group)
+F4_bearcolor = input.color(#96a4d3, "Bearish Color", group=F4_group)
+
+// ───────────────────────────────
+// Signal per date
+// Format: "yyyy-MM-dd|float"
+
+var string[] F4_data = array.from(
+    //  "2016-08-27|-1","2016-09-04|1","2018-03-16|-1","2018-03-19|1","2018-03-25|-1","2018-04-20|1","2018-05-15|-1","2018-07-23|1","2018-08-04|-1","2018-08-30|1","2018-09-05|-1","2019-01-07|1","2019-01-09|-1","2019-02-18|1","2019-09-25|-1","2020-01-09|1","2020-03-09|-1","2020-04-07|1","2020-04-10|-1","2020-04-17|1","2021-05-22|-1","2021-07-28|1","2021-12-03|-1","2022-03-23|1","2022-04-10|-1","2022-07-28|1","2022-08-03|-1","2022-08-04|1","2022-08-19|-1","2022-11-03|1","2022-11-07|-1","2022-12-13|1","2022-12-15|-1","2023-01-08|1","2023-05-15|-1","2023-05-29|1","2023-05-30|-1","2023-06-20|1","2023-08-16|-1","2023-10-18|1","2024-01-21|-1","2024-01-27|1","2024-05-11|-1","2024-05-12|1","2024-06-21|-1","2024-07-19|1","2024-08-01|-1","2024-09-23|1","2024-10-01|-1","2024-10-13|1","2025-02-25|-1","2025-04-24|1"
+    //  "2016-08-27|-1","2016-09-04|1","2018-03-16|-1","2018-03-19|1","2018-03-25|-1","2018-04-20|1","2018-05-15|-1","2018-07-23|1","2018-08-04|-1","2018-08-30|1","2018-09-05|-1","2019-01-07|1","2019-01-09|-1","2019-02-18|1","2019-09-25|-1","2020-01-09|1","2020-03-09|-1","2020-04-07|1","2020-04-10|-1","2020-04-17|1","2021-05-22|-1","2021-07-28|1","2021-12-03|-1","2022-03-23|1","2022-04-10|-1","2022-07-28|1","2022-08-03|-1","2022-08-04|1","2022-08-19|-1","2022-11-03|1","2022-11-07|-1","2022-12-13|1","2022-12-15|-1","2023-01-08|1","2023-05-15|-1","2023-05-29|1","2023-05-30|-1","2023-06-20|1","2023-08-16|-1","2023-10-18|1","2024-01-21|-1","2024-01-27|1","2024-05-11|-1","2024-05-12|1","2024-06-21|-1","2024-07-19|1","2024-08-01|-1","2024-09-23|1","2024-10-01|-1","2024-10-13|1","2025-02-25|-1","2025-04-24|1","2025-09-10|-1"
+    //  "2016-08-27|-1","2016-09-06|1","2016-09-20|-1","2016-10-01|1","2017-03-23|-1","2017-03-30|1","2017-07-12|-1","2017-07-20|1","2017-09-17|1","2017-09-26|1","2018-01-16|-1","2018-03-06|-1","2018-07-31|-1","2018-09-04|-1","2019-02-22|1","2019-02-25|-1","2019-03-08|1","2019-07-30|1","2019-08-27|-1","2019-09-04|1","2019-09-10|-1","2019-09-16|-1","2020-01-14|1","2020-01-26|1","2020-02-28|-1","2020-04-26|1","2020-06-21|1","2020-06-26|-1","2020-07-09|1","2020-07-16|-1","2020-07-20|1","2020-09-07|-1","2020-09-12|-1","2020-09-17|1","2020-09-22|-1","2020-09-29|1","2020-10-02|-1","2020-10-05|-1","2020-10-08|1","2021-04-25|1","2021-05-14|-1","2021-08-12|1","2021-08-18|1","2021-09-13|1","2021-09-26|-1","2021-09-30|1","2021-11-23|-1","2021-11-25|-1","2022-03-27|1","2022-04-02|1","2022-04-06|-1","2022-08-17|-1","2022-11-07|-1","2023-01-10|1","2023-05-11|-1","2023-06-20|1","2023-07-31|1","2023-08-03|-1","2023-08-14|-1","2023-10-09|-1","2023-10-19|1","2024-01-20|-1","2024-01-29|1","2024-04-16|-1","2024-04-25|-1","2024-05-19|1","2024-06-14|-1","2024-07-23|-1","2024-07-27|1","2024-07-30|-1","2024-09-25|1","2024-10-01|-1","2024-10-14|1","2024-12-28|-1","2025-01-04|1","2025-01-08|-1","2025-01-14|1","2025-02-06|-1","2025-05-03|-1","2025-05-06|1","2025-06-22|1","2025-08-25|-1","2025-09-11|1","2025-09-24|-1","2025-09-30|1"
+    //  "2016-08-27|-1","2016-09-06|1","2016-09-20|-1","2016-10-01|1","2017-03-23|-1","2017-03-30|1","2017-07-12|-1","2017-07-20|1","2017-09-17|1","2017-09-26|1","2018-01-16|-1","2018-03-06|-1","2018-07-31|-1","2018-09-04|-1","2019-02-22|1","2019-02-25|-1","2019-03-08|1","2019-07-30|1","2019-08-27|-1","2019-09-04|1","2019-09-10|-1","2019-09-16|-1","2020-01-14|1","2020-01-26|1","2020-02-28|-1","2020-04-26|1","2020-06-21|1","2020-06-26|-1","2020-07-09|1","2020-07-16|-1","2020-07-20|1","2020-09-07|-1","2020-09-12|-1","2020-09-17|1","2020-09-22|-1","2020-09-29|1","2020-10-02|-1","2020-10-05|-1","2020-10-08|1","2021-04-25|1","2021-05-14|-1","2021-08-12|1","2021-08-18|1","2021-09-13|1","2021-09-26|-1","2021-09-30|1","2021-11-23|-1","2021-11-25|-1","2022-03-27|1","2022-04-02|1","2022-04-06|-1","2022-08-17|-1","2022-11-07|-1","2023-01-10|1","2023-05-11|-1","2023-06-20|1","2023-07-31|1","2023-08-03|-1","2023-08-14|-1","2023-10-09|-1","2023-10-19|1","2024-01-20|-1","2024-01-29|1","2024-04-16|-1","2024-04-25|-1","2024-05-19|1","2024-06-14|-1","2024-07-23|-1","2024-07-27|1","2024-07-30|-1","2024-09-25|1","2024-10-01|-1","2024-10-14|1","2024-12-28|-1","2025-01-04|1","2025-01-08|-1","2025-01-14|1","2025-02-06|-1","2025-05-03|-1","2025-05-06|1","2025-06-22|1","2025-08-25|-1","2025-09-11|1","2025-09-24|-1","2025-09-30|1","2025-10-13|-1"
+    "2015-09-10|-1","2015-10-09|1","2015-11-23|1","2016-01-15|-1","2016-02-14|1","2016-03-08|1","2016-03-13|1","2016-03-21|1","2016-03-23|1","2016-07-30|-1","2016-09-05|1","2016-09-20|-1","2016-09-30|1","2017-03-22|-1","2017-03-29|1","2017-07-11|-1","2017-07-19|1","2017-09-24|1","2018-01-15|-1","2018-03-05|-1","2018-07-30|-1","2019-02-21|1","2019-02-24|-1","2019-03-08|1","2019-03-10|1","2019-03-13|1","2019-07-29|1","2019-08-26|-1","2019-09-03|1","2019-09-09|-1","2019-09-15|-1","2020-01-13|1","2020-01-25|1","2020-02-27|-1","2020-04-25|1","2020-06-20|1","2020-06-25|-1","2020-07-08|1","2020-07-16|-1","2020-07-19|1","2020-09-06|-1","2020-09-16|1","2020-09-21|-1","2020-09-28|1","2020-10-01|-1","2020-10-08|1","2021-04-24|1","2021-05-13|-1","2021-08-11|1","2021-09-12|1","2021-09-26|-1","2021-09-29|1","2021-11-22|-1","2021-11-24|-1","2022-03-26|1","2022-04-01|1","2022-04-05|-1","2022-08-16|-1","2022-11-06|-1","2023-01-10|1","2023-03-10|1","2023-05-10|-1","2023-06-20|1","2023-08-02|-1","2023-08-14|-1","2023-10-08|-1","2023-10-18|1","2023-11-27|-1"
+     )
+// ───────────────────────────────
+// Hitung score
+F4_todayStr = F1_getDateString()
+F4_valToday = F1_getValueForDate(F4_todayStr, F4_data)
+
+var F4_score = 0
+var F4_score_color = color.gray
+
+F4_Long_Condition = F4_valToday == 1
+F4_Short_Condition = F4_valToday == -1
+
+if barstate.isconfirmed
+    if F4_Long_Condition 
+        F4_score := 1
+        F4_score_color := F4_bullcolor
+    if F4_Short_Condition 
+        F4_score := -1
+        F4_score_color := F4_bearcolor
+// ======================================== End of OnChain 4 ============================
+
+
+
+// ======================================== Start Of LTTD Scoring ============================
+bool show_debug = input.bool(true, "Show Debug", group = strategy_settings)
+
+var float final_score = 0
+var float sum_scores = 0.0
+var int count_indicators = 0
+
+if barstate.isconfirmed
+    sum_scores := 0.0
+    count_indicators := 0
+    if use_indicator1
+        sum_scores := sum_scores + indicator1_score
+        count_indicators := count_indicators + 1
+    if use_indicator2
+        sum_scores := sum_scores + indicator2_score
+        count_indicators := count_indicators + 1
+    if use_indicator3
+        sum_scores := sum_scores + indicator3_score
+        count_indicators := count_indicators + 1
+    if use_indicator4
+        sum_scores := sum_scores + indicator4_score
+        count_indicators := count_indicators + 1
+    if use_indicator5
+        sum_scores := sum_scores + indicator5_score
+        count_indicators := count_indicators + 1
+    if use_indicator6
+        sum_scores := sum_scores + indicator6_score
+        count_indicators := count_indicators + 1
+    if use_indicator7
+        sum_scores := sum_scores + indicator7_score
+        count_indicators := count_indicators + 1
+    if use_indicator8
+        sum_scores := sum_scores + indicator8_score
+        count_indicators := count_indicators + 1
+    if use_indicator9
+        sum_scores := sum_scores + indicator9_score
+        count_indicators := count_indicators + 1
+    if use_indicator10
+        sum_scores := sum_scores + indicator10_score
+        count_indicators := count_indicators + 1
+    if use_indicator11
+        sum_scores := sum_scores + indicator11_score
+        count_indicators := count_indicators + 1
+    if use_indicator12
+        sum_scores := sum_scores + indicator12_score
+        count_indicators := count_indicators + 1
+    if use_onchain1
+        sum_scores := sum_scores + F1_score
+        count_indicators := count_indicators + 1
+    if use_onchain2
+        sum_scores := sum_scores + F2_score
+        count_indicators := count_indicators + 1
+    if use_onchain3
+        sum_scores := sum_scores + F3_score
+        count_indicators := count_indicators + 1
+    if use_onchain4
+        sum_scores := sum_scores + F4_score
+        count_indicators := count_indicators + 1
+    final_score := count_indicators > 0 ? sum_scores / count_indicators : 0.0
+
+
+hline(final_long_threshold, "Final Long Threshold", color=#606060, linestyle=hline.style_dashed)
+hline(final_short_threshold, "Final Short Threshold", color=#606060, linestyle=hline.style_dashed)
+
+
+// plot(indicator1_score, "Score-1", col, 2, plot.style_line, display = display.data_window)
+// plot(indicator2_score, "Score-2", col, 2, plot.style_line, display = display.data_window)
+// plot(indicator3_score, "Score-3", col, 2, plot.style_line, display = display.data_window)
+// plot(indicator4_score, "Score-4", currentColor, 2, plot.style_line, display = display.data_window)
+// plot(indicator5_score, "Score-5", i5_bar_color, 2, plot.style_line, display = display.data_window)
+// plot(indicator6_score, "Score-6", i6_trend_color, 2, plot.style_line, display = display.data_window)
+// plot(indicator7_score, "Score-7", i7_trend_color, 2, plot.style_line, display = display.data_window)
+// plot(indicator8_score, "Score-8", i8_trend_color, 2, plot.style_line, display = display.data_window)
+// plot(indicator9_score, "Score-9", i9_trend_color, 2, plot.style_line, display = display.data_window)
+// plot(indicator10_score, "Score-10", i10_trend_color, 2, plot.style_line, display = display.data_window)
+// plot(indicator11_score, "Score-11", i10_trend_color, 2, plot.style_line, display = display.data_window)
+// plot(indicator12_score, "Score-12", candl_col, 2, plot.style_line, display = display.data_window)
+
+// plot(F1_score, "Onchain - 1", F1_score_color, 2, plot.style_line, display = display.data_window)
+// plot(F2_score, "Onchain - 2", F2_score_color, 2, plot.style_line, display = display.data_window)
+
+
+plot_zero = hline(0, "Zero Line", color=color.new(#787b86, 0))
+
+is_debug_display = show_debug ? display.data_window : display.pane
+
+plot(use_indicator1 ? (show_debug ? indicator1_score :  2.1) : na, "Indicator 1 - Kalman RSI", color =col, style = plot.style_line,linewidth = 2, display=is_debug_display)
+plot(use_indicator2 ? (show_debug ? indicator2_score :  2.2) : na, "Indicator 2 - Momentum Zenith Guide", color =indicator2_color, style = plot.style_line,linewidth = 2, display=is_debug_display)
+plot(use_indicator3 ? (show_debug ? indicator3_score :  2.3) : na, "Indicator 3 - MarktQuants Supertrend", color =cc, style = plot.style_line,linewidth = 2, display=is_debug_display)
+plot(use_indicator4 ? (show_debug ? indicator4_score :  2.4) : na, "Indicator 4 - FDI Adaptive Oscillator Suite", color =currentColor, style = plot.style_line,linewidth = 2, display=is_debug_display)
+plot(use_indicator5 ? (show_debug ? indicator5_score :  2.5) : na, "Indicator 5 - Adaptive Fourier Transform Supertrend [QuantAlgo]", color =i5_bar_color, style = plot.style_line,linewidth = 2, display=is_debug_display)
+plot(use_indicator6 ? (show_debug ? indicator6_score :  2.6) : na, "Indicator 6 - Relative Trend Index (RTI) by Zeiierman", color =i6_trend_color, style = plot.style_line,linewidth = 2, display=is_debug_display)
+plot(use_indicator7 ? (show_debug ? indicator7_score :  2.7) : na, "Indicator 7 - MadTrend [InvestorUnknown]", color =i7_trend_color, style = plot.style_line,linewidth = 2, display=is_debug_display)
+plot(use_indicator8 ? (show_debug ? indicator8_score :  2.8) : na, "Indicator 8 - Quantile DEMA Trend | QuantEdgeB", color =i8_trend_color, style = plot.style_line,linewidth = 2, display=is_debug_display)
+plot(use_indicator9 ? (show_debug ? indicator9_score :  2.9) : na, "Indicator 9 - Inverted SD Dema RSI | viResearch", color =i9_trend_color, style = plot.style_line,linewidth = 2, display=is_debug_display)
+plot(use_indicator10 ? (show_debug ? indicator10_score :  3) : na, "Indicator 10 - Advanced Stochastic ForLoop", color =i10_trend_color, style = plot.style_line,linewidth = 2, display=is_debug_display)
+plot(use_indicator11 ? (show_debug ? indicator11_score :  3.1) : na, "Indicator 11 - Trend Strength Index [Alpha Extract]", color =color.new(trend_color, 1), style = plot.style_line,linewidth = 2, display=is_debug_display)
+plot(use_indicator12 ? (show_debug ? indicator12_score :  3.2) : na, "Indicator 12 - Savitzky Flow Bands [ChartPrime]", color =color.new(candl_col, 1), style = plot.style_line,linewidth = 2, display=is_debug_display)
+plot(use_onchain1 ? (show_debug ? F1_score :  3.3) : na, "Onchain 1 - MVRV-STH", color =color.new(F1_score_color, 1), style = plot.style_line,linewidth = 2, display=is_debug_display)
+plot(use_onchain2 ? (show_debug ? F2_score :  3.4) : na, "Onchain 2 - SOPR-STH", color =color.new(F2_score_color, 1), style = plot.style_line,linewidth = 2, display=is_debug_display)
+plot(use_onchain3 ? (show_debug ? F3_score :  3.5) : na, "Onchain 3 - NUPL-STH", color =color.new(F3_score_color, 1), style = plot.style_line,linewidth = 2, display=is_debug_display)
+plot(use_onchain4 ? (show_debug ? F4_score :  3.6) : na, "Onchain 4 - Supply In Profit-STH", color =color.new(F4_score_color, 1), style = plot.style_line,linewidth = 2, display=is_debug_display)
+
+
+
+// ======================================== End of LTTD Scoring ============================
+
+
+// =====================================
+// ✩░▒▓▆▅▃▂▁STRATEGY▁▂▃▅▆▓▒░✩
+// =====================================
+
+final_group_visual = "=== Final Setting - Visual"
+bullcolor = input.color(#ffdbac, "Bullish Color", group=final_group_visual)
+weak_bullcolor = input.color(#b89f7e, "Bullish Color", group=final_group_visual)
+bearcolor = input.color(#96a4d3, "Bearish Color", group=final_group_visual)
+weak_bearcolor = input.color(#67708f, "Bearish Color", group=final_group_visual)
+neutral_color = input.color(#ffffff, "Bearish Color", group=final_group_visual)
+
+var final_trend_color = color.gray
+var final_score_color = color.gray
+
+final_group_strat = "=== Final Setting - Strategy"
+bull_threshold = input(0.95, 'bull threshold', group = final_group_strat) 
+weak_bull_threshold = input(0.75, 'weak bull threshold', group = final_group_strat) 
+weak_bear_threshold = input(-0.85, 'weak bearthreshold', group = final_group_strat)
+bear_threshold = input(-0.95, 'bear threshold', group = final_group_strat) 
+
+limit_backtest_time = input.bool(true,"Limit Backtest Time", group = strategy_settings)
+backtest_start_at = input.time(defval = timestamp('01 Jan 2018 00:00 +0700'), title="Backtest Start At", group = strategy_settings)
+
+final_long_condition  = ta.crossover(final_score, final_long_threshold)
+final_short_condition = ta.crossunder(final_score, final_short_threshold)
+
+half_long_condition  = ta.crossover(final_score, half_long_threshold)
+half_short_condition = ta.crossunder(final_score, half_short_threshold)
+
+
+// if (limit_backtest_time ? time > backtest_start_at : true) and barstate.isconfirmed
+//     // Logic Entry
+//     // Half Long (50% equity)
+//     if half_long_condition and strategy.position_size == 0  // Hanya masuk jika flat
+//         half_qty = math.round(strategy.equity * 0.5 / close)
+//         strategy.entry("Long", strategy.long, qty=half_qty, comment="50% Long")
+
+//     // Final Long (tambah 50% equity)
+//     if final_long_condition and strategy.position_size > 0  // Hanya tambah jika sudah long
+//         half_qty = math.round(strategy.equity * 0.5 / close)
+//         strategy.entry("Long", strategy.long, qty=half_qty, comment = "100% Long")
+
+//     if half_short_condition and strategy.opentrades > 0
+//         strategy.close("Long", "50% Cash", qty_percent = 50)
+
+//     // Exit (close full position on short conditions)
+//     if (half_short_condition or final_short_condition) and strategy.position_size > 0
+//         strategy.close("Long", comment="50Cash", qty_percent = 100)
+
+if barstate.isconfirmed
+    if final_long_condition
+        if (limit_backtest_time ? time > backtest_start_at : true)
+            strategy.entry("Buy", strategy.long, comment = "Buy")
+            final_trend_color := bullcolor
+
+    // if half_short_condition and strategy.opentrades > 0
+    //     strategy.close("Buy", "50% Cash", qty_percent = 50)
+
+    if final_short_condition
+        strategy.close("Buy", "Sell", qty_percent = 100)
+        final_trend_color := bearcolor
+
+
+
+f_get_final_color(score) =>
+     score >= bull_threshold       ? bullcolor :
+     score >= weak_bull_threshold ? weak_bullcolor :
+     score > weak_bear_threshold  ? neutral_color :
+     score >= bear_threshold      ? weak_bearcolor :
+     bearcolor
+
+f_calc_trend_strength(score) =>
+     score >= bull_threshold ? 1.0 : 
+     score >= weak_bull_threshold ? (score - weak_bull_threshold) / (bull_threshold - weak_bull_threshold) : 
+     score > weak_bear_threshold ? 0.0 : 
+     score >= bear_threshold? (score - weak_bear_threshold) / (bear_threshold - weak_bear_threshold) : -1.0
+
+f_calc_trend_state(score) =>
+     score >= bull_threshold       ? "BULL" :
+     score >= weak_bull_threshold ? "WEAK BULL" :
+     score > weak_bear_threshold  ? "NEUTRAL" :
+     score >= bear_threshold      ? "WEAK BEAR" :
+     "BEAR"
+
+// f_calc_trend_state(score) =>
+//      score >= bull_threshold ? "Bull" : 
+//      score >= weak_bull_threshold ? "Weak Bull" : 
+//      score > weak_bear_threshold ? "Weak Bear" : "Bear" 
+
+
+final_score_color := f_get_final_color(final_score)
+
+plotcandle(open, high, low, close, color=final_score_color, wickcolor=final_score_color, bordercolor=final_score_color, force_overlay=true, title="Final Chart Candle", display = display.none)
+plot_final = plot(final_score, "LTTD Final Score", final_trend_color,2,plot.style_line)
+
+plot(final_score, "LTTD Final Trend Strength", color.new(final_score_color,40),1,plot.style_histogram, editable = true)
+
+
+
+// =====================================
+// ✩░▒▓▆▅▃▂▁COBRA TABLE▁▂▃▅▆▓▒░✩
+// =====================================
+
+show_long   = input.bool(true,"Long Signal", group = strategy_settings)
+bool show_cobra = input.bool(true, "Show Cobra Dashboard", group = strategy_settings)
+
+disp_ind = input.string ("Strategy" , title = "Display Curve" , tooltip = "Choose which data you would like to display", options=["Strategy", "Equity", "Open Profit", "Gross Profit", "Net Profit", "None"], group = strategy_settings)
+pos_table = input.string("Bottom Right", "Table Position", options = ["Top Left", "Middle Left", "Bottom Left", "Top Right", "Middle Right", "Bottom Right", "Top Center", "Bottom Center"], group = strategy_settings)
+type_table = input.string("Simple", "Table Type", options = ["Full", "Simple", "None"], group = strategy_settings)
+
+plot(show_cobra? cobra.curve(disp_ind) : na)
+if show_cobra
+    cobra.cobraTable(type_table, pos_table)
+
+import Bikelife76/MajorCobraMetrics2025/2 as cobra
+
+table_settings_group = "📊 Table Settings"
+
+binary_color = final_score < 0 ? bearcolor : bullcolor
+
+// === INPUT FOR TABLE SETTINGS ===
+table_position = input.string("bottom_right", "Table Position", options=[
+     "top_left", "top_center", "top_right",
+     "middle_left", "middle_center", "middle_right",
+     "bottom_left", "bottom_center", "bottom_right"
+ ], group=table_settings_group)
+
+table_text_size = input.string("normal", "Text Size", options=["tiny", "small", "normal", "large", "huge"], group=table_settings_group)
+force_overlay_setting = input.bool(true, "Force Overlay", group=table_settings_group)
+
+
+
+
+// === POSITION MAPPING FUNCTION ===
+f_get_position(pos_str) =>
+     pos_str == "top_left"       ? position.top_left :
+     pos_str == "top_center"     ? position.top_center :
+     pos_str == "top_right"      ? position.top_right :
+     pos_str == "middle_left"    ? position.middle_left :
+     pos_str == "middle_center"  ? position.middle_center :
+     pos_str == "middle_right"   ? position.middle_right :
+     pos_str == "bottom_left"    ? position.bottom_left :
+     pos_str == "bottom_center"  ? position.bottom_center :
+     pos_str == "bottom_right"   ? position.bottom_right :
+     position.top_right
+
+// === CREATE & CONFIGURE TABLE ===
+table myTable = table.new(f_get_position(table_position), 3, 23, border_color = bullcolor, frame_width = 1, border_width=1, frame_color=bullcolor, force_overlay = true)
+table myTableSummary = table.new(position.bottom_center, 7, 23, border_color = bullcolor, frame_width = 1, border_width=1, frame_color=bullcolor, force_overlay = true)
+
+// === CLEAR TABLE ===
+if bar_index == 0
+    table.clear(myTable, 0, 0, 2, 22)
+    table.clear(myTableSummary, 0, 0, 2, 22)
+
+// === HEADER ROW ===
+table.cell(myTableSummary, 0, 0, text="0xBujang - Long Term Trend Direction", text_color=final_score_color, bgcolor=color.new(bullcolor,70), text_halign=text.align_center, text_size=table_text_size)
+table.merge_cells(myTableSummary, 0,0,3,0)
+
+table.cell(myTableSummary, 0, 1, "Score", text_size=table_text_size, text_color = final_trend_color, bgcolor=color.new(bullcolor,70))
+table.cell(myTableSummary, 1, 1, str.tostring(final_score[1], format.mintick), text_size=table_text_size, text_color = final_trend_color,width = 4)
+
+table.cell(myTableSummary, 2, 1, "ROC", text_size=table_text_size, text_color = final_trend_color, bgcolor=color.new(bullcolor,70))
+table.cell(myTableSummary, 3, 1, str.tostring(math.round(final_score[1],2) - math.round(final_score[2],2), format.mintick), text_size=table_text_size, text_color = final_trend_color)
+
+table.cell(myTableSummary, 0, 2, f_calc_trend_state(final_score[1]), text_size=table_text_size, text_color = final_trend_color, bgcolor=color.new(final_trend_color,70))
+table.merge_cells(myTableSummary, 0,2,3,2)
+
+table.cell(myTable, 0, 0, text="Indicator", text_color=final_score_color, bgcolor=color.new(bullcolor,70), text_halign=text.align_center, text_size=table_text_size)
+table.cell(myTable, 1, 0, text="Score", text_color=final_score_color, bgcolor=color.new(bullcolor,70), text_halign=text.align_center, text_size=table_text_size)
+
+// === ROW POPULATION ===
+int row = 1
+
+f_add_row(name, score, enabled, row) =>
+    textcolor = score > 0 ? bullcolor : bearcolor
+    if enabled
+        table.cell(myTable, 0, row, name, text_size=table_text_size, text_color = textcolor)
+        table.cell(myTable, 1, row, str.tostring(score, format.mintick), text_size=table_text_size, text_color = textcolor)
+        row + 1
+    else
+        row
+
+
+// Add enabled indicators
+if barstate.islast
+    row := f_add_row("Indicator 1",  indicator1_score,  use_indicator1, row)
+    row := f_add_row("Indicator 2",  indicator2_score,  use_indicator2, row)
+    row := f_add_row("Indicator 3",  indicator3_score,  use_indicator3, row)
+    row := f_add_row("Indicator 4",  indicator4_score,  use_indicator4, row)
+    row := f_add_row("Indicator 5",  indicator5_score,  use_indicator5, row)
+    row := f_add_row("Indicator 6",  indicator6_score,  use_indicator6, row)
+    row := f_add_row("Indicator 7",  indicator7_score,  use_indicator7, row)
+    row := f_add_row("Indicator 8",  indicator8_score,  use_indicator8, row)
+    row := f_add_row("Indicator 9",  indicator9_score,  use_indicator9, row)
+    row := f_add_row("Indicator 10", indicator10_score, use_indicator10, row)
+    row := f_add_row("Indicator 11", indicator11_score, use_indicator11, row)
+    row := f_add_row("Indicator 12", indicator12_score, use_indicator12, row)
+    row := f_add_row("On-Chain 1", F1_score, use_onchain1, row)
+    row := f_add_row("On-Chain 2", F2_score, use_onchain2, row)
+    row := f_add_row("On-Chain 3", F3_score, use_onchain3, row)
+    row := f_add_row("On-Chain 4", F4_score, use_onchain4, row)
+
+
+// === FINAL SCORE ===
+// table.cell(myTable, 0, row, "Final Score", bgcolor=color.new(final_score_color,70), text_color=color.new(binary_color, 10), text_halign=text.align_center, text_size=table_text_size)
+// table.cell(myTable, 1, row, str.tostring(final_score[1], format.mintick), bgcolor=color.new(final_score_color,70), text_color=color.new(binary_color, 10), text_halign=text.align_center, text_size=table_text_size)
+
+// === ICHIMOKU ===
+
+// Inputs for Ichimoku periods
+tenkan_period = input.int(9, "Tenkan Period", group = ichimoku_group)
+kijun_period = input.int(26, "Kijun Period", group = ichimoku_group)
+senkou_b_period = input.int(52, "Senkou B Period", group = ichimoku_group)
+displacement = kijun_period  // Standard displacement
+
+price_high =  high
+price_low =  low
+
+// Core Ichimoku Calculations
+tenkan = (ta.highest(price_high, tenkan_period) + ta.lowest(price_low, tenkan_period)) / 2
+kijun = (ta.highest(price_high, kijun_period) + ta.lowest(price_low, kijun_period)) / 2
+senkou_a = (tenkan + kijun) / 2
+senkou_b = (ta.highest(price_high, senkou_b_period) + ta.lowest(price_low, senkou_b_period)) / 2
+chikou = close
+
+// Plot Core Lines
+plot(show_ichimoku ? tenkan : na, "Tenkan", color=#2962FF, force_overlay = true)
+plot(show_ichimoku ? kijun : na, "Kijun", color=#B71C1C, force_overlay = true)
+p1 = plot(show_ichimoku ? senkou_a : na, "Senkou A", color=#6A1B9A, offset=displacement, force_overlay = true)
+p2 = plot(show_ichimoku ? senkou_b : na, "Senkou B", color=#C2185B, offset=displacement, force_overlay = true)
+fill(p1, p2, color=senkou_a > senkou_b ? color.new(#6A1B9A, 80) : color.new(#C2185B, 80), title="Cloud")
+plot(show_ichimoku ? chikou : na, "Chikou", color=#43A047, offset=-displacement+1, force_overlay = true)
+
+
+
+// ================== LOG
+// 1. Format Waktu menjadi Tanggal (YYYY-MM-DD)
+string current_date = str.format_time(time, "yyyy-MM-dd", syminfo.timezone)
+
+// 2. Cetak Header HANYA di bar pertama
+if barstate.isfirst
+    // Menambahkan kolom baru di bagian akhir header
+    string csv_header = "Date,Indicator 1,Indicator 2,Indicator 3,Indicator 4,Indicator 5,Indicator 6,Indicator 7,Indicator 8,Indicator 9,Indicator 10,Indicator 11,Indicator 12,On-Chain 1,On-Chain 2,On-Chain 3,On-Chain 4,I1 RSI Raw,I2 Centered Osc,I3 Supertrend Cont,I4 Consensus,I5 FFT Trend,I6 RTI MA,I9 RSI,I10 Stoch MA,I11 Trend Strength"
+    log.info(csv_header)
+
+// 3. Masukkan data ke dalam Array untuk bar saat ini
+csv_data_array = array.from(
+     current_date, 
+     str.tostring(indicator1_score),
+     str.tostring(indicator2_score),
+     str.tostring(indicator3_score),
+     str.tostring(indicator4_score),
+     str.tostring(indicator5_score),
+     str.tostring(indicator6_score),
+     str.tostring(indicator7_score),
+     str.tostring(indicator8_score),
+     str.tostring(indicator9_score),
+     str.tostring(indicator10_score),
+     str.tostring(indicator11_score),
+     str.tostring(indicator12_score),
+     str.tostring(F1_score),
+     str.tostring(F2_score),
+     str.tostring(F3_score),
+     str.tostring(F4_score),
+     // --- Tambahan Variabel Raw ---
+     str.tostring(rsi),
+     str.tostring(centeredOscillator),
+     str.tostring(i3_score),
+     str.tostring(consensusStrength),
+     str.tostring(fft_trend),
+     str.tostring(i6_MA_RelativeTrendIndex),
+     str.tostring(i9_rsi),
+     str.tostring(MA),
+     str.tostring(i11_trend_strength)
+ )
+
+// 4. Cetak log berisi data CSV untuk tanggal tersebut
+log.info(array.join(csv_data_array, ","))
