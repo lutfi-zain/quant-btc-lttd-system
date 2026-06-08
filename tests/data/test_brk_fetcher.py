@@ -65,3 +65,15 @@ def test_no_lookahead():
     
     # Ensure no lookahead by verifying 2026-01-03 does NOT equal 1.4
     assert merged.loc["2026-01-03", "sth_mvrv"] != 1.4
+
+
+def test_align_with_ohlcv_string_index():
+    fetcher = BRKDataFetcher()
+    
+    ohlcv_df = pd.DataFrame({"close": [10, 20]}, index=["2026-01-01", "2026-01-02"])
+    brk_df = pd.DataFrame({"sth_mvrv": [1.1]}, index=["2026-01-01"])
+    
+    merged = fetcher.align_with_ohlcv(brk_df, ohlcv_df)
+    
+    assert merged.loc["2026-01-01", "sth_mvrv"] == 1.1
+    assert merged.loc["2026-01-02", "sth_mvrv"] == 1.1
