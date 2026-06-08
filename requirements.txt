@@ -1,0 +1,9 @@
+pandas
+numpy
+scipy
+requests
+pytest
+pytest-cov
+hmmlearn
+xgboost
+scikit-learn
