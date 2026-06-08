@@ -1,0 +1,6 @@
+pandas
+pytest
+pytest-cov
+brk-client
+
+pytest-mock
