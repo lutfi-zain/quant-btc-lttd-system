@@ -4,6 +4,8 @@ scipy
 requests
 pytest
 pytest-cov
+pytest-mock
+brk-client
 hmmlearn
 xgboost
 scikit-learn
