@@ -1,5 +1,6 @@
 from src.data.brk_fetcher import BRKDataFetcher
 
+
 class WFOEnsemble:
     def __init__(self, fetcher: BRKDataFetcher = None):
         self.fetcher = fetcher or BRKDataFetcher()

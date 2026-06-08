@@ -3,6 +3,7 @@ import pandas as pd
 from contextlib import contextmanager
 import os
 
+
 class SQLiteCache:
     def __init__(self, db_path: str):
         self.db_path = db_path
@@ -20,7 +21,7 @@ class SQLiteCache:
 
     def init_db(self):
         with self.get_connection() as conn:
-            conn.execute('''
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS ohlcv (
                     timestamp TEXT PRIMARY KEY,
                     open REAL,
@@ -29,7 +30,7 @@ class SQLiteCache:
                     close REAL,
                     volume REAL
                 )
-            ''')
+            """)
             conn.commit()
 
     def save_dataframe(self, df: pd.DataFrame):
@@ -37,7 +38,9 @@ class SQLiteCache:
             return
         with self.get_connection() as conn:
             df_to_save = df.reset_index()
-            df_to_save['timestamp'] = df_to_save['timestamp'].dt.strftime('%Y-%m-%d %H:%M:%S')
+            df_to_save["timestamp"] = df_to_save["timestamp"].dt.strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
             df_to_save.to_sql("ohlcv", conn, if_exists="append", index=False)
 
     def load_dataframe(self) -> pd.DataFrame:
@@ -48,8 +51,8 @@ class SQLiteCache:
                 return pd.DataFrame()
             if df.empty:
                 return df
-            df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True)
-            df.set_index('timestamp', inplace=True)
+            df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+            df.set_index("timestamp", inplace=True)
             return df
 
     def get_max_timestamp(self):
