@@ -39,3 +39,5 @@ logs/
 
 # Scratch / temp
 scratch/
+# Local Pi runtime state
+.atl/
