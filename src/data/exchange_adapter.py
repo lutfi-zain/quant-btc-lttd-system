@@ -12,10 +12,15 @@ class ExchangeAdapter(ABC):
     def fetch_ohlcv(self, start_time: datetime = None, end_time: datetime = None) -> pd.DataFrame:
         pass
 
+from src.config import EXCHANGE_API_KEY
+
 class BinanceAdapter(ExchangeAdapter):
     def fetch_ohlcv(self, start_time: datetime = None, end_time: datetime = None) -> pd.DataFrame:
         base_url = "https://api.binance.com/api/v3/klines"
         params = {"symbol": "BTCUSDT", "interval": "1d", "limit": 1000}
+        headers = {}
+        if EXCHANGE_API_KEY:
+            headers["X-MBX-APIKEY"] = EXCHANGE_API_KEY
         if start_time:
             params["startTime"] = int(start_time.timestamp() * 1000)
         if end_time:
@@ -27,7 +32,7 @@ class BinanceAdapter(ExchangeAdapter):
         while True:
             for attempt in range(max_retries):
                 try:
-                    response = requests.get(base_url, params=params, timeout=10)
+                    response = requests.get(base_url, params=params, headers=headers, timeout=10)
                     response.raise_for_status()
                     data = response.json()
                     break

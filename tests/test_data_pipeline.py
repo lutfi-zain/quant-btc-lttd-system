@@ -48,6 +48,9 @@ def test_missing_daily_bar():
     assert len(df_std) == 3
     assert df_std.index[1] == datetime(2024,1,2, tzinfo=timezone.utc)
     assert df_std.loc[df_std.index[1], "close"] == 10.5
+    assert df_std.loc[df_std.index[1], "open"] == 10.5
+    assert df_std.loc[df_std.index[1], "high"] == 10.5
+    assert df_std.loc[df_std.index[1], "low"] == 10.5
     assert df_std.loc[df_std.index[1], "volume"] == 0.0
 
 def test_no_lookahead():

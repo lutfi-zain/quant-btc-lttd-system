@@ -33,8 +33,13 @@ def standardize_and_validate(df: pd.DataFrame) -> pd.DataFrame:
     full_index = pd.date_range(start=df.index.min(), end=df.index.max(), freq='D')
     df = df.reindex(full_index)
 
-    for col in ['open', 'high', 'low', 'close']:
+    missing_mask = df['close'].isna()
+    if 'close' in df.columns:
+        df['close'] = df['close'].ffill()
+        
+    for col in ['open', 'high', 'low']:
         if col in df.columns:
+            df.loc[missing_mask, col] = df['close']
             df[col] = df[col].ffill()
     
     if 'volume' in df.columns:
