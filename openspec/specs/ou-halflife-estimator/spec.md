@@ -1,5 +1,8 @@
-## ADDED Requirements
+# ou-halflife-estimator Specification
 
+## Purpose
+TBD - created by archiving change p02-ou-halflife-estimator. Update Purpose after archive.
+## Requirements
 ### Requirement: OU Half-Life Statistical Estimation
 The Feature Processing layer (Layer 3) SHALL estimate the Ornstein-Uhlenbeck (OU) mean-reversion half-life daily using a historical window of log returns, directly referencing the mathematical specification in pi_final_research_lttd_01.md. This calculation applies at the daily level.
 
@@ -23,6 +26,3 @@ During Walk-Forward Optimization (WFO), the system SHALL recalibrate the baselin
 - **THEN** the historical baseline for the OU Half-Life MUST be recalculated using the purged in-sample data
 - **THEN** the recalibration MUST NOT use any out-of-sample data, strictly preventing Lookahead Bias
 
-### Non-Goals
-- Generating an Indicator Score ∈ {-1, +1} directly from the OU Half-Life. It is strictly a meta-parameter, not an additive feature in the Ensemble Aggregation (which outputs the Final Score).
-- Intraday or per-tick recalibration. The process is strictly performed on confirmed daily bars.

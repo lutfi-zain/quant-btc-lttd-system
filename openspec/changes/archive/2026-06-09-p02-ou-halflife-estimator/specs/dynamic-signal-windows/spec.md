@@ -36,6 +36,6 @@ The dynamic window resizing SHALL apply exclusively to Technical Indicators and 
 - **WHEN** verifying the freshness of the data using the BRK Stamp
 - **THEN** the structural timescales (e.g., 800-1,200 days) for On-Chain Metrics MUST remain independent of the current OU Half-Life
 
-### Non-Goals
+## Non-Goals
 - Applying symmetric or centered windowing techniques (like non-causal Savitzky-Golay) during resizing.
 - Modifying the Regime detection parameters (HMM layer), as it operates independently on returns and volatility.
