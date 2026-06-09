@@ -21,7 +21,7 @@ class BinanceAdapter(ExchangeAdapter):
     def fetch_ohlcv(
         self, start_time: datetime = None, end_time: datetime = None
     ) -> pd.DataFrame:
-        base_url = "https://api.binance.com/api/v3/klines"
+        base_url = "https://data-api.binance.vision/api/v3/klines"
         params = {"symbol": "BTCUSDT", "interval": "1d", "limit": 1000}
         headers = {}
         if EXCHANGE_API_KEY:
