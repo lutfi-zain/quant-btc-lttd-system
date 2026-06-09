@@ -1,6 +1,5 @@
 import abc
 import pandas as pd
-import numpy as np
 
 
 class CausalFilter(abc.ABC):
@@ -26,7 +25,9 @@ class CausalFilter(abc.ABC):
         """
         self.dynamic_lookback = dynamic_lookback
 
-    def _resolve_lookback(self, data: pd.DataFrame, default_lookback: int = 200) -> pd.Series:
+    def _resolve_lookback(
+        self, data: pd.DataFrame, default_lookback: int = 200
+    ) -> pd.Series:
         """
         Resolves the dynamic_lookback parameter/callback/value into a pd.Series
         of lookback windows (integers) aligned with the data index.
@@ -35,7 +36,11 @@ class CausalFilter(abc.ABC):
         if self.dynamic_lookback is None:
             resolved = pd.Series(default_lookback, index=data.index)
         elif isinstance(self.dynamic_lookback, pd.Series):
-            resolved = self.dynamic_lookback.reindex(data.index).ffill().fillna(default_lookback)
+            resolved = (
+                self.dynamic_lookback.reindex(data.index)
+                .ffill()
+                .fillna(default_lookback)
+            )
         elif callable(self.dynamic_lookback):
             res = self.dynamic_lookback(data)
             if isinstance(res, pd.Series):

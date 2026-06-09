@@ -1,6 +1,7 @@
 import pandas as pd
 from src.backtest.runner import BacktestRunner
 
+
 def test_backtest_runner_legacy_fixed_window():
     runner_legacy = BacktestRunner(legacy_fixed_window=True)
     res_legacy = runner_legacy.run(pd.DataFrame())

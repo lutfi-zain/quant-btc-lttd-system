@@ -30,15 +30,15 @@ class DummyDynamicIndicator(CausalFilter):
         lookbacks = self._resolve_lookback(data, default_lookback=200)
         closes = data["close"].values
         result = pd.Series(index=data.index, dtype=float)
-        
-        # Strictly causal lookup: for each bar i, look back l bars
+
+        # Strictly causal lookup: for each bar i, look back lb bars
         for i in range(len(data)):
-            l = lookbacks.iloc[i]
-            if i >= l:
-                result.iloc[i] = closes[i] - closes[i - l]
+            lb = lookbacks.iloc[i]
+            if i >= lb:
+                result.iloc[i] = closes[i] - closes[i - lb]
             else:
                 result.iloc[i] = np.nan
-                
+
         sign = np.sign(result).fillna(0)
         sign[sign == 0] = 1
         return sign
@@ -65,7 +65,7 @@ def test_dummy_lookahead_indicator(sample_data):
     diff = sample_data["close"].diff(-1)
     neg_indices = np.where(diff > 0)[0]
     t_idx = neg_indices[0]
-    
+
     with pytest.raises(AssertionError, match="Lookahead bias detected"):
         test_no_lookahead(indicator, sample_data, int(t_idx))
 
@@ -94,7 +94,9 @@ def test_dynamic_lookback_resolution(sample_data):
     assert resolved_series.iloc[250] == 350
 
     # Test callable lookback
-    indicator_call = DummyDynamicIndicator(dynamic_lookback=lambda df: pd.Series(200, index=df.index))
+    indicator_call = DummyDynamicIndicator(
+        dynamic_lookback=lambda df: pd.Series(200, index=df.index)
+    )
     resolved_call = indicator_call._resolve_lookback(sample_data)
     assert (resolved_call == 200).all()
 
@@ -103,9 +105,9 @@ def test_dynamic_indicator_no_lookahead(sample_data):
     # Create a dynamic lookback Series that changes over time
     dyn_series = pd.Series(150, index=sample_data.index)
     dyn_series.iloc[250:] = 300
-    
+
     indicator = DummyDynamicIndicator(dynamic_lookback=dyn_series)
-    
+
     # Verify no lookahead at different indices
     test_no_lookahead(indicator, sample_data, 200)
     test_no_lookahead(indicator, sample_data, 300)

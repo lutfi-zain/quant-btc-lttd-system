@@ -1,10 +1,10 @@
 import numpy as np
 import pandas as pd
-import pytest
 from src.features.ou_calibration import (
     estimate_ou_halflife,
     calculate_rolling_ou_halflife,
 )
+
 
 def test_ou_halflife_clamping_and_fallbacks():
     # 1. Test insufficient data fallback
@@ -20,7 +20,7 @@ def test_ou_halflife_clamping_and_fallbacks():
     assert estimate_ou_halflife(series_trend, min_bars=30) == 350.0
 
     # 3. Test b <= 0 fallback or clamping
-    x_osc = np.array([(-0.5)**i for i in range(50)])
+    x_osc = np.array([(-0.5) ** i for i in range(50)])
     series_osc = pd.Series(x_osc)
     assert estimate_ou_halflife(series_osc, min_bars=30) == 350.0
 
@@ -43,17 +43,21 @@ def test_ou_halflife_clamping_and_fallbacks():
     hl_rw = estimate_ou_halflife(series_rw, min_bars=100)
     assert hl_rw == 350.0
 
+
 def test_no_lookahead():
     np.random.seed(42)
     dates = pd.date_range("2024-01-01", periods=500, freq="D")
     log_returns = pd.Series(np.random.normal(0, 0.01, size=500), index=dates)
 
-    rolling_hl_full = calculate_rolling_ou_halflife(log_returns, window=100, min_bars=50)
+    rolling_hl_full = calculate_rolling_ou_halflife(
+        log_returns, window=100, min_bars=50
+    )
 
     t_index = 200
-    t_date = dates[t_index]
 
-    log_returns_truncated = log_returns.iloc[:t_index + 1]
-    rolling_hl_truncated = calculate_rolling_ou_halflife(log_returns_truncated, window=100, min_bars=50)
+    log_returns_truncated = log_returns.iloc[: t_index + 1]
+    rolling_hl_truncated = calculate_rolling_ou_halflife(
+        log_returns_truncated, window=100, min_bars=50
+    )
 
     assert rolling_hl_truncated.iloc[-1] == rolling_hl_full.iloc[t_index]
