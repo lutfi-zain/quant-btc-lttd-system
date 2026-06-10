@@ -58,8 +58,12 @@ class QuantileDEMA(CausalFilter):
         if len(unique_lbs) == 1:
             N = unique_lbs[0]
             if T >= N:
-                q_low_series = data["close"].rolling(window=N, min_periods=N).quantile(self.q_low)
-                q_high_series = data["close"].rolling(window=N, min_periods=N).quantile(self.q_high)
+                q_low_series = (
+                    data["close"].rolling(window=N, min_periods=N).quantile(self.q_low)
+                )
+                q_high_series = (
+                    data["close"].rolling(window=N, min_periods=N).quantile(self.q_high)
+                )
                 q_low_vals = q_low_series.values
                 q_high_vals = q_high_series.values
         else:
@@ -83,7 +87,11 @@ class QuantileDEMA(CausalFilter):
 
         for t in range(T):
             # If dema bands are NaN, propagate or keep default
-            if pd.isna(dema_q_low.iloc[t]) or pd.isna(dema_q_high.iloc[t]) or pd.isna(q_low_vals[t]):
+            if (
+                pd.isna(dema_q_low.iloc[t])
+                or pd.isna(dema_q_high.iloc[t])
+                or pd.isna(q_low_vals[t])
+            ):
                 if t > 0:
                     signals[t] = signals[t - 1]
                 continue

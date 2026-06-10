@@ -66,3 +66,26 @@ class WFOEnsemble:
                 daily_hl.iloc[i] = 350.0
 
         return daily_hl
+
+    def merge_onchain_data(
+        self, ohlcv_df: pd.DataFrame, onchain_df: pd.DataFrame
+    ) -> pd.DataFrame:
+        """
+        Merge OHLCV data and on-chain historical bulk data via causal asof merge.
+        """
+        if not isinstance(ohlcv_df.index, pd.DatetimeIndex):
+            ohlcv_df.index = pd.to_datetime(ohlcv_df.index)
+        if not isinstance(onchain_df.index, pd.DatetimeIndex):
+            onchain_df.index = pd.to_datetime(onchain_df.index)
+
+        ohlcv_sorted = ohlcv_df.sort_index()
+        onchain_sorted = onchain_df.sort_index()
+
+        merged = pd.merge_asof(
+            ohlcv_sorted,
+            onchain_sorted,
+            left_index=True,
+            right_index=True,
+            direction="backward",
+        )
+        return merged

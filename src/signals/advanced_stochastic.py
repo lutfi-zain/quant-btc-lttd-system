@@ -76,14 +76,20 @@ class AdvancedStochastic(CausalFilter):
 
             # Scale lookback: inverse of volatility ratio
             raw_lookback = self.default_lookback / (vol_ratio + 1e-8)
-            lookbacks = self._resolve_lookback(data, default_lookback=self.default_lookback)
+            lookbacks = self._resolve_lookback(
+                data, default_lookback=self.default_lookback
+            )
             # Override with ATR-scaled lookback (which gets re-resolved and clamped)
             self.dynamic_lookback = raw_lookback
-            lookbacks = self._resolve_lookback(data, default_lookback=self.default_lookback)
+            lookbacks = self._resolve_lookback(
+                data, default_lookback=self.default_lookback
+            )
             # Reset dynamic_lookback to None so next calls recalculate
             self.dynamic_lookback = None
         else:
-            lookbacks = self._resolve_lookback(data, default_lookback=self.default_lookback)
+            lookbacks = self._resolve_lookback(
+                data, default_lookback=self.default_lookback
+            )
 
         # 2. Compute %K values
         k_vals = np.full(T, np.nan)
@@ -119,12 +125,22 @@ class AdvancedStochastic(CausalFilter):
 
             # Bullish crossover reversal (oversold)
             if k_prev < d_prev and k_val >= d_val:
-                if k_val < self.oversold_threshold or d_val < self.oversold_threshold or k_prev < self.oversold_threshold or d_prev < self.oversold_threshold:
+                if (
+                    k_val < self.oversold_threshold
+                    or d_val < self.oversold_threshold
+                    or k_prev < self.oversold_threshold
+                    or d_prev < self.oversold_threshold
+                ):
                     signals[t] = 1.0
 
             # Bearish crossover reversal (overbought)
             elif k_prev > d_prev and k_val <= d_val:
-                if k_val > self.overbought_threshold or d_val > self.overbought_threshold or k_prev > self.overbought_threshold or d_prev > self.overbought_threshold:
+                if (
+                    k_val > self.overbought_threshold
+                    or d_val > self.overbought_threshold
+                    or k_prev > self.overbought_threshold
+                    or d_prev > self.overbought_threshold
+                ):
                     signals[t] = -1.0
 
         return pd.Series(signals, index=data.index)

@@ -44,7 +44,12 @@ class BRKDataFetcher:
         if start is not None:
             kwargs["start"] = start
 
-        return self.client.get_series_bulk(series_list, index="day1", **kwargs)
+        if isinstance(series_list, (list, tuple)) and len(series_list) > 1:
+            query_series = ",".join(series_list)
+        else:
+            query_series = series_list
+
+        return self.client.get_series_bulk(query_series, index="day1", **kwargs)
 
     def align_with_ohlcv(
         self, brk_df: pd.DataFrame, ohlcv_df: pd.DataFrame

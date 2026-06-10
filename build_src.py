@@ -1,5 +1,3 @@
-import os
-
 files = {
     "src/data/exchange_adapter.py": """from abc import ABC, abstractmethod
 import pandas as pd
@@ -311,7 +309,7 @@ def test_caching_behavior(tmp_path, monkeypatch):
     assert len(df2) == 5
     
     assert cache.get_max_timestamp() == t2
-"""
+""",
 }
 
 for path, content in files.items():

@@ -78,12 +78,15 @@ def test_fourier_supertrend_edge_cases(dummy_ohlcv_data):
 
 # Layer Integration Verification (Task 4.1 - 4.4)
 
+
 def run_signal_engine_pipeline(data: pd.DataFrame) -> pd.DataFrame:
     """
     Simulates the Layer 2 Signal Engine pipeline integration.
     """
     indicator = AdaptiveFourierSupertrend()
-    return pd.DataFrame({"fourier_supertrend": indicator.compute(data)}, index=data.index)
+    return pd.DataFrame(
+        {"fourier_supertrend": indicator.compute(data)}, index=data.index
+    )
 
 
 def test_layer_2_pipeline_integration(dummy_ohlcv_data):
@@ -104,11 +107,13 @@ def test_vif_integration(dummy_ohlcv_data):
     momentum = dummy_ohlcv_data["close"].diff().fillna(0)
     volatility = dummy_ohlcv_data["close"].rolling(20).std().bfill().fillna(0)
 
-    features_df = pd.DataFrame({
-        "fourier_supertrend": fourier_scores,
-        "momentum": momentum,
-        "volatility": volatility
-    })
+    features_df = pd.DataFrame(
+        {
+            "fourier_supertrend": fourier_scores,
+            "momentum": momentum,
+            "volatility": volatility,
+        }
+    )
 
     # Calculate VIF to ensure fourier_supertrend remains < 10.0 (orthogonal)
     vifs = calculate_vif(features_df)
@@ -123,17 +128,18 @@ def test_lasso_ingestion(dummy_ohlcv_data):
 
     # Generate other features and target (binary direction)
     momentum = dummy_ohlcv_data["close"].diff().fillna(0)
-    X = pd.DataFrame({
-        "fourier_supertrend": fourier_scores,
-        "momentum": momentum
-    })
+    X = pd.DataFrame({"fourier_supertrend": fourier_scores, "momentum": momentum})
 
     # Target: next day direction mapped to binary classes [0, 1]
-    y = np.sign(dummy_ohlcv_data["close"].shift(-1) - dummy_ohlcv_data["close"]).fillna(1)
+    y = np.sign(dummy_ohlcv_data["close"].shift(-1) - dummy_ohlcv_data["close"]).fillna(
+        1
+    )
     y = y.map({-1.0: 0, 0.0: 0, 1.0: 1})
 
     # Fit L1-Lasso Logistic Regression model
-    clf = LogisticRegression(penalty="elasticnet", solver="saga", l1_ratio=1.0, random_state=42)
+    clf = LogisticRegression(
+        penalty="elasticnet", solver="saga", l1_ratio=1.0, random_state=42
+    )
     clf.fit(X.iloc[:-1], y.iloc[:-1])
 
     # Predict
@@ -149,11 +155,12 @@ def test_wfo_backtest_pass(dummy_ohlcv_data):
     fourier_scores = indicator.compute(dummy_ohlcv_data)
     momentum = dummy_ohlcv_data["close"].diff().fillna(0)
 
-    X = pd.DataFrame({
-        "fourier_supertrend": fourier_scores,
-        "momentum": momentum
-    })
-    y = np.sign(dummy_ohlcv_data["close"].shift(-1) - dummy_ohlcv_data["close"]).fillna(1).map({-1.0: 0, 0.0: 0, 1.0: 1})
+    X = pd.DataFrame({"fourier_supertrend": fourier_scores, "momentum": momentum})
+    y = (
+        np.sign(dummy_ohlcv_data["close"].shift(-1) - dummy_ohlcv_data["close"])
+        .fillna(1)
+        .map({-1.0: 0, 0.0: 0, 1.0: 1})
+    )
 
     train_size = 150
     val_size = 30
@@ -164,7 +171,9 @@ def test_wfo_backtest_pass(dummy_ohlcv_data):
         y_train = y.iloc[start : start + train_size]
         X_test = X.iloc[start + train_size : start + train_size + val_size]
 
-        model = LogisticRegression(penalty="elasticnet", solver="saga", l1_ratio=1.0, random_state=42)
+        model = LogisticRegression(
+            penalty="elasticnet", solver="saga", l1_ratio=1.0, random_state=42
+        )
         model.fit(X_train, y_train)
         preds = model.predict(X_test)
         assert len(preds) == val_size

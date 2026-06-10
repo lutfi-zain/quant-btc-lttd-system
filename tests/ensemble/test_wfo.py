@@ -85,3 +85,24 @@ def test_ou_halflife_exclusion_from_features():
     # Feature columns must not contain OU half-life, so VIF is 0/undefined for it
     assert "ou_halflife" not in feature_columns
     assert "ou" not in feature_columns
+
+
+def test_merge_onchain_data():
+    ensemble = WFOEnsemble()
+
+    dates_ohlcv = pd.date_range("2026-01-01", "2026-01-05", freq="D")
+    ohlcv = pd.DataFrame({"close": [100, 101, 102, 103, 104]}, index=dates_ohlcv)
+
+    # On-chain data is missing for 2026-01-03
+    dates_onchain = pd.to_datetime(["2026-01-01", "2026-01-02", "2026-01-04"])
+    onchain = pd.DataFrame({"sth_mvrv": [1.1, 1.2, 1.4]}, index=dates_onchain)
+
+    merged = ensemble.merge_onchain_data(ohlcv, onchain)
+
+    # Assert alignment:
+    # 2026-01-03 should causally have the value from 2026-01-02 (1.2), not 2026-01-04 (1.4)
+    assert merged.loc["2026-01-01", "sth_mvrv"] == 1.1
+    assert merged.loc["2026-01-02", "sth_mvrv"] == 1.2
+    assert merged.loc["2026-01-03", "sth_mvrv"] == 1.2
+    assert merged.loc["2026-01-04", "sth_mvrv"] == 1.4
+    assert merged.loc["2026-01-05", "sth_mvrv"] == 1.4

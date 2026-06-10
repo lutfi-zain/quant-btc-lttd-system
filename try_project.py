@@ -1,7 +1,6 @@
 import os
 import sys
 import numpy as np
-import pandas as pd
 
 # Ensure the current directory is in the python path
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
@@ -35,7 +34,9 @@ def main():
         return
 
     # Step 2: Fit HMM and Predict Regime Transitions
-    print("\n[Step 2] Training 3-state HMM Regime Detector on historical close prices...")
+    print(
+        "\n[Step 2] Training 3-state HMM Regime Detector on historical close prices..."
+    )
     try:
         close_series = df_ohlcv["close"]
         model, state_to_regime = train_hmm(close_series)
@@ -53,7 +54,9 @@ def main():
         latest_row = df_regimes.iloc[-1]
         print(f"\n→ Current Market Regime: {latest_row.get('regime', 'UNKNOWN')}")
         if "prob_BULL" in latest_row:
-            print(f"→ Posterior Probabilities: BULL={latest_row['prob_BULL']:.2%}, BEAR={latest_row.get('prob_BEAR', 0.0):.2%}, SIDEWAYS={latest_row.get('prob_SIDEWAYS', 0.0):.2%}")
+            print(
+                f"→ Posterior Probabilities: BULL={latest_row['prob_BULL']:.2%}, BEAR={latest_row.get('prob_BEAR', 0.0):.2%}, SIDEWAYS={latest_row.get('prob_SIDEWAYS', 0.0):.2%}"
+            )
     except Exception as e:
         print(f"✗ HMM Regime Detection failed: {e}")
 
@@ -63,7 +66,9 @@ def main():
         # Calculate daily log returns
         log_returns = np.log(close_series / close_series.shift(1)).dropna()
         hl = estimate_ou_halflife(log_returns, min_bars=120)
-        print(f"✓ Estimated Mean Reversion Speed: {hl:.2f} days (clamped to LTTD window bounds [120, 350])")
+        print(
+            f"✓ Estimated Mean Reversion Speed: {hl:.2f} days (clamped to LTTD window bounds [120, 350])"
+        )
         print("\n==========================================================")
         print("Demo execution finished successfully!")
         print("==========================================================")

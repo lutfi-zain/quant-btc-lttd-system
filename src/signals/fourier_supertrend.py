@@ -12,7 +12,9 @@ class AdaptiveFourierSupertrend(CausalFilter):
     Standardizes output to a binary score in {-1, +1}.
     """
 
-    def __init__(self, fft_window=256, min_period=10, multiplier=3.0, dynamic_lookback=None):
+    def __init__(
+        self, fft_window=256, min_period=10, multiplier=3.0, dynamic_lookback=None
+    ):
         """
         Args:
             fft_window (int): Default FFT lookback window size.

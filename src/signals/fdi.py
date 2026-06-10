@@ -49,7 +49,9 @@ class FDI(CausalFilter):
             if T >= N:
                 shape = (T - N + 1, N)
                 strides = (closes.strides[0], closes.strides[0])
-                windows = np.lib.stride_tricks.as_strided(closes, shape=shape, strides=strides)
+                windows = np.lib.stride_tricks.as_strided(
+                    closes, shape=shape, strides=strides
+                )
 
                 y_min = np.min(windows, axis=1, keepdims=True)
                 y_max = np.max(windows, axis=1, keepdims=True)
@@ -63,7 +65,7 @@ class FDI(CausalFilter):
 
                 D_vals = 1.0 + np.log(L) / np.log(2 * (N - 1))
                 D_vals = np.where(denom.flatten() == 0, 1.0, D_vals)
-                D[N - 1:] = D_vals
+                D[N - 1 :] = D_vals
         else:
             # Fall back to step-by-step rolling calculation if window is dynamic
             for t in range(T):
