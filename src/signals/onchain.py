@@ -34,7 +34,7 @@ class OnChainFeed:
             # Map index to date
             start_date = self.fetcher.client.index_to_date("day1", start_idx)
             dates = pd.date_range(
-                start=start_date, periods=len(s_data["data"]), freq="D"
+                start=start_date, periods=len(s_data["data"]), freq="D", tz="UTC"
             )
             df_dict[name] = pd.Series(s_data["data"], index=dates)
 
