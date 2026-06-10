@@ -106,3 +106,99 @@ def test_merge_onchain_data():
     assert merged.loc["2026-01-03", "sth_mvrv"] == 1.2
     assert merged.loc["2026-01-04", "sth_mvrv"] == 1.4
     assert merged.loc["2026-01-05", "sth_mvrv"] == 1.4
+
+
+def test_purge_train_set():
+    ensemble = WFOEnsemble()
+    train_index = pd.date_range("2020-01-01", "2020-01-30", freq="D")
+    test_intervals = [(pd.Timestamp("2020-01-15"), pd.Timestamp("2020-01-20"))]
+    
+    # Purge window = 3 days
+    purged = ensemble.purge_train_set(train_index, test_intervals, purge_days=3)
+    
+    # Purge should drop 2020-01-12 to 2020-01-23 inclusive
+    assert pd.Timestamp("2020-01-11") in purged
+    assert pd.Timestamp("2020-01-12") not in purged
+    assert pd.Timestamp("2020-01-20") not in purged
+    assert pd.Timestamp("2020-01-23") not in purged
+    assert pd.Timestamp("2020-01-24") in purged
+
+
+def test_cpcv_split():
+    ensemble = WFOEnsemble()
+    dates = pd.date_range("2020-01-01", "2020-06-30", freq="D")
+    df = pd.DataFrame(index=dates)
+    
+    splits = list(ensemble.cpcv_split(df, n_groups=6, n_test_groups=2, purge_days=5))
+    
+    # 6 choose 2 is 15 combinations
+    assert len(splits) == 15
+    for train_idx, test_idx in splits:
+        # Check no intersection between train and test
+        assert len(train_idx.intersection(test_idx)) == 0
+        # Check that boundaries are purged (train size is reduced)
+        assert len(train_idx) < len(dates) - len(test_idx)
+
+
+def test_generate_wfo_folds():
+    ensemble = WFOEnsemble()
+    # 5 years of daily data
+    dates = pd.date_range("2020-01-01", "2024-12-31", freq="D")
+    
+    folds = list(ensemble.generate_wfo_folds(
+        dates,
+        train_window_days=1095,  # 3yr
+        val_window_days=180,     # 6mo
+        test_window_days=180     # 6mo
+    ))
+    
+    # There should be at least a few folds over 5 years
+    assert len(folds) >= 2
+    for idx, (train_idx, val_idx, test_idx) in enumerate(folds):
+        # 1. Chronological order check
+        assert train_idx.max() < val_idx.min()
+        assert val_idx.max() < test_idx.min()
+        
+        # 2. Check sizes roughly correspond to specifications
+        assert len(train_idx) > 1000
+        assert len(val_idx) >= 170
+        if idx < len(folds) - 1:
+            assert len(test_idx) >= 170
+        else:
+            assert len(test_idx) > 0
+
+
+def test_wfo_pipeline_integration():
+    ensemble = WFOEnsemble()
+    # 5 years of daily data
+    dates = pd.date_range("2020-01-01", "2024-12-31", freq="D")
+    
+    np.random.seed(42)
+    # Generate mock features (6 indicators)
+    df_features = pd.DataFrame({
+        "FDI": np.random.randn(len(dates)),
+        "QuantileDEMA": np.random.randn(len(dates)),
+        "AdvancedStochastic": np.random.randn(len(dates)),
+        "KalmanRSI": np.random.randn(len(dates)),
+        "FourierSupertrend": np.random.randn(len(dates)),
+        "TrendStrengthIndex": np.random.randn(len(dates)),
+        "sth_mvrv_roc_7": np.random.randn(len(dates))
+    }, index=dates)
+    
+    # Target is binary direction
+    y = (df_features["FDI"] + df_features["KalmanRSI"] > 0).astype(int)
+    
+    out_of_sample_scores = ensemble.run_wfo_pipeline(df_features, y)
+    
+    # 1. Output Final Score bounds: check they are in [-1.0, 1.0]
+    assert len(out_of_sample_scores) > 0
+    assert (out_of_sample_scores >= -1.0).all()
+    assert (out_of_sample_scores <= 1.0).all()
+    
+    # 2. Verify R^2 scores are calculated and stored
+    assert len(ensemble.r2_scores) > 0
+    for start_date, r2 in ensemble.r2_scores.items():
+        assert isinstance(r2, float)
+        assert -1.0 <= r2 <= 1.0
+
+
