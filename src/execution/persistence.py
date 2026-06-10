@@ -65,3 +65,19 @@ def log_regime_transition(
             ),
         )
         conn.commit()
+
+
+def upsert_pca_components(date: str, components: dict, db_path=DEFAULT_DB_PATH):
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        for component_name, value in components.items():
+            cursor.execute(
+                """
+                INSERT INTO pca_components (date, component_name, value)
+                VALUES (?, ?, ?)
+                ON CONFLICT(date, component_name) DO UPDATE SET
+                    value = excluded.value
+            """,
+                (date, component_name, value),
+            )
+        conn.commit()

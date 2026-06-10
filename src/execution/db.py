@@ -41,6 +41,16 @@ def init_db(db_path=DEFAULT_DB_PATH):
         """)
 
         cursor.execute("""
+            CREATE TABLE IF NOT EXISTS pca_components (
+                date TEXT,
+                component_name TEXT,
+                value REAL NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (date, component_name)
+            )
+        """)
+
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS regime_transitions (
                 transition_date TEXT PRIMARY KEY,
                 previous_regime TEXT CHECK(previous_regime IN ('BULL', 'BEAR', 'SIDEWAYS')),

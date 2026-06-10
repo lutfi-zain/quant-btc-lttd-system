@@ -89,3 +89,20 @@ class WFOEnsemble:
             direction="backward",
         )
         return merged
+
+    def process_features(
+        self, train_data: pd.DataFrame, test_data: pd.DataFrame, y_train: pd.Series = None
+    ) -> tuple:
+        """
+        Orchestrate VIF pruning and PCA transformation causally across WFO folds.
+        Fits FeatureProcessor on train_data and transforms both train_data and test_data.
+        """
+        from src.features.processor import FeatureProcessor
+        
+        processor = FeatureProcessor()
+        processor.fit(train_data, y_train)
+        
+        train_processed = processor.transform(train_data)
+        test_processed = processor.transform(test_data)
+        
+        return train_processed, test_processed

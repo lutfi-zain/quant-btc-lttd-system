@@ -3,27 +3,46 @@ import pandas as pd
 
 def calculate_vif(df: pd.DataFrame) -> pd.Series:
     """
-    Calculate Variance Inflation Factor (VIF) for each column in a DataFrame.
+    Calculate Variance Inflation Factor (VIF) for each column in a DataFrame
+    using optimized vectorized matrix inversion.
     """
-    from sklearn.linear_model import LinearRegression
+    import numpy as np
 
     vifs = pd.Series(index=df.columns, dtype=float)
+    non_constant_cols = []
+    
     for col in df.columns:
-        if df[col].var() == 0:
-            vifs[col] = float("inf")
-            continue
-        other_cols = [c for c in df.columns if c != col]
-        if not other_cols:
-            vifs[col] = 1.0
-            continue
-        X = df[other_cols]
-        y = df[col]
-        reg = LinearRegression().fit(X, y)
-        r_sq = reg.score(X, y)
-        if r_sq >= 1.0:
+        std_val = df[col].std()
+        if std_val == 0 or pd.isna(std_val):
             vifs[col] = float("inf")
         else:
-            vifs[col] = 1.0 / (1.0 - r_sq)
+            non_constant_cols.append(col)
+            
+    if not non_constant_cols:
+        return vifs
+        
+    if len(non_constant_cols) == 1:
+        vifs[non_constant_cols[0]] = 1.0
+        return vifs
+        
+    # Compute the correlation matrix
+    corr = df[non_constant_cols].corr()
+    corr = corr.fillna(0.0)
+    
+    # Add a tiny ridge penalty to the diagonal to ensure stability
+    epsilon = 1e-10
+    corr_adj = corr.values + np.eye(corr.shape[0]) * epsilon
+    
+    try:
+        corr_inv = np.linalg.inv(corr_adj)
+        diag = np.diag(corr_inv)
+    except np.linalg.LinAlgError:
+        corr_inv = np.linalg.pinv(corr_adj)
+        diag = np.diag(corr_inv)
+        
+    for i, col in enumerate(non_constant_cols):
+        vifs[col] = float(diag[i])
+        
     return vifs
 
 
@@ -72,13 +91,14 @@ def pratt_measure(X: pd.DataFrame, y: pd.Series) -> pd.Series:
 
 
 def prune_multicollinear_indicators(
-    df: pd.DataFrame, y: pd.Series, vif_threshold: float = 10.0
+    df: pd.DataFrame, y: pd.Series = None, vif_threshold: float = 10.0
 ) -> pd.DataFrame:
     """
-    Step-wise pruning of indicators using VIF and Pratt's Measure.
+    Step-wise pruning of indicators using VIF and optionally Pratt's Measure.
+    If target y is provided, drops the feature among the high VIF ones with the
+    lowest Pratt's Measure. Otherwise, drops the feature with the highest VIF.
     """
     current_df = df.copy()
-    y = pd.Series(y, index=df.index)
 
     while True:
         if current_df.shape[1] <= 1:
@@ -90,11 +110,16 @@ def prune_multicollinear_indicators(
         if not high_vif_cols:
             break
 
-        # Compute Pratt's Measure for current columns
-        pratt = pratt_measure(current_df, y)
+        if y is not None:
+            y_series = pd.Series(y, index=df.index)
+            # Compute Pratt's Measure for current columns
+            pratt = pratt_measure(current_df, y_series)
+            # Find the column among high_vif_cols with the lowest Pratt measure
+            col_to_drop = min(high_vif_cols, key=lambda c: pratt.get(c, 0.0))
+        else:
+            # Drop the column with the highest VIF
+            col_to_drop = max(high_vif_cols, key=lambda c: vifs[c])
 
-        # Find the column among high_vif_cols with the lowest Pratt measure
-        col_to_drop = min(high_vif_cols, key=lambda c: pratt[c])
         current_df = current_df.drop(columns=[col_to_drop])
 
     return current_df
