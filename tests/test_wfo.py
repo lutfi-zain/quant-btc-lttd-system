@@ -116,3 +116,39 @@ def test_point_in_time_join():
     assert merged.loc["2026-01-03", "sth_mvrv"] == 1.2
     assert merged.loc["2026-01-04", "sth_mvrv"] == 1.4
     assert merged.loc["2026-01-05", "sth_mvrv"] == 1.4
+
+
+def test_no_lookahead():
+    # Mathematical proof of zero index overlap using monotonic dummy arrays
+    from src.backtest.wfo import WFOEngine
+    engine = WFOEngine(
+        train_window_days=100,
+        val_window_days=10,
+        test_window_days=10,
+        purge_days=5
+    )
+    
+    # 200 days of data
+    dates = pd.date_range("2020-01-01", periods=200, freq="D")
+    folds = list(engine.generate_wfo_folds(dates))
+    
+    assert len(folds) > 0
+    for train_idx, val_idx, test_idx in folds:
+        # Monotonicity check
+        assert train_idx.is_monotonic_increasing
+        assert val_idx.is_monotonic_increasing
+        assert test_idx.is_monotonic_increasing
+        
+        # Chronological sequence assertions
+        assert train_idx.max() < val_idx.min()
+        assert val_idx.max() < test_idx.min()
+        
+        # Purging overlap check:
+        # Distance between train max and val min must be > purge_days (5 days)
+        gap = (val_idx.min() - train_idx.max()).days
+        assert gap > 5
+        
+        # Verify complete set disjointness (no lookahead leakage)
+        assert len(train_idx.intersection(val_idx)) == 0
+        assert len(val_idx.intersection(test_idx)) == 0
+        assert len(train_idx.intersection(test_idx)) == 0

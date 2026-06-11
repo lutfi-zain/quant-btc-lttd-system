@@ -168,3 +168,11 @@ def point_in_time_join(ohlcv_df: pd.DataFrame, onchain_df: pd.DataFrame) -> pd.D
         merged.index.name = None
         
     return merged
+
+
+class WFOEngine(WFOIterator):
+    """
+    Central engine for Walk-Forward Optimization (WFO) rolling windows
+    and Combinatorial Purged Cross-Validation (CPCV).
+    """
+    pass
