@@ -1,21 +1,29 @@
 from typing import Dict, Optional
-from src.execution.db import get_connection, DEFAULT_DB_PATH
+from src.execution.database import get_connection, DEFAULT_DB_PATH
 
 
 def upsert_daily_lttd(
-    date: str, regime: str, final_score: float, db_path=DEFAULT_DB_PATH
+    date: str,
+    regime: str,
+    final_score: float,
+    db_path=DEFAULT_DB_PATH,
+    target_exposure: float = 0.0,
+    posterior_prob: Optional[float] = None,
 ):
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute(
             """
-            INSERT INTO daily_lttd (date, regime, final_score)
-            VALUES (?, ?, ?)
-            ON CONFLICT(date) DO UPDATE SET
+            INSERT INTO daily_lttd (data_as_of, date, regime, final_score, target_exposure, posterior_prob)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(data_as_of) DO UPDATE SET
+                date = excluded.date,
                 regime = excluded.regime,
-                final_score = excluded.final_score
+                final_score = excluded.final_score,
+                target_exposure = excluded.target_exposure,
+                posterior_prob = excluded.posterior_prob
         """,
-            (date, regime, final_score),
+            (date, date, regime, final_score, target_exposure, posterior_prob),
         )
         conn.commit()
 

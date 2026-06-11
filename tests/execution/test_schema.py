@@ -1,6 +1,6 @@
 import pytest
 import sqlite3
-from src.execution.db import init_db, get_connection
+from src.execution.database import init_db, get_connection
 
 
 @pytest.fixture
@@ -16,26 +16,44 @@ def test_daily_lttd_constraints(db_conn):
 
     # Valid insert
     cursor.execute(
-        "INSERT INTO daily_lttd (date, regime, final_score) VALUES ('2023-01-01', 'BULL', 0.8)"
+        """INSERT INTO daily_lttd (data_as_of, date, regime, final_score, target_exposure)
+           VALUES ('2023-01-01', '2023-01-01', 'BULL', 0.8, 0.8)"""
     )
     db_conn.commit()
 
     # Invalid regime
     with pytest.raises(sqlite3.IntegrityError):
         cursor.execute(
-            "INSERT INTO daily_lttd (date, regime, final_score) VALUES ('2023-01-02', 'INVALID', 0.8)"
+            """INSERT INTO daily_lttd (data_as_of, date, regime, final_score, target_exposure)
+               VALUES ('2023-01-02', '2023-01-02', 'INVALID', 0.8, 0.8)"""
         )
 
     # Invalid final_score (too high)
     with pytest.raises(sqlite3.IntegrityError):
         cursor.execute(
-            "INSERT INTO daily_lttd (date, regime, final_score) VALUES ('2023-01-03', 'BEAR', 1.5)"
+            """INSERT INTO daily_lttd (data_as_of, date, regime, final_score, target_exposure)
+               VALUES ('2023-01-03', '2023-01-03', 'BEAR', 1.5, 0.0)"""
         )
 
     # Invalid final_score (too low)
     with pytest.raises(sqlite3.IntegrityError):
         cursor.execute(
-            "INSERT INTO daily_lttd (date, regime, final_score) VALUES ('2023-01-04', 'BEAR', -1.5)"
+            """INSERT INTO daily_lttd (data_as_of, date, regime, final_score, target_exposure)
+               VALUES ('2023-01-04', '2023-01-04', 'BEAR', -1.5, 0.0)"""
+        )
+
+    # Invalid target_exposure (too high)
+    with pytest.raises(sqlite3.IntegrityError):
+        cursor.execute(
+            """INSERT INTO daily_lttd (data_as_of, date, regime, final_score, target_exposure)
+               VALUES ('2023-01-05', '2023-01-05', 'BULL', 0.5, 1.5)"""
+        )
+
+    # Invalid target_exposure (too low)
+    with pytest.raises(sqlite3.IntegrityError):
+        cursor.execute(
+            """INSERT INTO daily_lttd (data_as_of, date, regime, final_score, target_exposure)
+               VALUES ('2023-01-06', '2023-01-06', 'BULL', 0.5, -0.5)"""
         )
 
 
