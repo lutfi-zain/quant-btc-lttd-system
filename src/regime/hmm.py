@@ -105,6 +105,10 @@ def infer_regime(
     if len(features) == 0:
         raise ValueError("Insufficient features generated to run inference.")
 
+    # Bound features to training window size (1095 days) to prevent historical drift
+    if len(features) > 1095:
+        features = features[-1095:]
+
     # Run predict_proba for all samples, and take the last sample (current day)
     proba = model.predict_proba(features)
     latest_proba = proba[-1]
@@ -112,14 +116,8 @@ def infer_regime(
     # Map probabilities to regime names
     posteriors = {state_to_regime[i]: float(latest_proba[i]) for i in range(3)}
 
-    # Classification logic with threshold for BULL (> 0.70)
-    if posteriors["BULL"] > 0.70:
-        regime = "BULL"
-    else:
-        if posteriors["BEAR"] >= posteriors["SIDEWAYS"]:
-            regime = "BEAR"
-        else:
-            regime = "SIDEWAYS"
+    # Classification logic: choose the state with the highest probability (argmax)
+    regime = max(posteriors, key=posteriors.get)
 
     return {"regime": regime, "posteriors": posteriors}
 
@@ -164,13 +162,8 @@ def infer_regime_history(
         pb = p_bull[idx]
         pr = p_bear[idx]
         ps = p_sideways[idx]
-        if pb > 0.70:
-            regimes.append("BULL")
-        else:
-            if pr >= ps:
-                regimes.append("BEAR")
-            else:
-                regimes.append("SIDEWAYS")
+        state_probs = {"BULL": pb, "BEAR": pr, "SIDEWAYS": ps}
+        regimes.append(max(state_probs, key=state_probs.get))
 
     res = pd.DataFrame(
         {
@@ -183,3 +176,4 @@ def infer_regime_history(
     )
 
     return res
+

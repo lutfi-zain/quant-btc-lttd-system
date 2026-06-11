@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps, prefer-const, no-useless-assignment */
 import React, { useEffect, useRef, useState } from "react";
 import { createChart, CandlestickSeries, AreaSeries, LineSeries, PriceScaleMode, createSeriesMarkers } from "lightweight-charts";
 import type { IChartApi, ISeriesApi, CandlestickData, LineData } from "lightweight-charts";

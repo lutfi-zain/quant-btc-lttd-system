@@ -65,3 +65,55 @@ class L1LassoEnsemble:
         Uses the helper from src.features.importance.
         """
         return calculate_pratt_importance(X, y)
+
+
+class PCAConsensusEnsemble:
+    """
+    Layer 4: PCA Consensus Aggregator (Option A).
+    Computes consensus score in [-1.0, +1.0] by weighting technical indicators
+    by their absolute loadings on the first Principal Component (PC1).
+    """
+    def __init__(self):
+        self.weights = None
+        self.kept_tech_cols = None
+        self.fitted = False
+
+    def fit(self, X: pd.DataFrame, y: pd.Series = None, pca_components_matrix: np.ndarray = None, kept_cols: list = None):
+        """
+        Fits weights using PC1 components matrix.
+        """
+        if pca_components_matrix is not None and kept_cols is not None:
+            # PCA weights are absolute loadings on PC1 divided by sum of absolute loadings
+            pc1_loadings = pca_components_matrix[0]
+            eps = 1e-10
+            sum_loadings = np.sum(np.abs(pc1_loadings))
+            if sum_loadings < eps:
+                self.weights = np.ones(len(pc1_loadings)) / len(pc1_loadings)
+            else:
+                self.weights = np.abs(pc1_loadings) / sum_loadings
+            self.kept_tech_cols = kept_cols
+            self.fitted = True
+        else:
+            # Fallback equal weights if no PCA components supplied
+            cols = X.columns.tolist()
+            self.kept_tech_cols = cols
+            self.weights = np.ones(len(cols)) / len(cols)
+            self.fitted = True
+
+    def predict_score(self, X: pd.DataFrame) -> pd.Series:
+        """
+        Predicts consensus score in [-1.0, +1.0].
+        """
+        if not self.fitted:
+            raise ValueError("Model must be fitted before calling predict_score.")
+            
+        score = pd.Series(0.0, index=X.index)
+        if self.kept_tech_cols:
+            for i, col in enumerate(self.kept_tech_cols):
+                if col in X.columns:
+                    score += self.weights[i] * X[col]
+        return score.clip(-1.0, 1.0)
+
+    def predict(self, X: pd.DataFrame) -> pd.Series:
+        return self.predict_score(X)
+

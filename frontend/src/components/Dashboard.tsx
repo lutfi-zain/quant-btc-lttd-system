@@ -1,15 +1,27 @@
 import React, { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchLatestLTTD, fetchLTTDHistory, fetchHealthStatus } from "../api/client";
-import type { Regime } from "../api/client";
-import { TradingViewChart } from "./TradingViewChart";
+import {
+  fetchLatestLTTD,
+  fetchLTTDHistory,
+  fetchHealthStatus,
+  fetchChartData,
+  fetchRegimeData,
+  fetchDiagnosticsData,
+  fetchOnChainData,
+  type Regime,
+} from "../api/client";
+import { SynchronizedChartProvider } from "./SynchronizedChartContext";
+import { LTTDChart } from "./LTTDChart";
+import { RegimePanel } from "./RegimePanel";
+import { FeatureDiagnosticsPanel } from "./FeatureDiagnosticsPanel";
+import { OnChainPanel } from "./OnChainPanel";
 
 export const Dashboard: React.FC = () => {
   // Query backend health
   const { data: health, isError: isHealthError } = useQuery({
     queryKey: ["health"],
     queryFn: fetchHealthStatus,
-    refetchInterval: 10000, // Check health every 10s
+    refetchInterval: 10000,
   });
 
   // Query latest LTTD evaluation
@@ -21,10 +33,10 @@ export const Dashboard: React.FC = () => {
   } = useQuery({
     queryKey: ["latestLTTD"],
     queryFn: fetchLatestLTTD,
-    refetchInterval: 30000, // Check for updates every 30s
+    refetchInterval: 30000,
   });
 
-  // Query historical LTTD evaluations
+  // Query historical LTTD evaluations (main history endpoint)
   const {
     data: history,
     isLoading: isHistoryLoading,
@@ -32,7 +44,44 @@ export const Dashboard: React.FC = () => {
     refetch: refetchHistory,
   } = useQuery({
     queryKey: ["lttdHistory"],
-    queryFn: () => fetchLTTDHistory(), // Fetch all historical data
+    queryFn: () => fetchLTTDHistory(),
+  });
+
+  // Query the 4 specific endpoint hooks
+  const {
+    data: chartData,
+    isLoading: isChartLoading,
+    refetch: refetchChart,
+  } = useQuery({
+    queryKey: ["chartData"],
+    queryFn: () => fetchChartData(),
+  });
+
+  const {
+    data: regimeData,
+    isLoading: isRegimeLoading,
+    refetch: refetchRegime,
+  } = useQuery({
+    queryKey: ["regimeData"],
+    queryFn: () => fetchRegimeData(),
+  });
+
+  const {
+    data: diagnosticsData,
+    isLoading: isDiagnosticsLoading,
+    refetch: refetchDiagnostics,
+  } = useQuery({
+    queryKey: ["diagnosticsData"],
+    queryFn: () => fetchDiagnosticsData(),
+  });
+
+  const {
+    data: onChainData,
+    isLoading: isOnChainLoading,
+    refetch: refetchOnChain,
+  } = useQuery({
+    queryKey: ["onChainData"],
+    queryFn: () => fetchOnChainData(),
   });
 
   // Calculate regime transitions in-memory from history
@@ -44,7 +93,7 @@ export const Dashboard: React.FC = () => {
       next: Regime;
       score: number;
     }> = [];
-    
+
     for (let i = 1; i < history.length; i++) {
       if (history[i].regime !== history[i - 1].regime) {
         logs.push({
@@ -55,18 +104,29 @@ export const Dashboard: React.FC = () => {
         });
       }
     }
-    // Return latest transitions first
     return logs.reverse();
   }, [history]);
 
   const handleRefresh = () => {
     refetchLatest();
     refetchHistory();
+    refetchChart();
+    refetchRegime();
+    refetchDiagnostics();
+    refetchOnChain();
   };
 
   const isServerOffline = isHealthError || (health && !health.status);
 
-  if (isLatestLoading || isHistoryLoading) {
+  const isGlobalLoading =
+    isLatestLoading ||
+    isHistoryLoading ||
+    isChartLoading ||
+    isRegimeLoading ||
+    isDiagnosticsLoading ||
+    isOnChainLoading;
+
+  if (isGlobalLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-[#030303] text-gray-400">
         <div className="relative w-16 h-16">
@@ -85,7 +145,12 @@ export const Dashboard: React.FC = () => {
         <div className="p-1.5 bg-red-500/10 rounded-full border border-red-500/20 mb-4 animate-bounce">
           <div className="p-3 bg-red-500/20 rounded-full">
             <svg className="w-8 h-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
             </svg>
           </div>
         </div>
@@ -107,7 +172,6 @@ export const Dashboard: React.FC = () => {
   const finalScore = latest?.final_score ?? 0;
   const targetExposure = latest?.target_exposure ?? 0;
 
-  // Regime styling settings
   const regimeMeta = {
     BULL: {
       color: "text-emerald-400",
@@ -134,17 +198,21 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#030303] text-gray-300 font-sans selection:bg-purple-500/30 selection:text-purple-200">
-      
       {/* Background Mesh Gradients */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-        <div className={`absolute top-[-10%] left-[20%] w-[600px] h-[600px] rounded-full filter blur-[150px] opacity-20 transition-all duration-1000 ${
-          currentRegime === "BULL" ? "bg-emerald-500" : currentRegime === "BEAR" ? "bg-rose-500" : "bg-purple-500"
-        }`}></div>
+        <div
+          className={`absolute top-[-10%] left-[20%] w-[600px] h-[600px] rounded-full filter blur-[150px] opacity-20 transition-all duration-1000 ${
+            currentRegime === "BULL"
+              ? "bg-emerald-500"
+              : currentRegime === "BEAR"
+              ? "bg-rose-500"
+              : "bg-purple-500"
+          }`}
+        ></div>
         <div className="absolute bottom-[10%] right-[10%] w-[500px] h-[500px] rounded-full bg-blue-600/10 filter blur-[130px] pointer-events-none"></div>
       </div>
 
       <div className="relative z-10 max-w-7xl mx-auto px-6 py-12 flex flex-col gap-10">
-        
         {/* Header Section */}
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pb-6 border-b border-[#202025]/30">
           <div>
@@ -153,7 +221,10 @@ export const Dashboard: React.FC = () => {
               <span className="text-[10px] uppercase tracking-[0.2em] font-semibold text-gray-400">System Live</span>
             </div>
             <h1 className="text-3xl font-extrabold text-[#f3f4f6] tracking-tight mt-3">
-              LTTD <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-indigo-400">Quantitative Portal</span>
+              LTTD{" "}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-indigo-400">
+                Quantitative Portal
+              </span>
             </h1>
             <p className="text-xs text-gray-500 mt-1.5">
               Macro Directional Trend & Ornstein-Uhlenbeck Regime Telemetry
@@ -178,25 +249,24 @@ export const Dashboard: React.FC = () => {
 
         {/* Row 1: Dashboard Bento Cards */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          
           {/* Card A: Regime Widget */}
-          <div className={`group p-0.5 bg-[#15151e]/30 rounded-3xl border border-[#23232f]/30 hover:border-white/10 transition-all duration-500 ${regimeMeta.glow}`}>
+          <div
+            className={`group p-0.5 bg-[#15151e]/30 rounded-3xl border border-[#23232f]/30 hover:border-white/10 transition-all duration-500 ${regimeMeta.glow}`}
+          >
             <div className="p-6 bg-[#08080f]/90 rounded-[calc(1.5rem-0.125rem)] flex flex-col h-full justify-between shadow-[inset_0_1px_1px_rgba(255,255,255,0.03)]">
               <div>
                 <span className="text-[9px] uppercase tracking-[0.2em] font-semibold text-gray-500">HMM Layer 1 Inference</span>
                 <h3 className="text-lg font-bold text-gray-200 tracking-tight mt-1">Market Regime</h3>
               </div>
               <div className="my-8 flex flex-col items-center">
-                <div className={`text-4xl font-black tracking-wider ${regimeMeta.color} animate-pulse`}>
-                  {currentRegime}
-                </div>
-                <div className={`mt-3 text-[11px] font-medium px-3.5 py-1 rounded-full ${regimeMeta.bg} ${regimeMeta.color} border ${regimeMeta.border}`}>
+                <div className={`text-4xl font-black tracking-wider ${regimeMeta.color} animate-pulse`}>{currentRegime}</div>
+                <div
+                  className={`mt-3 text-[11px] font-medium px-3.5 py-1 rounded-full ${regimeMeta.bg} ${regimeMeta.color} border ${regimeMeta.border}`}
+                >
                   Posterior Prob: {latest?.posterior_prob ? `${(latest.posterior_prob * 100).toFixed(1)}%` : "N/A"}
                 </div>
               </div>
-              <p className="text-xs text-gray-500 leading-relaxed text-center">
-                {regimeMeta.desc}
-              </p>
+              <p className="text-xs text-gray-500 leading-relaxed text-center">{regimeMeta.desc}</p>
             </div>
           </div>
 
@@ -211,10 +281,10 @@ export const Dashboard: React.FC = () => {
                 <div className="text-5xl font-black tracking-tight text-[#f3f4f6] font-mono">
                   {finalScore > 0 ? `+${finalScore.toFixed(4)}` : finalScore.toFixed(4)}
                 </div>
-                
+
                 {/* Horizontal meter */}
                 <div className="w-full bg-white/5 h-1.5 rounded-full mt-6 overflow-hidden border border-white/5 relative">
-                  <div 
+                  <div
                     className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full transition-all duration-700 ease-out"
                     style={{ width: `${((finalScore + 1) / 2) * 100}%` }}
                   />
@@ -262,127 +332,86 @@ export const Dashboard: React.FC = () => {
               </div>
             </div>
           </div>
-
         </section>
 
-        {/* Row 2: Charts and Indicator Telemetry */}
-        <section className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          
-          {/* Main Chart Column (span 8) */}
-          <div className="lg:col-span-8 flex flex-col h-full">
-            <TradingViewChart data={history || []} />
-          </div>
+        {/* Row 2: Synchronized Interactive Charts & Telemetry panels */}
+        <SynchronizedChartProvider>
+          <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Left Column: Visual Charts (LTTD Chart, Regime stacked, Onchain lines) */}
+            <div className="lg:col-span-8 flex flex-col gap-6">
+              <LTTDChart data={chartData || []} />
+              <RegimePanel data={regimeData || []} />
+              <OnChainPanel data={onChainData || []} />
+            </div>
 
-          {/* Indicator Scores Column (span 4) */}
-          <div className="lg:col-span-4 p-0.5 bg-[#15151e]/30 rounded-3xl border border-[#23232f]/30 hover:border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.2)]">
-            <div className="p-6 bg-[#08080f]/90 rounded-[calc(1.5rem-0.125rem)] flex flex-col h-full justify-between shadow-[inset_0_1px_1px_rgba(255,255,255,0.03)]">
-              <div>
-                <span className="text-[9px] uppercase tracking-[0.2em] font-semibold text-gray-500">Layer 2 Auditing</span>
-                <h3 className="text-lg font-bold text-gray-200 tracking-tight mt-1">Causal Indicator Scores</h3>
-                
-                <div className="mt-4 flex flex-col gap-2 max-h-[420px] overflow-y-auto pr-1">
-                  
-                  {latest?.indicator_scores && Object.keys(latest.indicator_scores).length > 0 ? (
-                    Object.entries(latest.indicator_scores).map(([name, score]) => {
-                      const isBullish = score === 1;
-                      return (
-                        <div 
-                          key={name} 
-                          className="flex justify-between items-center p-2.5 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-all duration-300"
-                        >
-                          <span className="text-xs font-semibold text-gray-300 font-mono">{name}</span>
-                          <span className={`inline-flex items-center justify-center w-8 py-0.5 rounded-md text-[10px] font-bold font-mono ${
-                            isBullish 
-                              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
-                              : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
-                          }`}>
-                            {score > 0 ? `+${score}` : score}
-                          </span>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="text-xs text-gray-600 text-center py-6">
-                      No active indicator telemetry recorded.
-                    </div>
-                  )}
+            {/* Right Column: Feature Diagnostics & Transitions Log */}
+            <div className="lg:col-span-4 flex flex-col gap-6">
+              <FeatureDiagnosticsPanel data={diagnosticsData || []} />
 
+              {/* Regime Shift Transitions table */}
+              <div className="p-0.5 bg-[#15151e]/30 rounded-3xl border border-[#23232f]/30 hover:border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.2)]">
+                <div className="p-6 bg-[#08080f]/90 rounded-[calc(1.5rem-0.125rem)] shadow-[inset_0_1px_1px_rgba(255,255,255,0.03)]">
+                  <span className="text-[9px] uppercase tracking-[0.2em] font-semibold text-gray-500 font-mono">
+                    System Logs
+                  </span>
+                  <h3 className="text-sm font-bold text-gray-200 tracking-tight mt-1 mb-4">Regime Transition Log</h3>
+
+                  <div className="overflow-y-auto max-h-[300px] pr-2 scrollbar-thin scrollbar-thumb-white/10">
+                    <table className="w-full text-left border-collapse">
+                      <thead className="sticky top-0 bg-[#08080f] z-10 shadow-[inset_0_-1px_0_rgba(255,255,255,0.05)]">
+                        <tr className="border-b border-[#202025]/40 text-gray-500 text-[9px] uppercase tracking-wider font-semibold">
+                          <th className="pb-2 pl-2 bg-[#08080f]">Date</th>
+                          <th className="pb-2 bg-[#08080f]">Prev</th>
+                          <th className="pb-2 bg-[#08080f]">Next</th>
+                          <th className="pb-2 pr-2 text-right bg-[#08080f]">Score</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#202025]/30 text-[11px]">
+                        {transitions.length > 0 ? (
+                          transitions.map((t, idx) => (
+                            <tr key={idx} className="hover:bg-white/5 transition-all duration-300">
+                              <td className="py-2.5 pl-2 font-semibold text-gray-300 font-mono">{t.date}</td>
+                              <td className="py-2.5">
+                                <span className="px-1.5 py-0.2 rounded-md bg-white/5 border border-white/10 text-gray-500 font-mono text-[9px]">
+                                  {t.prev.substring(0, 4)}
+                                </span>
+                              </td>
+                              <td className="py-2.5">
+                                <span
+                                  className={`px-2 py-0.5 rounded-full font-bold border text-[9px] ${
+                                    t.next === "BULL"
+                                      ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                      : t.next === "BEAR"
+                                      ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
+                                      : "bg-purple-500/10 text-purple-400 border-purple-500/20"
+                                  }`}
+                                >
+                                  {t.next}
+                                </span>
+                              </td>
+                              <td className="py-2.5 pr-2 text-right font-mono text-gray-400">
+                                {t.score > 0 ? `+${t.score.toFixed(2)}` : t.score.toFixed(2)}
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={4} className="py-8 text-center text-gray-600">
+                              No transitions detected.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
-
-              <div className="text-[10px] text-gray-600 text-center border-t border-[#202025]/30 pt-4 mt-4 leading-relaxed font-mono">
-                Scores ∈ &#123;-1, +1&#125; represent daily directional outputs.
-              </div>
             </div>
-          </div>
-
-        </section>
-
-        {/* Row 3: Regime Shift Notifications */}
-        <section className="grid grid-cols-1 gap-6">
-          
-          <div className="p-0.5 bg-[#15151e]/30 rounded-3xl border border-[#23232f]/30 hover:border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.2)]">
-            <div className="p-6 bg-[#08080f]/90 rounded-[calc(1.5rem-0.125rem)] shadow-[inset_0_1px_1px_rgba(255,255,255,0.03)]">
-              <span className="text-[9px] uppercase tracking-[0.2em] font-semibold text-gray-500">System Logs</span>
-              <h3 className="text-lg font-bold text-gray-200 tracking-tight mt-1 mb-6">Regime Transition Log</h3>
-              
-              <div className="overflow-y-auto max-h-[400px] overflow-x-auto pr-2 scrollbar-thin scrollbar-thumb-white/10">
-                <table className="w-full text-left border-collapse">
-                  <thead className="sticky top-0 bg-[#08080f] z-10 shadow-[inset_0_-1px_0_rgba(255,255,255,0.05)]">
-                    <tr className="border-b border-[#202025]/40 text-gray-500 text-[10px] uppercase tracking-wider font-semibold">
-                      <th className="pb-3 pl-2 bg-[#08080f]">Transition Date</th>
-                      <th className="pb-3 bg-[#08080f]">Previous Regime</th>
-                      <th className="pb-3 bg-[#08080f]">New Inferred Regime</th>
-                      <th className="pb-3 bg-[#08080f]">Ensemble Score</th>
-                      <th className="pb-3 pr-2 text-right bg-[#08080f]">Observability Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#202025]/30 text-xs">
-                    {transitions.length > 0 ? (
-                      transitions.map((t, idx) => (
-                        <tr key={idx} className="hover:bg-white/5 transition-all duration-300">
-                          <td className="py-3.5 pl-2 font-semibold text-gray-300 font-mono">{t.date}</td>
-                          <td className="py-3.5">
-                            <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-gray-400">
-                              {t.prev}
-                            </span>
-                          </td>
-                          <td className="py-3.5">
-                            <span className={`px-2.5 py-0.5 rounded-full font-bold border ${
-                              t.next === "BULL" 
-                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
-                                : t.next === "BEAR"
-                                ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
-                                : "bg-purple-500/10 text-purple-400 border-purple-500/20"
-                            }`}>
-                              {t.next}
-                            </span>
-                          </td>
-                          <td className="py-3.5 font-mono text-gray-400">
-                            {t.score > 0 ? `+${t.score.toFixed(4)}` : t.score.toFixed(4)}
-                          </td>
-                          <td className="py-3.5 pr-2 text-right text-gray-500 font-mono">
-                            ✓ Recorded
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={5} className="py-8 text-center text-gray-600">
-                          No historical regime transitions detected.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-        </section>
-
+          </section>
+        </SynchronizedChartProvider>
       </div>
     </div>
   );
 };
+
 export default Dashboard;

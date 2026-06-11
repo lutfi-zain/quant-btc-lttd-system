@@ -46,3 +46,39 @@ def test_model_pratt_measure():
     
     assert np.isclose(pratt.sum(), 1.0, atol=0.05)
     assert pratt["x1"] > pratt["x2"]
+
+
+def test_pca_consensus_ensemble():
+    from src.ensemble.model import PCAConsensusEnsemble
+    
+    # FDI, QuantileDEMA, AdvancedStochastic, KalmanRSI, FourierSupertrend, TrendStrengthIndex
+    X = pd.DataFrame({
+        "FDI": [1, 1, -1],
+        "QuantileDEMA": [1, -1, -1],
+        "AdvancedStochastic": [1, 1, -1]
+    })
+    
+    pca_comp_matrix = np.array([
+        [0.6, 0.4, 0.692], # loadings on PC1
+        [0.1, 0.8, -0.2]
+    ])
+    
+    model = PCAConsensusEnsemble()
+    model.fit(X, pca_components_matrix=pca_comp_matrix, kept_cols=["FDI", "QuantileDEMA", "AdvancedStochastic"])
+    
+    assert model.fitted
+    assert model.weights is not None
+    # Sum of absolute loadings = 0.6 + 0.4 + 0.692 = 1.692
+    # weights = [0.6/1.692, 0.4/1.692, 0.692/1.692]
+    
+    scores = model.predict(X)
+    assert len(scores) == 3
+    assert (scores >= -1.0).all()
+    assert (scores <= 1.0).all()
+    
+    # Test fallback equal weights
+    model_fallback = PCAConsensusEnsemble()
+    model_fallback.fit(X)
+    assert model_fallback.fitted
+    assert np.allclose(model_fallback.weights, [1/3, 1/3, 1/3])
+

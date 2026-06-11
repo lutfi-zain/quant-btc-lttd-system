@@ -84,6 +84,7 @@ def _run_fold(
     df_merged: pd.DataFrame,
     feature_matrix: pd.DataFrame,
     y: pd.Series,
+    ensemble_mode: str = "pca_consensus"
 ) -> List[Dict[str, Any]]:
     """
     Worker function to execute a single WFO fold.
@@ -119,13 +120,25 @@ def _run_fold(
     X_train_proc = processor.transform(X_train)
     X_test_proc = processor.transform(X_test)
     
-    # 4. Fit L1LassoEnsemble on processed train_idx
-    from src.ensemble.model import L1LassoEnsemble
-    model = L1LassoEnsemble()
-    model.fit(X_train_proc, y_train)
-    
-    # 5. Predict Final Score on processed test_idx
-    test_scores = model.predict(X_test_proc)
+    # 4. Fit ensemble and 5. Predict Final Score
+    if ensemble_mode == "pca_consensus":
+        from src.ensemble.model import PCAConsensusEnsemble
+        model = PCAConsensusEnsemble()
+        if processor.pca is not None:
+            model.fit(
+                X=X_train,
+                pca_components_matrix=processor.pca.pca.components_,
+                kept_cols=processor.kept_tech_cols
+            )
+            test_scores = model.predict(X_test)
+        else:
+            model.fit(X=X_train)
+            test_scores = model.predict(X_test)
+    else:
+        from src.ensemble.model import L1LassoEnsemble
+        model = L1LassoEnsemble()
+        model.fit(X_train_proc, y_train)
+        test_scores = model.predict(X_test_proc)
     
     # 6. Run simulated daily execution pipeline (MockExecutionAdapter)
     adapter = MockExecutionAdapter()
@@ -151,13 +164,7 @@ def _run_fold(
                 
         overridden_posteriors = apply_onchain_overrides(posteriors_dict, onchain_metrics)
         
-        if overridden_posteriors["BULL"] > 0.70:
-            final_regime = "BULL"
-        else:
-            if overridden_posteriors["BEAR"] >= overridden_posteriors["SIDEWAYS"]:
-                final_regime = "BEAR"
-            else:
-                final_regime = "SIDEWAYS"
+        final_regime = max(overridden_posteriors, key=overridden_posteriors.get)
                 
         log_ret = float(log_returns_series.loc[date])
         realized_vol = float(realized_vol_series.loc[date])
@@ -179,8 +186,9 @@ def _run_fold(
 
 
 class BacktestRunner:
-    def __init__(self, legacy_fixed_window: bool = False):
+    def __init__(self, legacy_fixed_window: bool = False, ensemble_mode: str = "pca_consensus"):
         self.legacy_fixed_window = legacy_fixed_window
+        self.ensemble_mode = ensemble_mode
 
     def run(self, data: pd.DataFrame) -> dict:
         """
@@ -218,7 +226,7 @@ class BacktestRunner:
         if not folds:
             # Fallback: single training run on all data if not enough history
             print("⚠ Warning: Insufficient data for 3-year WFO splits. Running fallback single fit.")
-            records = _run_fold(common_idx, common_idx, common_idx, df_merged, feature_matrix, y)
+            records = _run_fold(common_idx, common_idx, common_idx, df_merged, feature_matrix, y, ensemble_mode=self.ensemble_mode)
         else:
             # 4. Parallelize independent WFO fold computations
             records = []
@@ -233,7 +241,8 @@ class BacktestRunner:
                             test_idx,
                             df_merged,
                             feature_matrix,
-                            y
+                            y,
+                            ensemble_mode=self.ensemble_mode
                         )
                     )
                 for future in concurrent.futures.as_completed(futures):
@@ -309,6 +318,13 @@ class BacktestRunner:
 def main():
     parser = argparse.ArgumentParser(description="LTTD WFO Backtest Runner")
     parser.add_argument(
+        "--ensemble-mode",
+        type=str,
+        default="pca_consensus",
+        choices=["pca_consensus", "lasso"],
+        help="Choose ensemble aggregation mode: 'pca_consensus' (Option A) or 'lasso' (Option B)",
+    )
+    parser.add_argument(
         "--legacy-fixed-window",
         action="store_true",
         help="Force a static 200-day lookback window for all technical indicators",
@@ -332,7 +348,7 @@ def main():
     df_merged = df_merged.loc[args.start:args.end]
     print(f"Available data rows for backtest: {len(df_merged)}")
     
-    runner = BacktestRunner(legacy_fixed_window=args.legacy_fixed_window)
+    runner = BacktestRunner(legacy_fixed_window=args.legacy_fixed_window, ensemble_mode=args.ensemble_mode)
     res = runner.run(df_merged)
     
     metrics = res["metrics"]

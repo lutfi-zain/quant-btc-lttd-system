@@ -189,4 +189,70 @@ describe("LTTD Backend API", () => {
       expect(body.error).toContain("Invalid end date format");
     });
   });
+
+  describe("GET /api/chart", () => {
+    test("should return price and score history", async () => {
+      const res = await app.request("/api/chart");
+      expect(res.status).toBe(200);
+      
+      const body = await res.json();
+      expect(Array.isArray(body)).toBe(true);
+      expect(body.length).toBe(5);
+      expect(body[0]).toHaveProperty("date");
+      expect(body[0]).toHaveProperty("final_score");
+    });
+  });
+
+  describe("GET /api/regime", () => {
+    test("should return regime probabilities summing to 1.0", async () => {
+      const res = await app.request("/api/regime");
+      expect(res.status).toBe(200);
+      
+      const body = await res.json();
+      expect(Array.isArray(body)).toBe(true);
+      expect(body.length).toBe(5);
+      
+      for (const record of body) {
+        expect(record).toHaveProperty("date");
+        expect(record).toHaveProperty("regime");
+        expect(record).toHaveProperty("p_bull");
+        expect(record).toHaveProperty("p_bear");
+        expect(record).toHaveProperty("p_sideways");
+        
+        const sum = record.p_bull + record.p_bear + record.p_sideways;
+        expect(Math.abs(sum - 1.0)).toBeLessThan(1e-6);
+      }
+    });
+  });
+
+  describe("GET /api/diagnostics", () => {
+    test("should return indicator scores, vif, and pca variance", async () => {
+      const res = await app.request("/api/diagnostics");
+      expect(res.status).toBe(200);
+      
+      const body = await res.json();
+      expect(Array.isArray(body)).toBe(true);
+      expect(body.length).toBe(5);
+      expect(body[0]).toHaveProperty("date");
+      expect(body[0]).toHaveProperty("vif");
+      expect(body[0]).toHaveProperty("pca_variance_explained");
+      expect(body[0].pca_variance_explained).toBeGreaterThan(85.0);
+    });
+  });
+
+  describe("GET /api/onchain", () => {
+    test("should return onchain series metrics", async () => {
+      const res = await app.request("/api/onchain?start=2026-06-01&end=2026-06-05");
+      expect(res.status).toBe(200);
+      
+      const body = await res.json();
+      expect(Array.isArray(body)).toBe(true);
+      if (body.length > 0) {
+        expect(body[0]).toHaveProperty("date");
+        expect(body[0]).toHaveProperty("sth_mvrv");
+        expect(body[0]).toHaveProperty("sth_nupl");
+      }
+    });
+  });
 });
+

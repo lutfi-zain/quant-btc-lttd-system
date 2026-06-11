@@ -42,6 +42,8 @@ class AdvancedStochastic(CausalFilter):
     def compute(self, data: pd.DataFrame) -> pd.Series:
         """
         Compute the Advanced Stochastic indicator score based on OHLCV data.
+        Uses a vectorized multi-period For-Loop (1..129) and smooths %K with SMA 21.
+        Sinyal akhir bernilai 1.0 jika rata-rata tren >= 0.0, else -1.0.
 
         Args:
             data (pd.DataFrame): The input OHLCV data. Needs 'high', 'low', 'close'.
@@ -53,94 +55,32 @@ class AdvancedStochastic(CausalFilter):
             if col not in data.columns:
                 raise ValueError(f"Input DataFrame must contain '{col}' column.")
 
-        highs = data["high"].values
-        lows = data["low"].values
-        closes = data["close"].values
+        highs = data["high"]
+        lows = data["low"]
+        closes = data["close"]
         T = len(closes)
 
-        # 1. Resolve dynamic lookback using ATR scaling if dynamic_lookback not explicitly provided
-        if self.dynamic_lookback is None:
-            # Compute True Range (TR)
-            prev_close = data["close"].shift(1)
-            tr1 = data["high"] - data["low"]
-            tr2 = (data["high"] - prev_close).abs()
-            tr3 = (data["low"] - prev_close).abs()
-            tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+        if T == 0:
+            return pd.Series(dtype=float)
 
-            # ATR calculations
-            atr_short = tr.ewm(span=self.atr_short_span, adjust=False).mean()
-            atr_long = tr.ewm(span=self.atr_long_span, adjust=False).mean()
+        # Pre-allocate trends matrix for 129 period lengths
+        trends_matrix = np.zeros((129, T))
 
-            # Volatility ratio: short ATR / long ATR
-            vol_ratio = atr_short / (atr_long + 1e-8)
-
-            # Scale lookback: inverse of volatility ratio
-            raw_lookback = self.default_lookback / (vol_ratio + 1e-8)
-            lookbacks = self._resolve_lookback(
-                data, default_lookback=self.default_lookback
-            )
-            # Override with ATR-scaled lookback (which gets re-resolved and clamped)
-            self.dynamic_lookback = raw_lookback
-            lookbacks = self._resolve_lookback(
-                data, default_lookback=self.default_lookback
-            )
-            # Reset dynamic_lookback to None so next calls recalculate
-            self.dynamic_lookback = None
-        else:
-            lookbacks = self._resolve_lookback(
-                data, default_lookback=self.default_lookback
-            )
-
-        # 2. Compute %K values
-        k_vals = np.full(T, np.nan)
-        for t in range(T):
-            N = lookbacks.iloc[t]
-            start_idx = max(0, t - N + 1)
-            hh = np.max(highs[start_idx : t + 1])
-            ll = np.min(lows[start_idx : t + 1])
+        for x in range(129):
+            length = 1 + x
+            ll = lows.rolling(window=length, min_periods=1).min()
+            hh = highs.rolling(window=length, min_periods=1).max()
             denom = hh - ll
-            if denom > 0:
-                k_vals[t] = 100.0 * (closes[t] - ll) / denom
-            else:
-                k_vals[t] = 50.0  # neutral midpoint
+            stoch_raw = np.where(denom > 0, 100.0 * (closes - ll) / denom, 50.0)
+            stoch_raw_series = pd.Series(stoch_raw, index=data.index)
+            
+            # %K smoothing (SMA 21)
+            k = stoch_raw_series.rolling(window=21, min_periods=1).mean()
+            trend = np.where(k > 50.0, 1.0, -1.0)
+            trends_matrix[x] = trend
 
-        # 3. Compute %D line (causal EMA of %K)
-        k_series = pd.Series(k_vals, index=data.index).ffill().fillna(50.0)
-        d_series = k_series.ewm(span=self.d_span, adjust=False).mean()
+        avg = np.mean(trends_matrix, axis=0)
+        signals = np.where(avg >= 0.0, 1.0, -1.0)
 
-        # 4. Generate crossover signals in exhaustion zones
-        signals = np.ones(T)
+        return pd.Series(signals, index=data.index, dtype=float)
 
-        for t in range(T):
-            if t == 0:
-                continue
-
-            k_val = k_series.iloc[t]
-            d_val = d_series.iloc[t]
-            k_prev = k_series.iloc[t - 1]
-            d_prev = d_series.iloc[t - 1]
-
-            # Standard default state propagation
-            signals[t] = signals[t - 1]
-
-            # Bullish crossover reversal (oversold)
-            if k_prev < d_prev and k_val >= d_val:
-                if (
-                    k_val < self.oversold_threshold
-                    or d_val < self.oversold_threshold
-                    or k_prev < self.oversold_threshold
-                    or d_prev < self.oversold_threshold
-                ):
-                    signals[t] = 1.0
-
-            # Bearish crossover reversal (overbought)
-            elif k_prev > d_prev and k_val <= d_val:
-                if (
-                    k_val > self.overbought_threshold
-                    or d_val > self.overbought_threshold
-                    or k_prev > self.overbought_threshold
-                    or d_prev > self.overbought_threshold
-                ):
-                    signals[t] = -1.0
-
-        return pd.Series(signals, index=data.index)

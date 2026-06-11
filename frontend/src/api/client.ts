@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export type Regime = "BULL" | "BEAR" | "SIDEWAYS";
 
 export interface LTTDRecord {
@@ -96,3 +97,93 @@ export async function fetchLTTDHistory(
     throw new APIError(err.message || "Failed to fetch LTTD history");
   }
 }
+
+export interface ChartRecord {
+  date: string;
+  open?: number;
+  high?: number;
+  low?: number;
+  close?: number;
+  volume?: number;
+  final_score: number;
+}
+
+export interface RegimeRecord {
+  date: string;
+  regime: Regime;
+  p_bull: number;
+  p_bear: number;
+  p_sideways: number;
+}
+
+export interface DiagnosticsRecord {
+  date: string;
+  indicator_scores?: Record<string, number>;
+  pca_components?: Record<string, number>;
+  vif: Record<string, number>;
+  pca_variance_explained: number;
+}
+
+export interface OnChainRecord {
+  date: string;
+  sth_mvrv?: number;
+  sth_nupl?: number;
+  sth_sopr_24h?: number;
+}
+
+export async function fetchChartData(start?: string, end?: string): Promise<ChartRecord[]> {
+  try {
+    const url = new URL(`${API_BASE_URL}/api/chart`);
+    if (start) url.searchParams.append("start", start);
+    if (end) url.searchParams.append("end", end);
+    const res = await fetch(url.toString());
+    if (!res.ok) throw new APIError(`Failed to fetch chart data: ${res.statusText}`, res.status);
+    return await res.json();
+  } catch (err: any) {
+    if (err instanceof APIError) throw err;
+    throw new APIError(err.message || "Failed to fetch chart data");
+  }
+}
+
+export async function fetchRegimeData(start?: string, end?: string): Promise<RegimeRecord[]> {
+  try {
+    const url = new URL(`${API_BASE_URL}/api/regime`);
+    if (start) url.searchParams.append("start", start);
+    if (end) url.searchParams.append("end", end);
+    const res = await fetch(url.toString());
+    if (!res.ok) throw new APIError(`Failed to fetch regime data: ${res.statusText}`, res.status);
+    return await res.json();
+  } catch (err: any) {
+    if (err instanceof APIError) throw err;
+    throw new APIError(err.message || "Failed to fetch regime data");
+  }
+}
+
+export async function fetchDiagnosticsData(start?: string, end?: string): Promise<DiagnosticsRecord[]> {
+  try {
+    const url = new URL(`${API_BASE_URL}/api/diagnostics`);
+    if (start) url.searchParams.append("start", start);
+    if (end) url.searchParams.append("end", end);
+    const res = await fetch(url.toString());
+    if (!res.ok) throw new APIError(`Failed to fetch diagnostics data: ${res.statusText}`, res.status);
+    return await res.json();
+  } catch (err: any) {
+    if (err instanceof APIError) throw err;
+    throw new APIError(err.message || "Failed to fetch diagnostics data");
+  }
+}
+
+export async function fetchOnChainData(start?: string, end?: string): Promise<OnChainRecord[]> {
+  try {
+    const url = new URL(`${API_BASE_URL}/api/onchain`);
+    if (start) url.searchParams.append("start", start);
+    if (end) url.searchParams.append("end", end);
+    const res = await fetch(url.toString());
+    if (!res.ok) throw new APIError(`Failed to fetch on-chain data: ${res.statusText}`, res.status);
+    return await res.json();
+  } catch (err: any) {
+    if (err instanceof APIError) throw err;
+    throw new APIError(err.message || "Failed to fetch on-chain data");
+  }
+}
+

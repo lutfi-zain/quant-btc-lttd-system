@@ -29,10 +29,11 @@ class LTTDPipeline:
     - Layer 4: Ensemble model fitting (L1-Lasso Logistic Regression)
     - Layer 5: Execution Engine Sizing & Persistence (SQLite WAL mode)
     """
-    def __init__(self, db_path: Optional[str] = None, base_url: str = "https://bitview.space"):
+    def __init__(self, db_path: Optional[str] = None, base_url: str = "https://bitview.space", ensemble_mode: str = "pca_consensus"):
         self.db_path = db_path
         self.brk_ingestion = BRKIngestionService(base_url=base_url)
         self.execution_engine = ExecutionEngine()
+        self.ensemble_mode = ensemble_mode
         
         # Ensure database is initialized
         if self.db_path:
@@ -134,13 +135,7 @@ class LTTDPipeline:
         overridden_posteriors = apply_onchain_overrides(res_regime["posteriors"], onchain_metrics)
         
         # Determine final regime classification
-        if overridden_posteriors["BULL"] > 0.70:
-            final_regime = "BULL"
-        else:
-            if overridden_posteriors["BEAR"] >= overridden_posteriors["SIDEWAYS"]:
-                final_regime = "BEAR"
-            else:
-                final_regime = "SIDEWAYS"
+        final_regime = max(overridden_posteriors, key=overridden_posteriors.get)
 
         # 9. Layer 3: Feature Processor (VIF pruning and PCA)
         logger.info("Running VIF/PCA Feature Processor...")
@@ -153,11 +148,26 @@ class LTTDPipeline:
         X_train_proc = processor.transform(X_train)
         X_test_proc = processor.transform(X_test)
 
-        # 10. Layer 4: Ensemble model fitting (L1-Lasso) and final score prediction
-        logger.info("Fitting L1-Lasso Logistic Regression model...")
-        model = L1LassoEnsemble()
-        model.fit(X_train_proc, y_train)
-        final_score = float(model.predict_score(X_test_proc).iloc[0])
+        # 10. Layer 4: Ensemble model fitting and final score prediction
+        if self.ensemble_mode == "pca_consensus":
+            logger.info("Fitting PCA Consensus Weighted Aggregator...")
+            from src.ensemble.model import PCAConsensusEnsemble
+            model = PCAConsensusEnsemble()
+            if processor.pca is not None:
+                model.fit(
+                    X=X_train,
+                    pca_components_matrix=processor.pca.pca.components_,
+                    kept_cols=processor.kept_tech_cols
+                )
+                final_score = float(model.predict_score(X_test).iloc[0])
+            else:
+                model.fit(X=X_train)
+                final_score = float(model.predict_score(X_test).iloc[0])
+        else:
+            logger.info("Fitting L1-Lasso Logistic Regression model...")
+            model = L1LassoEnsemble()
+            model.fit(X_train_proc, y_train)
+            final_score = float(model.predict_score(X_test_proc).iloc[0])
 
         # 11. Layer 5: Sizing exposure and persisting daily records to SQLite WAL DB
         logger.info("Executing exposure sizing and DB persistence...")
@@ -184,6 +194,20 @@ class LTTDPipeline:
         pca_cols = [c for c in X_test_proc.columns if c.startswith("PC")]
         pca_components = X_test_proc.loc[t, pca_cols].to_dict()
         pca_components = {k: float(v) for k, v in pca_components.items()}
+
+        # Save actual cumulative PCA variance explained
+        if processor.pca is not None:
+            pca_variance_explained = float(np.sum(processor.pca.pca.explained_variance_ratio_)) * 100.0
+            pca_components["pca_variance_explained"] = pca_variance_explained
+        else:
+            pca_components["pca_variance_explained"] = 100.0
+
+        # Save actual daily VIF values
+        from src.features.vif import calculate_vif
+        vifs = calculate_vif(X_train)
+        for ind_name, vif_val in vifs.items():
+            if not pd.isna(vif_val):
+                pca_components[f"VIF_{ind_name}"] = float(vif_val)
 
         self.execution_engine.persist_features(
             date_str=date_str,
