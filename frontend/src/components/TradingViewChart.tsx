@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { createChart, CandlestickSeries, AreaSeries, LineSeries } from "lightweight-charts";
+import { createChart, CandlestickSeries, AreaSeries, LineSeries, PriceScaleMode, createSeriesMarkers } from "lightweight-charts";
 import type { IChartApi, ISeriesApi, CandlestickData, LineData } from "lightweight-charts";
 import type { LTTDRecord } from "../api/client";
 
@@ -22,6 +22,8 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({ data }) => {
   const pc3SeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
 
   const [showPCA, setShowPCA] = useState<boolean>(false);
+  const [priceScaleMode, setPriceScaleMode] = useState<"linear" | "log">("linear");
+  const [scoreScaleMode, setScoreScaleMode] = useState<"linear" | "log">("linear");
 
   // Resize charts on container resize
   useEffect(() => {
@@ -89,10 +91,13 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({ data }) => {
       rightPriceScale: {
         borderColor: themeColors.border,
         visible: true,
+        minimumWidth: 80,
+        mode: priceScaleMode === "log" ? PriceScaleMode.Logarithmic : PriceScaleMode.Normal,
       },
       leftPriceScale: {
         borderColor: themeColors.border,
         visible: showPCA, // Only show PCA axis if toggled
+        minimumWidth: 80,
       },
       timeScale: {
         borderColor: themeColors.border,
@@ -141,6 +146,13 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({ data }) => {
       rightPriceScale: {
         borderColor: themeColors.border,
         visible: true,
+        minimumWidth: 80,
+        mode: scoreScaleMode === "log" ? PriceScaleMode.Logarithmic : PriceScaleMode.Normal,
+      },
+      leftPriceScale: {
+        borderColor: themeColors.border,
+        visible: showPCA, // keep in sync with top chart left scale
+        minimumWidth: 80,
       },
       timeScale: {
         borderColor: themeColors.border,
@@ -211,6 +223,46 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({ data }) => {
     candlestickSeries.setData(chartCandles);
     scoreSeries.setData(chartScores);
 
+    // --- Transition Markers (Regime Shift Visualization) ---
+    const markers: any[] = [];
+    for (let i = 1; i < data.length; i++) {
+      if (data[i].regime !== data[i - 1].regime) {
+        const time = data[i].date;
+        const prevRegime = data[i - 1].regime;
+        const nextRegime = data[i].regime;
+        
+        let color = "#a855f7"; // purple for sideways
+        let shape: "arrowUp" | "arrowDown" | "circle" = "circle";
+        let position: "aboveBar" | "belowBar" | "inBar" = "belowBar";
+        let text = `${prevRegime} → ${nextRegime}`;
+
+        if (nextRegime === "BULL") {
+          color = themeColors.bull;
+          shape = "arrowUp";
+          position = "belowBar";
+        } else if (nextRegime === "BEAR") {
+          color = themeColors.bear;
+          shape = "arrowDown";
+          position = "aboveBar";
+        } else {
+          // SIDEWAYS
+          color = "#a855f7";
+          shape = "circle";
+          position = "belowBar";
+        }
+
+        markers.push({
+          time,
+          position,
+          shape,
+          color,
+          text,
+          size: 1,
+        });
+      }
+    }
+    createSeriesMarkers(candlestickSeries, markers);
+
     // --- 5. Add PCA series if toggled ---
     if (showPCA) {
       const pc1Series = priceChart.addSeries(LineSeries, {
@@ -263,11 +315,60 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({ data }) => {
       isSyncing = false;
     });
 
+    // --- 7. Synchronize Crosshair Cursor Movement ---
+    const dataMap = new Map<string, LTTDRecord>(data.map((r) => [r.date, r]));
+
+    const handlePriceCrosshairMove = (param: any) => {
+      if (!param.sourceEvent) return; // ignore programmatic updates
+      
+      if (param.time && param.point) {
+        const record = dataMap.get(param.time as string);
+        if (record && record.final_score !== undefined) {
+          scoreChart.setCrosshairPosition(record.final_score, param.time, scoreSeries);
+        } else {
+          scoreChart.clearCrosshairPosition();
+        }
+      } else {
+        scoreChart.clearCrosshairPosition();
+      }
+    };
+
+    const handleScoreCrosshairMove = (param: any) => {
+      if (!param.sourceEvent) return; // ignore programmatic updates
+
+      if (param.time && param.point) {
+        const record = dataMap.get(param.time as string);
+        if (record && record.close !== undefined) {
+          priceChart.setCrosshairPosition(record.close, param.time, candlestickSeries);
+        } else {
+          priceChart.clearCrosshairPosition();
+        }
+      } else {
+        priceChart.clearCrosshairPosition();
+      }
+    };
+
+    priceChart.subscribeCrosshairMove(handlePriceCrosshairMove);
+    scoreChart.subscribeCrosshairMove(handleScoreCrosshairMove);
+
     // Fit content initially
     priceTimeScale.fitContent();
     scoreTimeScale.fitContent();
 
-  }, [data, showPCA]);
+    return () => {
+      if (priceChartRef.current) {
+        priceChartRef.current.unsubscribeCrosshairMove(handlePriceCrosshairMove);
+        priceChartRef.current.remove();
+        priceChartRef.current = null;
+      }
+      if (scoreChartRef.current) {
+        scoreChartRef.current.unsubscribeCrosshairMove(handleScoreCrosshairMove);
+        scoreChartRef.current.remove();
+        scoreChartRef.current = null;
+      }
+    };
+
+  }, [data, showPCA, priceScaleMode, scoreScaleMode]);
 
   return (
     <div className="flex flex-col gap-2 bg-[#0a0a0f] p-4 rounded-3xl border border-[#202025]/50 shadow-[0_8px_32px_rgba(0,0,0,0.4)] backdrop-blur-xl">
@@ -290,10 +391,38 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({ data }) => {
       </div>
 
       {/* Primary Pane (Price Candlestick) */}
-      <div ref={priceChartContainerRef} className="w-full relative h-[350px] overflow-hidden rounded-2xl border border-[#202025]/30 bg-[#050505]" />
+      <div className="relative w-full h-[350px] rounded-2xl border border-[#202025]/30 bg-[#050505] overflow-hidden">
+        <div ref={priceChartContainerRef} className="w-full h-full" />
+        <div className="absolute top-3 right-3 z-10 flex gap-2">
+          <button
+            onClick={() => setPriceScaleMode(priceScaleMode === "log" ? "linear" : "log")}
+            className={`px-2.5 py-1 rounded-full border text-[10px] font-semibold tracking-wider transition-all duration-300 shadow-md cursor-pointer ${
+              priceScaleMode === "log"
+                ? "bg-purple-500/20 text-purple-400 border-purple-500/40 hover:bg-purple-500/30"
+                : "bg-white/5 text-gray-400 border-white/10 hover:bg-white/10 hover:text-white"
+            }`}
+          >
+            {priceScaleMode === "log" ? "LOG" : "LIN"}
+          </button>
+        </div>
+      </div>
 
       {/* Secondary Pane (LTTD Score) */}
-      <div ref={scoreChartContainerRef} className="w-full relative h-[150px] overflow-hidden rounded-2xl border border-[#202025]/30 bg-[#050505]" />
+      <div className="relative w-full h-[150px] rounded-2xl border border-[#202025]/30 bg-[#050505] overflow-hidden">
+        <div ref={scoreChartContainerRef} className="w-full h-full" />
+        <div className="absolute top-3 right-3 z-10 flex gap-2">
+          <button
+            onClick={() => setScoreScaleMode(scoreScaleMode === "log" ? "linear" : "log")}
+            className={`px-2.5 py-1 rounded-full border text-[10px] font-semibold tracking-wider transition-all duration-300 shadow-md cursor-pointer ${
+              scoreScaleMode === "log"
+                ? "bg-purple-500/20 text-purple-400 border-purple-500/40 hover:bg-purple-500/30"
+                : "bg-white/5 text-gray-400 border-white/10 hover:bg-white/10 hover:text-white"
+            }`}
+          >
+            {scoreScaleMode === "log" ? "LOG" : "LIN"}
+          </button>
+        </div>
+      </div>
       
       {showPCA && (
         <div className="flex flex-wrap gap-4 px-2 py-1.5 border-t border-[#202025]/30 mt-1">

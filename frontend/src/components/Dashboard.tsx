@@ -56,7 +56,7 @@ export const Dashboard: React.FC = () => {
       }
     }
     // Return latest transitions first
-    return logs.reverse().slice(0, 10);
+    return logs.reverse();
   }, [history]);
 
   const handleRefresh = () => {
@@ -326,15 +326,15 @@ export const Dashboard: React.FC = () => {
               <span className="text-[9px] uppercase tracking-[0.2em] font-semibold text-gray-500">System Logs</span>
               <h3 className="text-lg font-bold text-gray-200 tracking-tight mt-1 mb-6">Regime Transition Log</h3>
               
-              <div className="overflow-x-auto">
+              <div className="overflow-y-auto max-h-[400px] overflow-x-auto pr-2 scrollbar-thin scrollbar-thumb-white/10">
                 <table className="w-full text-left border-collapse">
-                  <thead>
+                  <thead className="sticky top-0 bg-[#08080f] z-10 shadow-[inset_0_-1px_0_rgba(255,255,255,0.05)]">
                     <tr className="border-b border-[#202025]/40 text-gray-500 text-[10px] uppercase tracking-wider font-semibold">
-                      <th className="pb-3 pl-2">Transition Date</th>
-                      <th className="pb-3">Previous Regime</th>
-                      <th className="pb-3">New Inferred Regime</th>
-                      <th className="pb-3">Ensemble Score</th>
-                      <th className="pb-3 pr-2 text-right">Observability Status</th>
+                      <th className="pb-3 pl-2 bg-[#08080f]">Transition Date</th>
+                      <th className="pb-3 bg-[#08080f]">Previous Regime</th>
+                      <th className="pb-3 bg-[#08080f]">New Inferred Regime</th>
+                      <th className="pb-3 bg-[#08080f]">Ensemble Score</th>
+                      <th className="pb-3 pr-2 text-right bg-[#08080f]">Observability Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#202025]/30 text-xs">
