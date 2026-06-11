@@ -53,6 +53,12 @@ class L1LassoEnsemble:
 
         return pd.Series(final_scores, index=X.index)
 
+    def predict(self, X: pd.DataFrame) -> pd.Series:
+        """
+        Expose stateless-compatible predict interface returning the continuous Final Score ∈ [-1.0, +1.0].
+        """
+        return self.predict_score(X)
+
     def calculate_pratt(self, X: pd.DataFrame, y: pd.Series) -> pd.Series:
         """
         Calculates Pratt's Measure (d_j = beta_j * r_j / R^2) for features in X.
