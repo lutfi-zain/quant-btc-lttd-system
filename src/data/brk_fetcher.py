@@ -16,20 +16,23 @@ class BRKDataFetcher:
         Fetch the latest value for a given BRK series.
         Asserts that the data is fresh (stamp >= current_date - 1 day).
         """
-        # The /latest endpoint in BRK API returns just the float value.
-        # To get the timestamp of the latest data, we check the sync status.
-        value = self.client.get_series_latest(series_name, "day1")
-        status = self.client.get_sync_status()
-        stamp_str = status.get("last_indexed_at")
-
-        stamp = datetime.strptime(stamp_str, "%Y-%m-%dT%H:%M:%SZ").replace(
-            tzinfo=timezone.utc
+        # Fetch the latest data point from the series-specific endpoint
+        res = self.client.get_series(series_name, "day1", start=-1)
+        value = res["data"][0]
+        
+        # 'stamp' field in response is when the response was generated, NOT when data was updated.
+        # So we calculate the last update time using the 'end' field
+        last_index = res["end"] - 1
+        stamp_date = self.client.index_to_date("day1", last_index)
+        
+        stamp = datetime(
+            stamp_date.year, stamp_date.month, stamp_date.day, tzinfo=timezone.utc
         )
         current_date = datetime.now(timezone.utc)
 
         if stamp < current_date - timedelta(days=1):
             raise StaleOnChainDataError(
-                f"Data is stale! stamp: {stamp_str}, current_date: {current_date.isoformat()}"
+                f"Data is stale! stamp: {stamp.isoformat()}, current_date: {current_date.isoformat()}"
             )
 
         return {"value": value, "stamp": stamp}

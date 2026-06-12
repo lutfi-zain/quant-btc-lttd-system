@@ -20,3 +20,12 @@ At the regime level, the Ensemble Aggregation layer MUST compute Pratt's Measure
 - **THEN** the sum of Pratt's Measures for all features MUST equal 1.0 (or 100%)
 - **THEN** the absolute Pratt's Measure for each feature MUST be explicitly measurable
 
+### Requirement: L1 Lasso Feature Selection
+Enforce that the ensemble model runs an L1 Lasso regularized Logistic Regression.
+
+#### Scenario: Sparse Ensemble Coefficients
+- **GIVEN** a standardized feature matrix and a binary target vector.
+- **WHEN** fitting the `L1LassoEnsemble` model.
+- **THEN** the underlying model SHALL use L1 regularization (Lasso).
+- **AND** the coefficients of non-informative or collinear features SHALL be driven to exactly 0.0.
+

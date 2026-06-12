@@ -13,31 +13,16 @@ class AdvancedStochastic(CausalFilter):
     def __init__(
         self,
         dynamic_lookback=None,
-        atr_short_span=14,
-        atr_long_span=200,
         default_lookback=200,
-        d_span=3,
-        oversold_threshold=20.0,
-        overbought_threshold=80.0,
     ):
         """
         Args:
             dynamic_lookback (pd.Series or callable or int, optional):
-                Window sizes. If None, resolved dynamically using ATR.
-            atr_short_span (int): Span for short-term ATR (numerator).
-            atr_long_span (int): Span for long-term ATR (denominator).
-            default_lookback (int): Base lookback window before volatility scaling.
-            d_span (int): Span for the %D signal line EMA.
-            oversold_threshold (float): Exhaustion limit for buy triggers.
-            overbought_threshold (float): Exhaustion limit for sell triggers.
+                Window sizes. If None, resolved dynamically.
+            default_lookback (int): Base lookback window.
         """
         super().__init__(dynamic_lookback=dynamic_lookback)
-        self.atr_short_span = atr_short_span
-        self.atr_long_span = atr_long_span
         self.default_lookback = default_lookback
-        self.d_span = d_span
-        self.oversold_threshold = oversold_threshold
-        self.overbought_threshold = overbought_threshold
 
     def compute(self, data: pd.DataFrame) -> pd.Series:
         """
@@ -63,24 +48,56 @@ class AdvancedStochastic(CausalFilter):
         if T == 0:
             return pd.Series(dtype=float)
 
-        # Pre-allocate trends matrix for 129 period lengths
-        trends_matrix = np.zeros((129, T))
+        lookbacks = self._resolve_lookback(data, default_lookback=self.default_lookback)
 
-        for x in range(129):
-            length = 1 + x
-            ll = lows.rolling(window=length, min_periods=1).min()
-            hh = highs.rolling(window=length, min_periods=1).max()
-            denom = hh - ll
-            stoch_raw = np.where(denom > 0, 100.0 * (closes - ll) / denom, 50.0)
-            stoch_raw_series = pd.Series(stoch_raw, index=data.index)
+        unique_lbs = np.unique(lookbacks)
+        if len(unique_lbs) == 1:
+            N = unique_lbs[0]
+            max_len = int(max(129, np.ceil(129 * (N / self.default_lookback))))
             
-            # %K smoothing (SMA 21)
-            k = stoch_raw_series.rolling(window=21, min_periods=1).mean()
-            trend = np.where(k > 50.0, 1.0, -1.0)
-            trends_matrix[x] = trend
+            trends_matrix = np.zeros((max_len, T))
+            for x in range(max_len):
+                length = 1 + x
+                ll = lows.rolling(window=length, min_periods=1).min()
+                hh = highs.rolling(window=length, min_periods=1).max()
+                denom = hh - ll
+                stoch_raw = np.where(denom > 0, 100.0 * (closes - ll) / denom, 50.0)
+                stoch_raw_series = pd.Series(stoch_raw, index=data.index)
+                k = stoch_raw_series.rolling(window=21, min_periods=1).mean()
+                trend = np.where(k > 50.0, 1.0, -1.0)
+                trends_matrix[x] = trend
+                
+            start_len = int(max(1, round(1 * (N / self.default_lookback))))
+            end_len = int(max(start_len, round(129 * (N / self.default_lookback))))
+            
+            avg = np.mean(trends_matrix[start_len - 1 : end_len, :], axis=0)
+            signals = np.where(avg >= 0.0, 1.0, -1.0)
+        else:
+            # Determine maximum length needed for the loop
+            max_ratio = lookbacks.max() / self.default_lookback
+            max_len = int(max(129, np.ceil(129 * max_ratio)))
 
-        avg = np.mean(trends_matrix, axis=0)
-        signals = np.where(avg >= 0.0, 1.0, -1.0)
+            # Pre-compute trend for each length
+            trends_matrix = np.zeros((max_len, T))
+            for x in range(max_len):
+                length = 1 + x
+                ll = lows.rolling(window=length, min_periods=1).min()
+                hh = highs.rolling(window=length, min_periods=1).max()
+                denom = hh - ll
+                stoch_raw = np.where(denom > 0, 100.0 * (closes - ll) / denom, 50.0)
+                stoch_raw_series = pd.Series(stoch_raw, index=data.index)
+                k = stoch_raw_series.rolling(window=21, min_periods=1).mean()
+                trend = np.where(k > 50.0, 1.0, -1.0)
+                trends_matrix[x] = trend
+
+            signals = np.zeros(T)
+            for t in range(T):
+                ratio = lookbacks.iloc[t] / self.default_lookback
+                start_len = int(max(1, round(1 * ratio)))
+                end_len = int(max(start_len, round(129 * ratio)))
+                signals[t] = np.mean(trends_matrix[start_len - 1 : end_len, t])
+
+            signals = np.where(signals >= 0.0, 1.0, -1.0)
 
         return pd.Series(signals, index=data.index, dtype=float)
 

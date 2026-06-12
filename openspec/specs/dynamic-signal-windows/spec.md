@@ -39,3 +39,10 @@ The dynamic window resizing SHALL apply exclusively to Technical Indicators and 
 - **WHEN** verifying the freshness of the data using the BRK Stamp
 - **THEN** the structural timescales (e.g., 800-1,200 days) for On-Chain Metrics MUST remain independent of the current OU Half-Life
 
+### Requirement: Adaptive Indicator Lookback
+Enforce that Kalman RSI and Advanced Stochastic indicators adjust their parameters based on resolved dynamic lookbacks.
+
+#### Scenario: Volatility-Responsive Window Calibration
+- **GIVEN** a DataFrame of OHLCV prices and a Series of dynamically resolved lookbacks.
+- **WHEN** computing indicator scores.
+- **THEN** the indicator calculations SHALL utilize the daily lookback values resolved by the CausalFilter base class.

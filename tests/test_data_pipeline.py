@@ -115,3 +115,42 @@ def test_caching_behavior(tmp_path, monkeypatch):
     assert len(df2) == 5
 
     assert cache.get_max_timestamp() == t2
+
+
+def test_caching_duplicate_appends(tmp_path):
+    db_path = str(tmp_path / "test_dup.db")
+    cache = SQLiteCache(db_path)
+
+    dates = pd.date_range("2024-01-01", "2024-01-03", freq="D", tz="UTC")
+    df = pd.DataFrame(
+        {
+            "open": [10.0, 11.0, 12.0],
+            "high": [11.0, 12.0, 13.0],
+            "low": [9.0, 10.0, 11.0],
+            "close": [10.5, 11.5, 12.5],
+            "volume": [100.0, 110.0, 120.0],
+        },
+        index=dates,
+    )
+    df.index.name = "timestamp"
+
+    # First save
+    cache.save_dataframe(df)
+
+    # Save same dataframe again (should be idempotent and not raise error)
+    cache.save_dataframe(df)
+
+    # Save with modified values for existing timestamps (should update or ignore)
+    df_mod = df.copy()
+    df_mod.loc["2024-01-02", "close"] = 999.0
+    cache.save_dataframe(df_mod)
+
+    loaded = cache.load_dataframe()
+    assert len(loaded) == 3
+    # Our implementation uses INSERT OR IGNORE, so it will NOT update to 999.0
+    assert loaded.loc["2024-01-02 00:00:00+00:00", "close"] == 11.5
+    
+    # Test update_dataframe
+    cache.update_dataframe(df_mod)
+    loaded_after_update = cache.load_dataframe()
+    assert loaded_after_update.loc["2024-01-02 00:00:00+00:00", "close"] == 999.0

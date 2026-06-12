@@ -131,13 +131,26 @@ class KalmanRSI(CausalFilter):
             else:
                 rsi = rsi.rolling(window=self.smooth_period, min_periods=1).mean()
 
-        # 4. Normalization to [0, 1] then shift to [-0.5, 0.5]
-        # lowest = lowest(rsi, 100)
-        # highest = highest(rsi, 100)
-        # rsi := (rsi - lowest) / (highest - lowest) - 0.5
-        rolling_min = rsi.rolling(100, min_periods=1).min()
-        rolling_max = rsi.rolling(100, min_periods=1).max()
-        denom = rolling_max - rolling_min
+        # 4. Normalization to [0, 1] then shift to [-0.5, 0.5] using dynamic lookback
+        lookbacks = self._resolve_lookback(data, default_lookback=200)
+        T = len(rsi)
+        rolling_min = np.full(T, np.nan)
+        rolling_max = np.full(T, np.nan)
+
+        unique_lbs = np.unique(lookbacks)
+        if len(unique_lbs) == 1:
+            N = unique_lbs[0]
+            rolling_min = rsi.rolling(window=N, min_periods=1).min().values
+            rolling_max = rsi.rolling(window=N, min_periods=1).max().values
+        else:
+            for t in range(T):
+                N = lookbacks.iloc[t]
+                start_idx = max(0, t - N + 1)
+                window_data = rsi.iloc[start_idx : t + 1]
+                rolling_min[t] = window_data.min()
+                rolling_max[t] = window_data.max()
+
+        denom = pd.Series(rolling_max - rolling_min, index=rsi.index)
 
         # Avoid division by zero, default to 0.0 normalization
         norm_rsi = (rsi - rolling_min) / denom.replace(0.0, np.nan) - 0.5

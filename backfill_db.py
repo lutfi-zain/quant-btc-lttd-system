@@ -100,8 +100,10 @@ def backfill():
                 
         # Feature processor
         processor = FeatureProcessor()
-        X_train = feature_matrix.loc[train_idx]
-        y_train = y.loc[train_idx]
+        # Purge training set adjacent to execution date t to prevent target leakage
+        train_idx_purged = train_idx[train_idx < t - pd.Timedelta(days=7)]
+        X_train = feature_matrix.loc[train_idx_purged]
+        y_train = y.loc[train_idx_purged]
         X_test = feature_matrix.loc[[t]]
         
         processor.fit(X_train, y_train)

@@ -27,3 +27,10 @@ The system SHALL guarantee that sufficient historical context is pulled for On-C
 - **WHEN** the brk-ingestion-sync initializes the dataset for historical rolling statistics
 - **THEN** it SHALL request and store at least the last 1,200 days of historical data to satisfy the Glassnode feature discovery window for optimal BTC uptrend detection, defined in `pi_final_research_lttd_01.md`.
 
+### Requirement: Series-Specific BRK Timestamping
+Enforce that on-chain data timestamps match the exact update time of the fetched series.
+
+#### Scenario: Stale Series Detection
+- **GIVEN** a requested BRK series name.
+- **WHEN** fetching the latest value from bitview.space.
+- **THEN** the returned stamp SHALL reflect when that specific series was last updated, not the global index synchronization time.

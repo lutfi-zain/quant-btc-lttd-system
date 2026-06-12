@@ -17,12 +17,12 @@ def test_ou_halflife_clamping_and_fallbacks():
     # 2. Test b >= 1 fallback
     x_trend = np.array([1.1**i for i in range(50)])
     series_trend = pd.Series(x_trend)
-    assert estimate_ou_halflife(series_trend, min_bars=30) == 350.0
+    assert estimate_ou_halflife(series_trend, min_bars=30, is_returns=False) == 350.0
 
     # 3. Test b <= 0 fallback or clamping
     x_osc = np.array([(-0.5) ** i for i in range(50)])
     series_osc = pd.Series(x_osc)
-    assert estimate_ou_halflife(series_osc, min_bars=30) == 350.0
+    assert estimate_ou_halflife(series_osc, min_bars=30, is_returns=False) == 350.0
 
     # 4. Test normal mean-reverting series (0 < b < 1)
     np.random.seed(42)
@@ -31,7 +31,7 @@ def test_ou_halflife_clamping_and_fallbacks():
     for _ in range(500):
         x.append(b_true * x[-1] + np.random.normal(0, 0.01))
     series_mr = pd.Series(x)
-    hl = estimate_ou_halflife(series_mr, min_bars=100)
+    hl = estimate_ou_halflife(series_mr, min_bars=100, is_returns=False)
     assert hl == 120.0
 
     # 5. Test random walk (very long half-life, clamped to 350)
@@ -40,7 +40,7 @@ def test_ou_halflife_clamping_and_fallbacks():
     for _ in range(500):
         x_rw.append(b_true_rw * x_rw[-1] + np.random.normal(0, 0.01))
     series_rw = pd.Series(x_rw)
-    hl_rw = estimate_ou_halflife(series_rw, min_bars=100)
+    hl_rw = estimate_ou_halflife(series_rw, min_bars=100, is_returns=False)
     assert hl_rw == 350.0
 
 

@@ -16,8 +16,8 @@ class L1LassoEnsemble:
         self.C = C
         self.random_state = random_state
         self.model = LogisticRegression(
+            penalty="l1",
             solver="liblinear",  # Stable and efficient for L1 optimization
-            l1_ratio=1.0,        # Specifies L1 penalty in sklearn 1.8+
             C=self.C,
             random_state=self.random_state,
         )

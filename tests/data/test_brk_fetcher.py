@@ -7,24 +7,44 @@ from src.data.brk_fetcher import BRKDataFetcher, StaleOnChainDataError
 
 def test_fetch_latest_success(mocker):
     fetcher = BRKDataFetcher()
-    mocker.patch.object(fetcher.client, "get_series_latest", return_value=0.85)
-
     current = datetime.now(timezone.utc)
-    status_mock = {"last_indexed_at": current.strftime("%Y-%m-%dT%H:%M:%SZ")}
-    mocker.patch.object(fetcher.client, "get_sync_status", return_value=status_mock)
+    
+    # Calculate the correct index for 'current' date
+    days_since_genesis = fetcher.client.date_to_index("day1", current.date())
+    
+    mock_response = {
+        "version": 163,
+        "index": "day1",
+        "type": "StoredF32",
+        "start": days_since_genesis,
+        "end": days_since_genesis + 1,
+        "stamp": current.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "data": [0.85]
+    }
+    mocker.patch.object(fetcher.client, "get_series", return_value=mock_response)
 
     res = fetcher.fetch_latest("sth_mvrv")
     assert res["value"] == 0.85
-    assert res["stamp"] == current.replace(microsecond=0)
+    assert res["stamp"].date() == current.date()
+    fetcher.client.get_series.assert_called_once_with("sth_mvrv", "day1", start=-1)
 
 
 def test_fetch_latest_stale_raises_error(mocker):
     fetcher = BRKDataFetcher()
-    mocker.patch.object(fetcher.client, "get_series_latest", return_value=0.85)
-
     stale_date = datetime.now(timezone.utc) - timedelta(days=2)
-    status_mock = {"last_indexed_at": stale_date.strftime("%Y-%m-%dT%H:%M:%SZ")}
-    mocker.patch.object(fetcher.client, "get_sync_status", return_value=status_mock)
+    
+    days_since_genesis = fetcher.client.date_to_index("day1", stale_date.date())
+    
+    mock_response = {
+        "version": 163,
+        "index": "day1",
+        "type": "StoredF32",
+        "start": days_since_genesis,
+        "end": days_since_genesis + 1,
+        "stamp": stale_date.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "data": [0.85]
+    }
+    mocker.patch.object(fetcher.client, "get_series", return_value=mock_response)
 
     with pytest.raises(StaleOnChainDataError):
         fetcher.fetch_latest("sth_mvrv")

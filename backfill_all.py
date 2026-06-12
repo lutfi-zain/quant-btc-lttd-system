@@ -64,8 +64,10 @@ def process_single_day(t, df_merged, feature_matrix, log_returns, y):
                 
         # Feature processor
         processor = FeatureProcessor()
-        X_train = feature_matrix_t.loc[train_idx]
-        y_train = y.loc[train_idx]
+        # Purge training set adjacent to execution date t to prevent target leakage
+        train_idx_purged = train_idx[train_idx < t - pd.Timedelta(days=7)]
+        X_train = feature_matrix_t.loc[train_idx_purged]
+        y_train = y.loc[train_idx_purged]
         X_test = feature_matrix_t.loc[[t]]
         
         processor.fit(X_train, y_train)
@@ -154,8 +156,22 @@ def main():
     with cache.get_connection() as conn:
         conn.execute("DELETE FROM ohlcv;")
         conn.commit()
+    # Insert BRK baseline data
     cache.save_dataframe(df_ohlcv)
-    print("✓ Saved all price history to database 'ohlcv' table.")
+    print(f"Saved {len(df_ohlcv)} OHLCV rows from BRK to cache.")
+    
+    # 2. Overlay Binance data to get accurate volume (starts ~2017-08)
+    print("Overlaying Binance OHLCV data to fix volume degradation...")
+    try:
+        adapter = BinanceAdapter()
+        binance_df = adapter.fetch_ohlcv(start_time=datetime(2017, 8, 1, tzinfo=timezone.utc))
+        if not binance_df.empty:
+            cache.update_dataframe(binance_df)
+            print(f"Overlaid {len(binance_df)} OHLCV rows from Binance.")
+        else:
+            print("Warning: Binance adapter returned empty DataFrame.")
+    except Exception as e:
+        print(f"Failed to overlay Binance data: {e}")
     
     # 2. Fetch bulk on-chain history (4500 days lookback)
     print("Fetching historical daily on-chain metrics (4500 days)...")
