@@ -14,33 +14,35 @@ class WFOEnsemble:
 
     def recalibrate_ou_halflife(
         self,
-        log_returns: pd.Series,
+        log_prices: pd.Series,
         train_end: pd.Timestamp,
         train_window_days: int = 1095,
     ) -> float:
         """
         Recalibrate the OU Half-Life strictly using purged in-sample data.
         In-sample data starts at (train_end - train_window_days) and ends at train_end.
+        Expects log price levels (ln(close)), not log returns.
         """
         train_start = train_end - pd.Timedelta(days=train_window_days)
-        in_sample = log_returns.loc[train_start:train_end]
+        in_sample = log_prices.loc[train_start:train_end]
 
-        # Recalibrate
-        hl = estimate_ou_halflife(in_sample, min_bars=250)
+        # Recalibrate on log price levels (is_returns=False)
+        hl = estimate_ou_halflife(in_sample, min_bars=250, is_returns=False)
         return hl
 
     def run_wfo_calibration(
         self,
-        log_returns: pd.Series,
+        log_prices: pd.Series,
         start_date: pd.Timestamp,
         end_date: pd.Timestamp,
         legacy_fixed_window: bool = False,
     ) -> pd.Series:
         """
         Runs quarterly recalibration of OU half-life over the dataset.
+        Expects log price levels (ln(close)), not log returns.
         If legacy_fixed_window is True, forces a static 200-day window.
         """
-        target_index = log_returns.loc[start_date:end_date].index
+        target_index = log_prices.loc[start_date:end_date].index
         if legacy_fixed_window:
             return pd.Series(200.0, index=target_index)
 
@@ -51,7 +53,7 @@ class WFOEnsemble:
         for q_date in quarterly_dates:
             # Training data ends exactly before the quarter starts
             train_end = q_date - pd.Timedelta(days=1)
-            hl = self.recalibrate_ou_halflife(log_returns, train_end)
+            hl = self.recalibrate_ou_halflife(log_prices, train_end)
             self.ou_halflives[q_date] = hl
 
         # Create a series mapped to daily index
@@ -191,7 +193,9 @@ class WFOEnsemble:
             test_idx = index[(index >= current_test_start) & (index <= current_test_end)]
             
             if len(train_idx) > 0 and len(val_idx) > 0 and len(test_idx) > 0:
-                yield train_idx, val_idx, test_idx
+                test_intervals = [(val_idx.min(), test_idx.max())]
+                train_idx_purged = self.purge_train_set(train_idx, test_intervals, purge_days=7)
+                yield train_idx_purged, val_idx, test_idx
                 
             # Slide forward by test_window_days
             current_test_start += pd.Timedelta(days=test_window_days)

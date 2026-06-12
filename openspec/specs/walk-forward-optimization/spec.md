@@ -21,3 +21,12 @@ At the regime level, the WFO pipeline MUST apply Combinatorial Purged Cross-Vali
 - **THEN** the number of overlapping purged daily bars between train and test boundaries MUST be > 0 (as defined by the purge window size)
 - **THEN** the model MUST verify zero lookahead bias by checking that test data does not influence the training fit
 
+### Requirement: Boundary Target Variable Purging
+Enforce that the training targets ($y$) do not leak tomorrow's price direction at the boundaries of the training folds.
+
+#### Scenario: WFO Fold boundary label verification
+- **GIVEN** a walk-forward optimization split with a training fold index ending at $t_{train}$ and test fold starting at $t_{test}$.
+- **WHEN** constructing the target variable $y_t = \text{sign}(\text{close}_{t+1} - \text{close}_t)$.
+- **THEN** the target value at $t_{train}$ SHALL NOT leak the close price of $t_{test}$.
+- **AND** the training set target vector $y_{\text{train}}$ SHALL drop or purge the last observation at $t_{train}$ to prevent lookahead bias.
+

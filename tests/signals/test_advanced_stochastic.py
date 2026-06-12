@@ -16,7 +16,7 @@ def sample_data():
 
 
 def test_stochastic_functionality(sample_data):
-    indicator = AdvancedStochastic(d_span=10)
+    indicator = AdvancedStochastic()
     signals = indicator.compute(sample_data)
 
     assert isinstance(signals, pd.Series)
@@ -26,7 +26,7 @@ def test_stochastic_functionality(sample_data):
 
 
 def test_stochastic_no_lookahead(sample_data):
-    indicator = AdvancedStochastic(d_span=10)
+    indicator = AdvancedStochastic()
     test_no_lookahead(indicator, sample_data, 250)
     test_no_lookahead(indicator, sample_data, 400)
 
@@ -34,7 +34,7 @@ def test_stochastic_no_lookahead(sample_data):
 def test_stochastic_dynamic_lookback(sample_data):
     dyn_lookback = pd.Series(150, index=sample_data.index)
     dyn_lookback.iloc[250:] = 300
-    indicator = AdvancedStochastic(dynamic_lookback=dyn_lookback, d_span=10)
+    indicator = AdvancedStochastic(dynamic_lookback=dyn_lookback)
     signals = indicator.compute(sample_data)
 
     assert isinstance(signals, pd.Series)

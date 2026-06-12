@@ -112,8 +112,11 @@ def _run_fold(
     from src.features.processor import FeatureProcessor
     processor = FeatureProcessor()
     
-    X_train = feature_matrix.loc[train_idx]
-    y_train = y.loc[train_idx]
+    # Purge the last train bar where shift(-1) target references the test period
+    effective_train_idx = train_idx[:-1] if len(train_idx) > 0 else train_idx
+
+    X_train = feature_matrix.loc[effective_train_idx]
+    y_train = y.loc[effective_train_idx]
     X_test = feature_matrix.loc[test_idx]
     
     processor.fit(X_train, y_train)
@@ -194,12 +197,12 @@ class BacktestRunner:
         """
         Runs the full walk-forward backtest optimization.
         """
-        # 1. Calibrate OU half-life (dynamic lookback)
+        # 1. Calibrate OU half-life (dynamic lookback) on log price levels per spec
         wfo_ens = WFOEnsemble()
-        log_returns = np.log(data["close"] / data["close"].shift(1)).fillna(0.0)
+        log_prices = np.log(data["close"])
         
         dynamic_lookback = wfo_ens.run_wfo_calibration(
-            log_returns,
+            log_prices,
             data.index[0],
             data.index[-1],
             legacy_fixed_window=self.legacy_fixed_window

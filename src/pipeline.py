@@ -111,7 +111,8 @@ class LTTDPipeline:
 
         # 6. Recalibrate OU half-life to dynamically adjust trend lookback window
         log_returns = np.log(df_merged["close"] / df_merged["close"].shift(1)).fillna(0.0)
-        dynamic_lookback = estimate_ou_halflife(log_returns.loc[train_idx], min_bars=250)
+        log_prices = np.log(df_merged["close"])
+        dynamic_lookback = estimate_ou_halflife(log_prices.loc[train_idx], min_bars=250, is_returns=False)
 
         # 7. Compute indicators and features (cautiously ensuring zero lookahead)
         builder = FeatureMatrixBuilder(dynamic_lookback=dynamic_lookback)
@@ -140,8 +141,10 @@ class LTTDPipeline:
         # 9. Layer 3: Feature Processor (VIF pruning and PCA)
         logger.info("Running VIF/PCA Feature Processor...")
         processor = FeatureProcessor()
-        X_train = feature_matrix.loc[train_idx]
-        y_train = y.loc[train_idx]
+        # Purge training set adjacent to execution date t to prevent target leakage
+        train_idx_purged = train_idx[train_idx < t - pd.Timedelta(days=7)]
+        X_train = feature_matrix.loc[train_idx_purged]
+        y_train = y.loc[train_idx_purged]
         X_test = feature_matrix.loc[[t]]
 
         processor.fit(X_train, y_train)

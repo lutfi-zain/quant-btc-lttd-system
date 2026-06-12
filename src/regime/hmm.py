@@ -147,7 +147,12 @@ def infer_regime_history(
         return pd.DataFrame()
 
     features = features_df.values
-    proba = model.predict_proba(features)
+    proba = np.zeros((len(features_df), 3))
+    for i in range(len(features_df)):
+        start_idx = max(0, i - 1095 + 1)
+        sub_features = features[start_idx : i + 1]
+        p = model.predict_proba(sub_features)
+        proba[i] = p[-1]
 
     bull_col = [k for k, v in state_to_regime.items() if v == "BULL"][0]
     bear_col = [k for k, v in state_to_regime.items() if v == "BEAR"][0]

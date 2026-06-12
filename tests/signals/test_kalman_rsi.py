@@ -55,3 +55,19 @@ def test_kalman_rsi_edge_cases(dummy_ohlcv_data):
     # Case: empty close column raises error
     with pytest.raises(ValueError):
         indicator.compute(pd.DataFrame({"volume": [1, 2]}))
+
+
+def test_kalman_rsi_dynamic_lookback(dummy_ohlcv_data):
+    indicator_default = KalmanRSI()
+    scores_default = indicator_default.compute(dummy_ohlcv_data)
+
+    dyn_lookback = pd.Series(150, index=dummy_ohlcv_data.index)
+    dyn_lookback.iloc[150:] = 10
+    indicator = KalmanRSI(dynamic_lookback=dyn_lookback)
+    scores = indicator.compute(dummy_ohlcv_data)
+
+    assert len(scores) == len(dummy_ohlcv_data)
+    assert set(scores.unique()).issubset({-1.0, 1.0})
+    assert not (scores == scores_default).all(), "Dynamic lookback should change output"
+    test_no_lookahead(indicator, dummy_ohlcv_data, 180)
+    test_no_lookahead(indicator, dummy_ohlcv_data, 250)

@@ -35,3 +35,11 @@ The system SHALL enforce strict index continuity. Missing daily bars MUST be for
 - **WHEN** the index continuity validation is applied
 - **THEN** the pipeline outputs a continuous DatetimeIndex, the missing price fields equal the previous day's close price, and the volume is exactly 0.0.
 
+### Requirement: Idempotent OHLCV Caching
+Enforce that caching of OHLCV data is idempotent and does not fail when duplicate records are written.
+
+#### Scenario: Duplicate OHLCV Append
+- **GIVEN** a cache SQLite database with an existing OHLCV table.
+- **WHEN** the ingestion service appends OHLCV records containing timestamps that already exist in the database.
+- **THEN** the database SHALL update the existing rows or ignore the duplicate timestamps.
+- **AND** the write operation SHALL complete successfully without raising primary key or integrity constraints.

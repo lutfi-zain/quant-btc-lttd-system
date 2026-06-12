@@ -30,6 +30,16 @@ The system SHALL infer the latent market regime and output the posterior probabi
 - **THEN** the system SHALL output a posterior probability distribution `[P(Bull), P(Bear), P(Sideways)]` that strictly sums to 1.0.
 - **THEN** if the HMM posterior `P(Bull) > 0.70`, the system SHALL classify the current Regime as BULL.
 
+### Requirement: Causal HMM Regime Inference
+Enforce that HMM regime probability estimation does not access future observations. The inference algorithm must be strictly causal.
+
+#### Scenario: Day-by-Day Historical Regime Prediction
+- **GIVEN** a trained HMM model, close price series up to time $t$, and state-to-regime mappings.
+- **WHEN** inferring the market regime at bar $t$.
+- **THEN** the model SHALL only read closing prices from indices $\le t$.
+- **AND** the computed posterior probabilities for BULL, BEAR, and SIDEWAYS SHALL sum to 1.0.
+- **AND** the Viterbi alignment or posterior smoothing SHALL NOT utilize any pricing data from indices $> t$.
+
 ### Requirement: Strict Data Dependency and Causal Boundaries
 The system SHALL ensure that HMM training and inference pipelines have zero dependency on Layer 2 Technical Indicators. This requirement applies at the **regime level**.
 

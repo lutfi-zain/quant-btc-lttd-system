@@ -23,7 +23,7 @@ export function getDbPath(): string {
   if (envPath) {
     return path.isAbsolute(envPath) ? envPath : path.resolve(process.cwd(), envPath);
   }
-  return path.resolve(process.cwd(), "database/lttd.db");
+  return path.resolve(import.meta.dir, "../database/lttd.db");
 }
 
 export function getDbConnection(): Database {
