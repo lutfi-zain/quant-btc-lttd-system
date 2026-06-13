@@ -137,6 +137,11 @@ def _run_fold(
         else:
             model.fit(X=X_train)
             test_scores = model.predict(X_test)
+    elif ensemble_mode == "xgboost":
+        from src.ensemble.xgboost_model import XGBoostEnsemble
+        model = XGBoostEnsemble()
+        model.fit(X_train_proc, y_train)
+        test_scores = model.predict(X_test_proc)
     else:
         from src.ensemble.model import MLConsensusEngine
         model = MLConsensusEngine()
@@ -254,7 +259,7 @@ class BacktestRunner:
         y = y.loc[common_idx]
         
         # 3. Generate WFO folds (3yr train -> 6mo val -> 6mo test)
-        iterator = WFOIterator(purge_days=350)
+        iterator = WFOIterator(purge_days=14)
         folds = list(iterator.generate_wfo_folds(common_idx))
         
         if not folds:
@@ -356,7 +361,7 @@ def main():
         "--ensemble-mode",
         type=str,
         default="pca_consensus",
-        choices=["pca_consensus", "lasso"],
+        choices=["pca_consensus", "lasso", "xgboost"],
         help="Choose ensemble aggregation mode: 'pca_consensus' (Option A) or 'lasso' (Option B)",
     )
     parser.add_argument(
