@@ -81,8 +81,8 @@ class ExecutionEngine:
         from src.execution.persistence import upsert_daily_lttd, log_regime_transition
         import json
 
-        # Normalize regime
-        regime_upper = regime.upper()
+        # Use exact regime case
+        regime_upper = regime
 
         # 1. Calculate target exposure
         target_exposure = calculate_target_exposure(final_score, regime_upper)
@@ -92,7 +92,7 @@ class ExecutionEngine:
         p_bull = posteriors_clean.get("BULL", 0.0)
         p_bear = posteriors_clean.get("BEAR", 0.0)
         p_sideways = posteriors_clean.get("SIDEWAYS", 0.0)
-        active_posterior = posteriors_clean.get(regime_upper, 0.0)
+        active_posterior = max(posteriors_clean.values()) if posteriors_clean else 0.0
 
         # 3. Retrieve previous regime from database
         previous_regime = self.get_previous_regime_from_db(date_str, db_path=db_path)

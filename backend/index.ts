@@ -176,11 +176,11 @@ app.get("/api/regime", (c) => {
       let p_bear = pOthers;
       let p_sideways = pOthers;
 
-      if (h.regime === "BULL") {
+      if (h.regime === "Strong Bull" || h.regime === "Weak Bull" || h.regime === "BULL") {
         p_bull = pDominant;
-      } else if (h.regime === "BEAR") {
+      } else if (h.regime === "Strong Bear" || h.regime === "Weak Bear" || h.regime === "BEAR") {
         p_bear = pDominant;
-      } else if (h.regime === "SIDEWAYS") {
+      } else if (h.regime === "Neutral" || h.regime === "SIDEWAYS") {
         p_sideways = pDominant;
       }
 

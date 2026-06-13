@@ -62,14 +62,20 @@ def test_indicator_scores_constraints(db_conn):
 
     # Valid insert
     cursor.execute(
-        "INSERT INTO indicator_scores (date, indicator_name, score) VALUES ('2023-01-01', 'rsi', 1)"
+        "INSERT INTO indicator_scores (date, indicator_name, score) VALUES ('2023-01-01', 'rsi', 1.0)"
     )
     db_conn.commit()
 
     # Invalid score
     with pytest.raises(sqlite3.IntegrityError):
         cursor.execute(
-            "INSERT INTO indicator_scores (date, indicator_name, score) VALUES ('2023-01-02', 'rsi', 0)"
+            "INSERT INTO indicator_scores (date, indicator_name, score) VALUES ('2023-01-02', 'rsi', -0.5)"
+        )
+        
+    # Invalid score (too high)
+    with pytest.raises(sqlite3.IntegrityError):
+        cursor.execute(
+            "INSERT INTO indicator_scores (date, indicator_name, score) VALUES ('2023-01-03', 'rsi', 1.5)"
         )
 
 

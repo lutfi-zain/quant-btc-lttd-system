@@ -173,6 +173,41 @@ export const Dashboard: React.FC = () => {
   const targetExposure = latest?.target_exposure ?? 0;
 
   const regimeMeta = {
+    "Strong Bull": {
+      color: "text-emerald-400",
+      bg: "bg-emerald-500/10",
+      border: "border-emerald-500/20",
+      glow: "shadow-[0_0_50px_rgba(16,185,129,0.15)]",
+      desc: "Extreme uptrend momentum. Max long exposure active.",
+    },
+    "Weak Bull": {
+      color: "text-emerald-400",
+      bg: "bg-emerald-500/10",
+      border: "border-emerald-500/20",
+      glow: "shadow-[0_0_50px_rgba(16,185,129,0.1)]",
+      desc: "Uptrend momentum detected. Partial long exposure active.",
+    },
+    "Neutral": {
+      color: "text-purple-400",
+      bg: "bg-purple-500/10",
+      border: "border-purple-500/20",
+      glow: "shadow-[0_0_50px_rgba(168,85,247,0.15)]",
+      desc: "Mean reversion active. Sizing exposure strictly capped to 0.",
+    },
+    "Weak Bear": {
+      color: "text-rose-400",
+      bg: "bg-rose-500/10",
+      border: "border-rose-500/20",
+      glow: "shadow-[0_0_50px_rgba(239,68,68,0.1)]",
+      desc: "Downtrend bias confirmed. Exposure forced to cash.",
+    },
+    "Strong Bear": {
+      color: "text-rose-400",
+      bg: "bg-rose-500/10",
+      border: "border-rose-500/20",
+      glow: "shadow-[0_0_50px_rgba(239,68,68,0.15)]",
+      desc: "Extreme downtrend bias. Exposure forced to cash.",
+    },
     BULL: {
       color: "text-emerald-400",
       bg: "bg-emerald-500/10",
@@ -194,7 +229,13 @@ export const Dashboard: React.FC = () => {
       glow: "shadow-[0_0_50px_rgba(168,85,247,0.15)]",
       desc: "Mean reversion active. Sizing exposure strictly capped.",
     },
-  }[currentRegime];
+  }[currentRegime] || {
+    color: "text-gray-400",
+    bg: "bg-gray-500/10",
+    border: "border-gray-500/20",
+    glow: "",
+    desc: "Unknown regime state."
+  };
 
   return (
     <div className="min-h-screen bg-[#030303] text-gray-300 font-sans selection:bg-purple-500/30 selection:text-purple-200">
@@ -202,9 +243,9 @@ export const Dashboard: React.FC = () => {
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
         <div
           className={`absolute top-[-10%] left-[20%] w-[600px] h-[600px] rounded-full filter blur-[150px] opacity-20 transition-all duration-1000 ${
-            currentRegime === "BULL"
+            currentRegime.includes("Bull") || currentRegime === "BULL"
               ? "bg-emerald-500"
-              : currentRegime === "BEAR"
+              : currentRegime.includes("Bear") || currentRegime === "BEAR"
               ? "bg-rose-500"
               : "bg-purple-500"
           }`}
@@ -379,9 +420,9 @@ export const Dashboard: React.FC = () => {
                               <td className="py-2.5">
                                 <span
                                   className={`px-2 py-0.5 rounded-full font-bold border text-[9px] ${
-                                    t.next === "BULL"
+                                    t.next.includes("Bull")
                                       ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                                      : t.next === "BEAR"
+                                      : t.next.includes("Bear")
                                       ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
                                       : "bg-purple-500/10 text-purple-400 border-purple-500/20"
                                   }`}

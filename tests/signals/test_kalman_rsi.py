@@ -32,7 +32,8 @@ def test_kalman_rsi_binary_constraint(dummy_ohlcv_data):
     scores = indicator.compute(dummy_ohlcv_data)
 
     assert len(scores) == len(dummy_ohlcv_data)
-    assert set(scores.unique()).issubset({-1.0, 1.0})
+    assert scores.dropna().min() >= 0.0
+    assert scores.dropna().max() <= 1.0
 
 
 def test_kalman_rsi_no_lookahead(dummy_ohlcv_data):
@@ -45,7 +46,8 @@ def test_kalman_rsi_edge_cases(dummy_ohlcv_data):
     indicator = KalmanRSI(smooth=True)
     scores = indicator.compute(dummy_ohlcv_data)
     assert len(scores) == len(dummy_ohlcv_data)
-    assert set(scores.unique()).issubset({-1.0, 1.0})
+    assert scores.dropna().min() >= 0.0
+    assert scores.dropna().max() <= 1.0
 
     # Case: only close column
     close_only = pd.DataFrame({"close": dummy_ohlcv_data["close"]})
@@ -67,7 +69,8 @@ def test_kalman_rsi_dynamic_lookback(dummy_ohlcv_data):
     scores = indicator.compute(dummy_ohlcv_data)
 
     assert len(scores) == len(dummy_ohlcv_data)
-    assert set(scores.unique()).issubset({-1.0, 1.0})
+    assert scores.dropna().min() >= 0.0
+    assert scores.dropna().max() <= 1.0
     assert not (scores == scores_default).all(), "Dynamic lookback should change output"
     test_no_lookahead(indicator, dummy_ohlcv_data, 180)
     test_no_lookahead(indicator, dummy_ohlcv_data, 250)

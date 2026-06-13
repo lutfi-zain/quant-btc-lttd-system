@@ -1,7 +1,74 @@
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import LogisticRegression, Lasso
+
 from src.features.importance import calculate_pratt_importance
+
+
+class MLConsensusEngine:
+    """
+    Layer 4: ML Consensus Aggregation.
+    Fits an L1-Lasso Regression model on continuous features
+    to output a continuous intensity in [0.0, 1.0].
+    Enforces positive coefficients (monotonicity).
+    """
+
+    def __init__(self, alpha: float = 0.01, random_state: int = 42):
+        self.alpha = alpha
+        self.random_state = random_state
+        self.model = Lasso(
+            alpha=self.alpha,
+            positive=True,  # Monotonic constraint
+            random_state=self.random_state,
+        )
+        self.fitted = False
+
+    def fit(self, X: pd.DataFrame, y: pd.Series):
+        if X.empty or len(y) == 0:
+            raise ValueError("Training data cannot be empty.")
+
+        y = pd.Series(y, index=X.index)
+        self.model.fit(X, y)
+        self.fitted = True
+
+    def predict_score(self, X: pd.DataFrame) -> pd.Series:
+        """
+        Predicts a continuous Final Score ∈ [0.0, 1.0].
+        """
+        if not self.fitted:
+            raise ValueError("Model must be fitted before calling predict_score.")
+
+        if X.empty:
+            return pd.Series(dtype=float)
+
+        preds = self.model.predict(X)
+        # Bound strictly
+        preds = np.clip(preds, 0.0, 1.0)
+
+        return pd.Series(preds, index=X.index)
+
+    def predict(self, X: pd.DataFrame) -> pd.Series:
+        return self.predict_score(X)
+
+    def predict_regime(self, X: pd.DataFrame) -> pd.Series:
+        """
+        Returns categorical regimes mapped from the predicted scores.
+        """
+        scores = self.predict_score(X)
+        return self.discretize(scores)
+
+    @staticmethod
+    def discretize(scores: pd.Series) -> pd.Series:
+        """
+        Discretizes continuous [0.0, 1.0] intensities into 5 discrete regimes.
+        """
+        regimes = pd.Series("Neutral", index=scores.index)
+        regimes[scores >= 0.8] = "Strong Bull"
+        regimes[(scores >= 0.6) & (scores < 0.8)] = "Weak Bull"
+        regimes[(scores >= 0.4) & (scores < 0.6)] = "Neutral"
+        regimes[(scores >= 0.2) & (scores < 0.4)] = "Weak Bear"
+        regimes[scores < 0.2] = "Strong Bear"
+        return regimes
 
 
 class L1LassoEnsemble:

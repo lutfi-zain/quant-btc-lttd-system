@@ -40,7 +40,7 @@ def test_persist_features(tmp_path):
     engine = ExecutionEngine()
     engine.persist_features(
         date_str="2023-01-01",
-        indicator_scores={"rsi": 1, "macd": -1},
+        indicator_scores={"rsi": 1.0, "macd": 0.0},
         pca_components={"PC1": 0.5, "PC2": -0.3},
         db_path=db_path
     )
@@ -51,7 +51,7 @@ def test_persist_features(tmp_path):
         rows_ind = cursor.fetchall()
         assert len(rows_ind) == 2
         assert rows_ind[0]["indicator_name"] == "macd"
-        assert rows_ind[0]["score"] == -1
+        assert rows_ind[0]["score"] == 0.0
         assert rows_ind[1]["indicator_name"] == "rsi"
         assert rows_ind[1]["score"] == 1
 

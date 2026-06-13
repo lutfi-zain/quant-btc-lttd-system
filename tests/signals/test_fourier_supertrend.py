@@ -39,8 +39,8 @@ def test_fourier_supertrend_binary_constraint(dummy_ohlcv_data):
     assert len(scores) == len(dummy_ohlcv_data)
 
     # Check score is strictly binary {-1.0, +1.0}
-    unique_vals = set(scores.unique())
-    assert unique_vals.issubset({-1.0, 1.0})
+    assert scores.dropna().min() >= 0.0
+    assert scores.dropna().max() <= 1.0
 
 
 def test_fourier_supertrend_lookahead_bias(dummy_ohlcv_data):
@@ -57,7 +57,8 @@ def test_fourier_supertrend_edge_cases(dummy_ohlcv_data):
     short_data = dummy_ohlcv_data.iloc[:15].copy()
     scores_short = indicator.compute(short_data)
     assert len(scores_short) == 15
-    assert set(scores_short.unique()).issubset({-1.0, 1.0})
+    assert scores_short.dropna().min() >= 0.0
+    assert scores_short.dropna().max() <= 1.0
     assert not scores_short.isna().any()
 
     # Case 2: DataFrame with uppercase column names
@@ -65,7 +66,8 @@ def test_fourier_supertrend_edge_cases(dummy_ohlcv_data):
     upper_data.columns = [c.upper() for c in upper_data.columns]
     scores_upper = indicator.compute(upper_data)
     assert len(scores_upper) == len(dummy_ohlcv_data)
-    assert set(scores_upper.unique()).issubset({-1.0, 1.0})
+    assert scores_upper.dropna().min() >= 0.0
+    assert scores_upper.dropna().max() <= 1.0
 
     # Case 3: Dynamic lookback configured
     dyn_lookback = pd.Series(150, index=dummy_ohlcv_data.index)
@@ -73,7 +75,8 @@ def test_fourier_supertrend_edge_cases(dummy_ohlcv_data):
     indicator_dyn = AdaptiveFourierSupertrend(dynamic_lookback=dyn_lookback)
     scores_dyn = indicator_dyn.compute(dummy_ohlcv_data)
     assert len(scores_dyn) == len(dummy_ohlcv_data)
-    assert set(scores_dyn.unique()).issubset({-1.0, 1.0})
+    assert scores_dyn.dropna().min() >= 0.0
+    assert scores_dyn.dropna().max() <= 1.0
 
 
 # Layer Integration Verification (Task 4.1 - 4.4)

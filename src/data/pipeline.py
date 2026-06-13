@@ -75,8 +75,8 @@ def ohlcv_pipeline(end_time: Optional[datetime] = None) -> pd.DataFrame:
             df_new = df_new[df_new.index > max_t]
             cache.save_dataframe(df_new)
     else:
-        logger.info("Fetching all history")
-        df_new = adapter.fetch_ohlcv(end_time=end_time)
+        logger.info("Fetching all history since 2015")
+        df_new = adapter.fetch_ohlcv(start_time=datetime(2015, 1, 1, tzinfo=timezone.utc), end_time=end_time)
         if not df_new.empty:
             df_new = standardize_and_validate(df_new)
             cache.save_dataframe(df_new)

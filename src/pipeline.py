@@ -11,7 +11,7 @@ from src.regime.hmm import train_hmm, infer_regime
 from src.features.builder import FeatureMatrixBuilder
 from src.features.ou_calibration import estimate_ou_halflife
 from src.features.processor import FeatureProcessor
-from src.ensemble.model import L1LassoEnsemble
+from src.ensemble.model import MLConsensusEngine
 from src.execution.engine import ExecutionEngine
 from src.execution.database import init_db
 from src.regime.filter import apply_onchain_overrides
@@ -118,9 +118,9 @@ class LTTDPipeline:
         builder = FeatureMatrixBuilder(dynamic_lookback=dynamic_lookback)
         feature_matrix = builder.build_matrix(df_merged)
 
-        # Define targets y for training (classification of sign of next-day returns)
-        price_diff = df_merged["close"].shift(-1) - df_merged["close"]
-        y = np.sign(price_diff).fillna(1.0).map({-1.0: 0, 0.0: 0, 1.0: 1})
+        # Define targets y for training using regime targets
+        from src.data.target_loader import load_regime_targets
+        y = load_regime_targets(df_merged.index)
 
         # 8. Layer 1: Train HMM on training window and predict today's regime
         logger.info("Running HMM Regime Inference...")
@@ -135,8 +135,8 @@ class LTTDPipeline:
             
         overridden_posteriors = apply_onchain_overrides(res_regime["posteriors"], onchain_metrics)
         
-        # Determine final regime classification
-        final_regime = max(overridden_posteriors, key=overridden_posteriors.get)
+        # Note: We determine the final_regime AFTER the ensemble score is computed below.
+        final_regime_hmm = max(overridden_posteriors, key=overridden_posteriors.get)
 
         # 9. Layer 3: Feature Processor (VIF pruning and PCA)
         logger.info("Running VIF/PCA Feature Processor...")
@@ -167,10 +167,22 @@ class LTTDPipeline:
                 model.fit(X=X_train)
                 final_score = float(model.predict_score(X_test).iloc[0])
         else:
-            logger.info("Fitting L1-Lasso Logistic Regression model...")
-            model = L1LassoEnsemble()
+            logger.info("Fitting L1-Lasso ML Consensus Regression model...")
+            model = MLConsensusEngine()
             model.fit(X_train_proc, y_train)
             final_score = float(model.predict_score(X_test_proc).iloc[0])
+
+        # Determine 5-Regime logic based on the continuous ML final_score
+        if final_score >= 0.8:
+            final_regime = "Strong Bull"
+        elif final_score >= 0.6:
+            final_regime = "Weak Bull"
+        elif final_score >= 0.4:
+            final_regime = "Neutral"
+        elif final_score >= 0.2:
+            final_regime = "Weak Bear"
+        else:
+            final_regime = "Strong Bear"
 
         # 11. Layer 5: Sizing exposure and persisting daily records to SQLite WAL DB
         logger.info("Executing exposure sizing and DB persistence...")
@@ -192,7 +204,7 @@ class LTTDPipeline:
 
         # Retrieve raw indicator scores and transformed PCA component values for telemetry
         indicator_scores = feature_matrix.loc[t, processor.tech_indicators_list].to_dict()
-        indicator_scores = {k: int(v) if not pd.isna(v) else 0 for k, v in indicator_scores.items()}
+        indicator_scores = {k: float(v) if not pd.isna(v) else 0.0 for k, v in indicator_scores.items()}
         
         pca_cols = [c for c in X_test_proc.columns if c.startswith("PC")]
         pca_components = X_test_proc.loc[t, pca_cols].to_dict()

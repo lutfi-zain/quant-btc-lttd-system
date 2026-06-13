@@ -9,7 +9,7 @@ class AdaptiveFourierSupertrend(CausalFilter):
     Adaptive Fourier Transform Supertrend (Indicator 5).
     Operates in the frequency domain, dynamically tuning the ATR period
     to the dominant market cycle frequency (T_dom).
-    Standardizes output to a binary score in {-1, +1}.
+    Standardizes output to a continuous intensity in [0.0, 1.0].
     """
 
     def __init__(
@@ -35,7 +35,7 @@ class AdaptiveFourierSupertrend(CausalFilter):
             data (pd.DataFrame): OHLCV data.
 
         Returns:
-            pd.Series: Indicator scores standardized to {-1, +1} at the bar level.
+            pd.Series: Indicator intensities bounded in [0.0, 1.0] at the bar level.
         """
         # Normalize column names to lowercase
         df = data.copy()
@@ -142,5 +142,20 @@ class AdaptiveFourierSupertrend(CausalFilter):
                     trend[t] = 1.0
                 else:
                     trend[t] = -1.0
+        
+        # Convert binary trend into a continuous intensity [0.0, 1.0]
+        # Calculate where the close price sits between the lower and upper bands
+        band_width = upper_band - lower_band
+        # Avoid division by zero
+        band_width = np.where(band_width <= 0, 1e-8, band_width)
+        
+        # Raw positional intensity
+        raw_intensity = (close_vals - lower_band) / band_width
+        
+        # Clip strictly to [0.0, 1.0]
+        intensity_clipped = np.clip(raw_intensity, 0.0, 1.0)
+        
+        # Smooth the intensity to prevent erratic jumps using a 5-day EMA
+        trend_intensity = pd.Series(intensity_clipped, index=data.index).ewm(span=5, adjust=False).mean()
 
-        return pd.Series(trend, index=data.index, dtype=float)
+        return trend_intensity

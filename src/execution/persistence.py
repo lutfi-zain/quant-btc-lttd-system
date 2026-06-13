@@ -28,7 +28,7 @@ def upsert_daily_lttd(
         conn.commit()
 
 
-def upsert_indicator_scores(date: str, scores: Dict[str, int], db_path=DEFAULT_DB_PATH):
+def upsert_indicator_scores(date: str, scores: Dict[str, float], db_path=DEFAULT_DB_PATH):
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
         for indicator_name, score in scores.items():

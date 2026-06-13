@@ -9,7 +9,7 @@ class KalmanRSI(CausalFilter):
     Subclasses CausalFilter to enforce strict causality.
     Applies a 1D Kalman filter to the price series to estimate a smoothed
     hidden price state, then computes RSI on this state.
-    Standardizes output to a binary score in {-1, +1}.
+    Standardizes output to a continuous intensity in [0.0, 1.0].
     """
 
     def __init__(
@@ -106,7 +106,7 @@ class KalmanRSI(CausalFilter):
             data (pd.DataFrame): The input OHLCV data.
 
         Returns:
-            pd.Series: Indicator scores standardized to {-1, +1} at the bar level.
+            pd.Series: Indicator intensities bounded in [0.0, 1.0] at the bar level.
         """
         # Resolve price source
         if all(col in data.columns for col in ["open", "high", "low", "close"]):
@@ -131,32 +131,12 @@ class KalmanRSI(CausalFilter):
             else:
                 rsi = rsi.rolling(window=self.smooth_period, min_periods=1).mean()
 
-        # 4. Normalization to [0, 1] then shift to [-0.5, 0.5] using dynamic lookback
+        # 4. Normalization to [0, 1]
+        from src.features.normalizer import RollingNormalizer
         lookbacks = self._resolve_lookback(data, default_lookback=200)
-        T = len(rsi)
-        rolling_min = np.full(T, np.nan)
-        rolling_max = np.full(T, np.nan)
-
-        unique_lbs = np.unique(lookbacks)
-        if len(unique_lbs) == 1:
-            N = unique_lbs[0]
-            rolling_min = rsi.rolling(window=N, min_periods=1).min().values
-            rolling_max = rsi.rolling(window=N, min_periods=1).max().values
-        else:
-            for t in range(T):
-                N = lookbacks.iloc[t]
-                start_idx = max(0, t - N + 1)
-                window_data = rsi.iloc[start_idx : t + 1]
-                rolling_min[t] = window_data.min()
-                rolling_max[t] = window_data.max()
-
-        denom = pd.Series(rolling_max - rolling_min, index=rsi.index)
-
-        # Avoid division by zero, default to 0.0 normalization
-        norm_rsi = (rsi - rolling_min) / denom.replace(0.0, np.nan) - 0.5
-        norm_rsi = norm_rsi.fillna(0.0)
-
-        # 5. Map to strictly binary {-1, +1}
-        # >= 0 -> +1, < 0 -> -1
-        score = np.where(norm_rsi >= 0.0, 1.0, -1.0)
-        return pd.Series(score, index=data.index)
+        # Use RollingNormalizer with the default lookback or max of dynamic lookbacks
+        max_lookback = int(lookbacks.max()) if len(lookbacks) > 0 else 200
+        normalizer = RollingNormalizer(window=max_lookback)
+        score = normalizer.transform(rsi)
+        
+        return score

@@ -32,7 +32,8 @@ def test_trend_strength_binary_constraint(dummy_ohlcv_data):
     scores = indicator.compute(dummy_ohlcv_data)
 
     assert len(scores) == len(dummy_ohlcv_data)
-    assert set(scores.unique()).issubset({-1.0, 1.0})
+    assert scores.dropna().min() >= 0.0
+    assert scores.dropna().max() <= 1.0
 
 
 def test_trend_strength_no_lookahead(dummy_ohlcv_data):

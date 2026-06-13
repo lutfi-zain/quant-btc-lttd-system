@@ -30,7 +30,7 @@ class FDI(CausalFilter):
             data (pd.DataFrame): The input OHLCV data. Needs to contain 'close'.
 
         Returns:
-            pd.Series: Indicator scores standardized to {-1, +1} at the bar level.
+            pd.Series: Indicator intensities bounded in [0.0, 1.0] at the bar level.
         """
         if "close" not in data.columns:
             raise ValueError("Input DataFrame must contain 'close' column.")
@@ -128,4 +128,5 @@ class FDI(CausalFilter):
                     else:
                         signals[t] = 1.0
 
+        signals = (signals + 1.0) / 2.0
         return pd.Series(signals, index=data.index)

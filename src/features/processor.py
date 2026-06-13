@@ -18,7 +18,6 @@ class FeatureProcessor:
         self.kept_tech_cols = None
         self.tech_indicators_list = [
             "FDI",
-            "QuantileDEMA",
             "AdvancedStochastic",
             "KalmanRSI",
             "FourierSupertrend",

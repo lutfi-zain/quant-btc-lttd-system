@@ -63,6 +63,6 @@ class CausalFilter(abc.ABC):
             data (pd.DataFrame): The input OHLCV data.
 
         Returns:
-            pd.Series: Indicator scores standardized to {-1, +1} at the bar level.
+            pd.Series: Indicator intensities bounded in [0.0, 1.0] at the bar level.
         """
         pass

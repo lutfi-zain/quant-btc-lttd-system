@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-export type Regime = "BULL" | "BEAR" | "SIDEWAYS";
+export type Regime = "Strong Bull" | "Weak Bull" | "Neutral" | "Weak Bear" | "Strong Bear" | "BULL" | "BEAR" | "SIDEWAYS";
 
 export interface LTTDRecord {
   date: string;

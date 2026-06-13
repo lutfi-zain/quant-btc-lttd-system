@@ -26,21 +26,21 @@ def test_upsert_daily_lttd(db_path):
         assert row["final_score"] == 0.5
 
     # Update (idempotent)
-    upsert_daily_lttd("2023-01-01", "BEAR", -0.8, db_path)
+    upsert_daily_lttd("2023-01-01", "BEAR", 0.2, db_path)
 
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM daily_lttd WHERE date = '2023-01-01'")
         row = cursor.fetchone()
         assert row["regime"] == "BEAR"
-        assert row["final_score"] == -0.8
+        assert row["final_score"] == 0.2
 
         cursor.execute("SELECT COUNT(*) FROM daily_lttd")
         assert cursor.fetchone()[0] == 1
 
 
 def test_upsert_indicator_scores(db_path):
-    scores1 = {"rsi": 1, "macd": -1}
+    scores1 = {"rsi": 1.0, "macd": 0.0}
     upsert_indicator_scores("2023-01-01", scores1, db_path)
 
     with get_connection(db_path) as conn:
@@ -51,12 +51,12 @@ def test_upsert_indicator_scores(db_path):
         rows = cursor.fetchall()
         assert len(rows) == 2
         assert rows[0]["indicator_name"] == "macd"
-        assert rows[0]["score"] == -1
+        assert rows[0]["score"] == 0.0
         assert rows[1]["indicator_name"] == "rsi"
         assert rows[1]["score"] == 1
 
     # Update one, keep another
-    scores2 = {"rsi": -1, "macd": -1}
+    scores2 = {"rsi": 0.0, "macd": 0.0}
     upsert_indicator_scores("2023-01-01", scores2, db_path)
 
     with get_connection(db_path) as conn:
@@ -64,7 +64,7 @@ def test_upsert_indicator_scores(db_path):
         cursor.execute(
             "SELECT score FROM indicator_scores WHERE date = '2023-01-01' AND indicator_name = 'rsi'"
         )
-        assert cursor.fetchone()[0] == -1
+        assert cursor.fetchone()[0] == 0.0
 
 
 def test_log_regime_transition(db_path):

@@ -211,7 +211,7 @@ class WFOEnsemble:
         Returns a combined pd.Series of out-of-sample predicted scores.
         Also calculates and stores out-of-sample R^2 scores for audit.
         """
-        from src.ensemble.model import L1LassoEnsemble
+        from src.ensemble.model import MLConsensusEngine
         from src.features.processor import FeatureProcessor
         from sklearn.metrics import r2_score
         
@@ -225,10 +225,10 @@ class WFOEnsemble:
             processor = FeatureProcessor()
             processor.fit(X, y)
             X_proc = processor.transform(X)
-            model = L1LassoEnsemble()
+            model = MLConsensusEngine()
             model.fit(X_proc, y)
             scores = model.predict_score(X_proc)
-            self.r2_scores[X.index[0]] = float(r2_score(y, (scores > 0).astype(int)))
+            self.r2_scores[X.index[0]] = float(r2_score(y, scores))
             return scores
             
         for idx, (train_idx, val_idx, test_idx) in enumerate(folds):
@@ -246,7 +246,7 @@ class WFOEnsemble:
             X_test_proc = processor.transform(X_test)
             
             # Model fitting
-            model = L1LassoEnsemble()
+            model = MLConsensusEngine()
             model.fit(X_train_proc, y_train)
             
             # Out-of-sample predictions
@@ -260,8 +260,8 @@ class WFOEnsemble:
             out_of_sample_scores = pd.concat([out_of_sample_scores, test_scores])
             
             # Calculate R2 score
-            preds_binary = (test_scores > 0).astype(int)
-            r2 = float(r2_score(y_test, preds_binary))
+            # Calculate R2 score on continuous targets
+            r2 = float(r2_score(y_test, test_scores))
             self.r2_scores[test_idx[0]] = r2
             
         return out_of_sample_scores

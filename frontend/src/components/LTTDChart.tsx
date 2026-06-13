@@ -163,8 +163,8 @@ export const LTTDChart: React.FC<LTTDChartProps> = ({ data }) => {
       });
 
       upperLimitData.push({ time: r.date, value: 1.0 });
-      lowerLimitData.push({ time: r.date, value: -1.0 });
-      zeroLineData.push({ time: r.date, value: 0.0 });
+      lowerLimitData.push({ time: r.date, value: 0.0 });
+      zeroLineData.push({ time: r.date, value: 0.5 });
     });
 
     candlestickSeries.setData(priceData);

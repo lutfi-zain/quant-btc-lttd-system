@@ -1,6 +1,5 @@
 import pandas as pd
 from src.signals.fdi import FDI
-from src.signals.quantile_dema import QuantileDEMA
 from src.signals.advanced_stochastic import AdvancedStochastic
 from src.signals.kalman_rsi import KalmanRSI
 from src.signals.fourier_supertrend import AdaptiveFourierSupertrend
@@ -15,7 +14,6 @@ class FeatureMatrixBuilder:
 
     def __init__(self, dynamic_lookback=None):
         self.fdi = FDI(dynamic_lookback=dynamic_lookback)
-        self.quantile_dema = QuantileDEMA(dynamic_lookback=dynamic_lookback)
         self.advanced_stochastic = AdvancedStochastic(dynamic_lookback=dynamic_lookback)
         self.kalman_rsi = KalmanRSI(dynamic_lookback=dynamic_lookback)
         self.fourier_supertrend = AdaptiveFourierSupertrend(
@@ -34,7 +32,6 @@ class FeatureMatrixBuilder:
             pd.DataFrame: Feature matrix of indicator scores with shape (T, N_features).
         """
         fdi_scores = self.fdi.compute(data)
-        qdema_scores = self.quantile_dema.compute(data)
         stoch_scores = self.advanced_stochastic.compute(data)
         krsi_scores = self.kalman_rsi.compute(data)
         fourier_scores = self.fourier_supertrend.compute(data)
@@ -43,7 +40,6 @@ class FeatureMatrixBuilder:
         matrix = pd.DataFrame(
             {
                 "FDI": fdi_scores,
-                "QuantileDEMA": qdema_scores,
                 "AdvancedStochastic": stoch_scores,
                 "KalmanRSI": krsi_scores,
                 "FourierSupertrend": fourier_scores,

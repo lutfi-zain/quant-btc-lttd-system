@@ -34,7 +34,7 @@ class AdvancedStochastic(CausalFilter):
             data (pd.DataFrame): The input OHLCV data. Needs 'high', 'low', 'close'.
 
         Returns:
-            pd.Series: Indicator scores standardized to {-1, +1} at the bar level.
+            pd.Series: Indicator intensities bounded in [0.0, 1.0] at the bar level.
         """
         for col in ["high", "low", "close"]:
             if col not in data.columns:
@@ -71,7 +71,7 @@ class AdvancedStochastic(CausalFilter):
             end_len = int(max(start_len, round(129 * (N / self.default_lookback))))
             
             avg = np.mean(trends_matrix[start_len - 1 : end_len, :], axis=0)
-            signals = np.where(avg >= 0.0, 1.0, -1.0)
+            signals = (avg + 1.0) / 2.0
         else:
             # Determine maximum length needed for the loop
             max_ratio = lookbacks.max() / self.default_lookback
@@ -97,7 +97,7 @@ class AdvancedStochastic(CausalFilter):
                 end_len = int(max(start_len, round(129 * ratio)))
                 signals[t] = np.mean(trends_matrix[start_len - 1 : end_len, t])
 
-            signals = np.where(signals >= 0.0, 1.0, -1.0)
+            signals = (signals + 1.0) / 2.0
 
         return pd.Series(signals, index=data.index, dtype=float)
 

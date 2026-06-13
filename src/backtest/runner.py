@@ -39,7 +39,7 @@ class MockExecutionAdapter:
         log_return: float = 0.0,
         realized_volatility: float = 0.0,
     ) -> Dict[str, Any]:
-        regime_upper = regime.upper()
+        regime_upper = regime
         target_exposure = calculate_target_exposure(final_score, regime_upper)
         
         # Calculate transition (in-memory)
@@ -138,8 +138,8 @@ def _run_fold(
             model.fit(X=X_train)
             test_scores = model.predict(X_test)
     else:
-        from src.ensemble.model import L1LassoEnsemble
-        model = L1LassoEnsemble()
+        from src.ensemble.model import MLConsensusEngine
+        model = MLConsensusEngine()
         model.fit(X_train_proc, y_train)
         test_scores = model.predict(X_test_proc)
     
@@ -167,7 +167,18 @@ def _run_fold(
                 
         overridden_posteriors = apply_onchain_overrides(posteriors_dict, onchain_metrics)
         
-        final_regime = max(overridden_posteriors, key=overridden_posteriors.get)
+        if score >= 0.8:
+            final_regime = "Strong Bull"
+        elif score >= 0.6:
+            final_regime = "Weak Bull"
+        elif score >= 0.4:
+            final_regime = "Neutral"
+        elif score >= 0.2:
+            final_regime = "Weak Bear"
+        else:
+            final_regime = "Strong Bear"
+                
+        # HMM posteriors are still passed but regime is driven by ML score now
                 
         log_ret = float(log_returns_series.loc[date])
         realized_vol = float(realized_vol_series.loc[date])
@@ -181,8 +192,25 @@ def _run_fold(
             realized_volatility=realized_vol
         )
         
+        # Extract features for telemetry
+        indicator_scores = feature_matrix.loc[date, processor.tech_indicators_list].to_dict()
+        indicator_scores = {k: float(v) if not pd.isna(v) else 0.0 for k, v in indicator_scores.items()}
+        
+        pca_cols = [c for c in X_test_proc.columns if c.startswith("PC")]
+        pca_components = X_test_proc.loc[date, pca_cols].to_dict()
+        pca_components = {k: float(v) for k, v in pca_components.items()}
+        
+        if processor.pca is not None:
+            pca_components["pca_variance_explained"] = float(np.sum(processor.pca.pca.explained_variance_ratio_)) * 100.0
+        else:
+            pca_components["pca_variance_explained"] = 100.0
+            
         res_record["date"] = date
         res_record["close"] = float(df_merged.loc[date, "close"])
+        res_record["indicator_scores"] = indicator_scores
+        res_record["pca_components"] = pca_components
+        res_record["posteriors"] = overridden_posteriors
+        
         fold_records.append(res_record)
         
     return fold_records
@@ -217,9 +245,9 @@ class BacktestRunner:
         df_merged = data.loc[common_idx]
         feature_matrix = feature_matrix.loc[common_idx]
         
-        # Define target y (next-day binary class [0, 1])
-        price_diff = df_merged["close"].shift(-1) - df_merged["close"]
-        y = np.sign(price_diff).fillna(1.0).map({-1.0: 0, 0.0: 0, 1.0: 1})
+        # Define target y using isp-regimes-btcusd.csv (continuous intensity)
+        from src.data.target_loader import load_regime_targets
+        y = load_regime_targets(df_merged.index)
         y = y.loc[common_idx]
         
         # 3. Generate WFO folds (3yr train -> 6mo val -> 6mo test)
@@ -285,7 +313,7 @@ class BacktestRunner:
         # Hit rate (win rate) Partitioned by HMM Regime
         # Win is defined as positive daily return when active exposure is non-zero
         regime_metrics = {}
-        for regime_name in ["BULL", "BEAR", "SIDEWAYS"]:
+        for regime_name in ["Strong Bull", "Weak Bull", "Neutral", "Weak Bear", "Strong Bear", "BULL", "BEAR", "SIDEWAYS"]:
             regime_df = results_df[results_df["regime"] == regime_name]
             if len(regime_df) > 0:
                 # Active days (where exposure > 0)
@@ -309,6 +337,7 @@ class BacktestRunner:
             "status": "success",
             "legacy_fixed_window": self.legacy_fixed_window,
             "results": results_df,
+            "raw_records": records,
             "metrics": {
                 "total_return": total_return,
                 "annualized_sharpe": sharpe,

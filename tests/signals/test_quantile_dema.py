@@ -19,8 +19,8 @@ def test_quantile_dema_functionality(sample_data):
 
     assert isinstance(signals, pd.Series)
     assert len(signals) == len(sample_data)
-    unique_vals = set(signals.dropna().unique())
-    assert unique_vals.issubset({-1.0, 1.0})
+    assert signals.dropna().min() >= 0.0
+    assert signals.dropna().max() <= 1.0
 
 
 def test_quantile_dema_no_lookahead(sample_data):

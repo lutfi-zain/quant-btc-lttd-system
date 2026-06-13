@@ -1,4 +1,4 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Continuous Indicator Output
 The fundamental output contract of all Layer 2 Signal Engine indicators MUST be modified to return continuous intensities rather than discrete votes.
