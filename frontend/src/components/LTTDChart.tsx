@@ -192,11 +192,11 @@ export const LTTDChart: React.FC<LTTDChartProps> = ({ data }) => {
         value: r.final_score,
       });
 
-      lineDataSets.sb.push({ time: r.date, value: 0.8 });
+      lineDataSets.sb.push({ time: r.date, value: 0.6 });
       lineDataSets.wb.push({ time: r.date, value: 0.2 });
       lineDataSets.z.push({ time: r.date, value: 0.0 });
       lineDataSets.wbe.push({ time: r.date, value: -0.2 });
-      lineDataSets.sbe.push({ time: r.date, value: -0.8 });
+      lineDataSets.sbe.push({ time: r.date, value: -0.6 });
     });
 
     candlestickSeries.setData(priceData);
