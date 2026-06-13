@@ -84,3 +84,37 @@ def test_feature_processor_no_lookahead():
 
     # Assert block transform matches step-by-step transform
     pd.testing.assert_frame_equal(trans_test_block, df_incremental)
+
+
+def test_feature_processor_segregated_vif():
+    np.random.seed(42)
+    # FDI and QuantileDEMA are collinear
+    fdi = np.random.randn(100)
+    qdema = fdi + np.random.normal(0, 0.01, 100)
+    stoch = np.random.randn(100)
+    krsi = np.random.randn(100)
+    fourier = np.random.randn(100)
+    tsi = np.random.randn(100)
+
+    # Create an on-chain feature highly collinear with stoch
+    mvrv = stoch + np.random.normal(0, 0.001, 100) # extremely collinear (VIF will be huge)
+
+    df = pd.DataFrame({
+        "FDI": fdi,
+        "QuantileDEMA": qdema,
+        "AdvancedStochastic": stoch,
+        "KalmanRSI": krsi,
+        "FourierSupertrend": fourier,
+        "TrendStrengthIndex": tsi,
+        "sth_mvrv_roc_7": mvrv
+    })
+
+    processor = FeatureProcessor(vif_threshold=5.0) # low threshold to trigger pruning
+    processor.fit(df)
+
+    # Verify that the on-chain feature is NOT pruned (meaning it's not in kept_tech_cols,
+    # and continues to bypass VIF pruning and PCA entirely)
+    assert "sth_mvrv_roc_7" not in processor.kept_tech_cols
+    
+    df_transformed = processor.transform(df)
+    assert "sth_mvrv_roc_7" in df_transformed.columns

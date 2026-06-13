@@ -10,27 +10,63 @@ class QuantileDEMA(CausalFilter):
     Computes rolling quantiles and applies the DEMA operator.
     """
 
-    def __init__(self, dynamic_lookback=None, q_low=0.10, q_high=0.90, dema_span=200):
+    def __init__(self, dynamic_lookback=None, q_low=0.10, q_high=0.90, dema_span=None):
         """
         Args:
             dynamic_lookback (pd.Series or callable or int, optional):
                 Dynamic window sizes. Resolved and clamped to [120, 350].
             q_low (float): Percentile for the lower band (e.g. 0.10 for 10th percentile).
             q_high (float): Percentile for the upper band (e.g. 0.90 for 90th percentile).
-            dema_span (int): Exponential moving average span for DEMA calculation.
+            dema_span (int, optional): Exponential moving average span for DEMA calculation.
+                If None, dynamically scales with the resolved lookback window.
         """
         super().__init__(dynamic_lookback=dynamic_lookback)
         self.q_low = q_low
         self.q_high = q_high
         self.dema_span = dema_span
 
-    def _dema(self, series: pd.Series, span: int) -> pd.Series:
+    def _time_varying_ema(self, series: pd.Series, spans: pd.Series) -> pd.Series:
         """
-        Calculate DEMA (Double Exponential Moving Average).
-        DEMA = 2 * EMA(x) - EMA(EMA(x))
+        Calculate time-varying causal Exponential Moving Average.
+        y_t = alpha_t * x_t + (1 - alpha_t) * y_{t-1}
+        where alpha_t = 2.0 / (span_t + 1.0)
         """
-        ema1 = series.ewm(span=span, adjust=False).mean()
-        ema2 = ema1.ewm(span=span, adjust=False).mean()
+        n = len(series)
+        ema = np.zeros(n)
+
+        first_valid = series.first_valid_index()
+        if first_valid is None:
+            return pd.Series(np.nan, index=series.index)
+
+        start_idx = series.index.get_loc(first_valid)
+        ema[:start_idx] = np.nan
+
+        # Initialize
+        x_init = series.iloc[start_idx]
+        ema[start_idx] = x_init
+
+        # Extract values for fast loop
+        series_vals = series.values
+        spans_vals = spans.values
+
+        for t in range(start_idx + 1, n):
+            x = series_vals[t]
+            span = spans_vals[t]
+            if pd.isna(x):
+                ema[t] = ema[t - 1]
+            else:
+                alpha = 2.0 / (span + 1.0)
+                ema[t] = alpha * x + (1.0 - alpha) * ema[t - 1]
+
+        return pd.Series(ema, index=series.index)
+
+    def _dema_dynamic(self, series: pd.Series, spans: pd.Series) -> pd.Series:
+        """
+        Calculate dynamic DEMA using time-varying causal EMA.
+        DEMA = 2 * EMA1 - EMA2
+        """
+        ema1 = self._time_varying_ema(series, spans)
+        ema2 = self._time_varying_ema(ema1, spans)
         return 2.0 * ema1 - ema2
 
     def compute(self, data: pd.DataFrame) -> pd.Series:
@@ -78,9 +114,14 @@ class QuantileDEMA(CausalFilter):
         q_low_series = pd.Series(q_low_vals, index=data.index)
         q_high_series = pd.Series(q_high_vals, index=data.index)
 
-        # 2. Apply the DEMA operator to quantiles
-        dema_q_low = self._dema(q_low_series.ffill(), self.dema_span)
-        dema_q_high = self._dema(q_high_series.ffill(), self.dema_span)
+        # 2. Apply the DEMA operator to quantiles (using dynamic or constant spans)
+        if self.dema_span is None:
+            span_series = lookbacks
+        else:
+            span_series = pd.Series(self.dema_span, index=data.index)
+
+        dema_q_low = self._dema_dynamic(q_low_series.ffill(), span_series)
+        dema_q_high = self._dema_dynamic(q_high_series.ffill(), span_series)
 
         # 3. Threshold breakout logic to output {-1, +1}
         signals = np.ones(T)

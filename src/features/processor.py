@@ -29,21 +29,22 @@ class FeatureProcessor:
         if X_train.empty:
             raise ValueError("Training data cannot be empty.")
 
-        # 1. Run VIF pruning on ALL features (technicals + on-chain)
-        X_pruned = prune_multicollinear_indicators(
-            X_train, y_train, vif_threshold=self.vif_threshold
+        # 1. Extract technical indicators present in the training set
+        tech_cols = [c for c in X_train.columns if c in self.tech_indicators_list]
+        X_tech = X_train[tech_cols]
+
+        # 2. Run VIF pruning strictly on technical indicators only
+        X_tech_pruned = prune_multicollinear_indicators(
+            X_tech, y_train, vif_threshold=self.vif_threshold
         )
 
-        # 2. Separate remaining pruned technical indicators
-        remaining_tech = [
-            c for c in X_pruned.columns if c in self.tech_indicators_list
-        ]
+        remaining_tech = X_tech_pruned.columns.tolist()
         self.kept_tech_cols = remaining_tech
 
         # 3. Fit CausalPCA strictly on the remaining technical indicators only
         if remaining_tech:
             self.pca = CausalPCA(variance_threshold=self.pca_variance_threshold)
-            self.pca.fit(X_pruned[remaining_tech])
+            self.pca.fit(X_tech_pruned)
         else:
             self.pca = None
 

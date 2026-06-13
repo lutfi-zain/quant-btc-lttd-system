@@ -38,3 +38,20 @@ def test_quantile_dema_dynamic_lookback(sample_data):
     assert isinstance(signals, pd.Series)
     test_no_lookahead(indicator, sample_data, 200)
     test_no_lookahead(indicator, sample_data, 350)
+
+
+def test_quantile_dema_adaptive_span(sample_data):
+    # dynamic_lookback maps to dynamic dema_span when dema_span=None
+    dyn_lookback = pd.Series(150, index=sample_data.index)
+    dyn_lookback.iloc[250:] = 300
+    indicator = QuantileDEMA(dynamic_lookback=dyn_lookback, dema_span=None)
+    signals = indicator.compute(sample_data)
+    
+    assert isinstance(signals, pd.Series)
+    assert len(signals) == len(sample_data)
+    assert signals.dropna().min() >= 0.0
+    assert signals.dropna().max() <= 1.0
+    
+    # Test lookahead bias safety with adaptive span configuration
+    test_no_lookahead(indicator, sample_data, 200)
+    test_no_lookahead(indicator, sample_data, 350)
