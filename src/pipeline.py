@@ -172,14 +172,17 @@ class LTTDPipeline:
             model.fit(X_train_proc, y_train)
             final_score = float(model.predict_score(X_test_proc).iloc[0])
 
-        # Determine 5-Regime logic based on the continuous ML final_score
-        if final_score >= 0.8:
+        # Map final score from [0.0, 1.0] to [-1.0, 1.0] domain
+        final_score = 2.0 * final_score - 1.0
+
+        # Determine 5-Regime logic based on the continuous ML final_score [-1.0, 1.0]
+        if final_score >= 0.6:
             final_regime = "Strong Bull"
-        elif final_score >= 0.6:
-            final_regime = "Weak Bull"
-        elif final_score >= 0.4:
-            final_regime = "Neutral"
         elif final_score >= 0.2:
+            final_regime = "Weak Bull"
+        elif final_score >= -0.2:
+            final_regime = "Neutral"
+        elif final_score >= -0.6:
             final_regime = "Weak Bear"
         else:
             final_regime = "Strong Bear"
