@@ -208,13 +208,14 @@ export const LTTDChart: React.FC<LTTDChartProps> = ({ data }) => {
     weakBearLine.setData(lineDataSets.wbe);
     strongBearLine.setData(lineDataSets.sbe);
 
-    // Lock price scales for the score chart to always show -1 to 1 nicely
-    scoreSeries.priceScale().applyOptions({
-      autoScale: false,
-      scaleMargins: { top: 0.1, bottom: 0.1 },
-    });
-    scoreSeries.priceScale().applyOptions({
-       autoScale: false,
+    // Lock price scales for the score chart to always show -1.0 to 1.0
+    scoreSeries.applyOptions({
+      autoscaleInfoProvider: () => ({
+        priceRange: {
+          minValue: -1.1,
+          maxValue: 1.1,
+        },
+      }),
     });
     // Setting fixed range in Lightweight Charts v4 requires overriding minimum/maximum logic via autoScale=false, 
     // but the cleanest way is just to ensure the bounds are hit, which the hlines do.
