@@ -11,16 +11,22 @@ interface LTTDChartProps {
 
 export const LTTDChart: React.FC<LTTDChartProps> = ({ data }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const scoreContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
+  const scoreChartRef = useRef<IChartApi | null>(null);
   const [scaleMode, setScaleMode] = useState<"linear" | "log">("linear");
   const { registerChart, unregisterChart, registerSeries, syncCrosshair, syncTimeScale } = useSynchronizedCharts();
 
   const chartId = "lttd-chart";
+  const scoreChartId = "score-chart";
 
   useEffect(() => {
     const handleResize = () => {
       if (chartRef.current && containerRef.current) {
         chartRef.current.resize(containerRef.current.clientWidth, 400);
+      }
+      if (scoreChartRef.current && scoreContainerRef.current) {
+        scoreChartRef.current.resize(scoreContainerRef.current.clientWidth, 200);
       }
     };
     window.addEventListener("resize", handleResize);
@@ -28,11 +34,15 @@ export const LTTDChart: React.FC<LTTDChartProps> = ({ data }) => {
   }, []);
 
   useEffect(() => {
-    if (!containerRef.current || data.length === 0) return;
+    if (!containerRef.current || !scoreContainerRef.current || data.length === 0) return;
 
     if (chartRef.current) {
       chartRef.current.remove();
       chartRef.current = null;
+    }
+    if (scoreChartRef.current) {
+      scoreChartRef.current.remove();
+      scoreChartRef.current = null;
     }
 
     const themeColors = {
@@ -43,8 +53,14 @@ export const LTTDChart: React.FC<LTTDChartProps> = ({ data }) => {
       bull: "#10b981",
       bear: "#ef4444",
       score: "#8b5cf6",
+      scoreFill: "rgba(139, 92, 246, 0.25)",
+      hline: "rgba(255, 255, 255, 0.15)",
+      hlineStrong: "rgba(16, 185, 129, 0.3)",
+      hlineWeak: "rgba(255, 255, 255, 0.2)",
+      hlineBear: "rgba(239, 68, 68, 0.3)",
     };
 
+    // --- MAIN CHART (CANDLESTICK) ---
     const chart = createChart(containerRef.current, {
       width: containerRef.current.clientWidth,
       height: 400,
@@ -61,36 +77,21 @@ export const LTTDChart: React.FC<LTTDChartProps> = ({ data }) => {
       rightPriceScale: {
         borderColor: themeColors.border,
         visible: true,
-        minimumWidth: 80,
         mode: scaleMode === "log" ? PriceScaleMode.Logarithmic : PriceScaleMode.Normal,
-      },
-      leftPriceScale: {
-        borderColor: themeColors.border,
-        visible: true,
-        minimumWidth: 80,
       },
       timeScale: {
         borderColor: themeColors.border,
-        visible: true,
+        visible: false, // hide time scale on top chart since it's stacked
       },
       crosshair: {
-        vertLine: {
-          color: "#404048",
-          width: 1,
-          style: 3,
-        },
-        horzLine: {
-          color: "#404048",
-          width: 1,
-          style: 3,
-        },
+        vertLine: { color: "#404048", width: 1, style: 3 },
+        horzLine: { color: "#404048", width: 1, style: 3 },
       },
     });
 
     chartRef.current = chart;
     registerChart(chartId, chart);
 
-    // Price series on the right y-axis
     const candlestickSeries = chart.addSeries(CandlestickSeries, {
       upColor: themeColors.bull,
       downColor: themeColors.bear,
@@ -101,45 +102,73 @@ export const LTTDChart: React.FC<LTTDChartProps> = ({ data }) => {
       priceScaleId: "right",
     });
 
-    // Score series on the left y-axis
-    const scoreSeries = chart.addSeries(AreaSeries, {
-      topColor: "rgba(139, 92, 246, 0.35)",
+    // --- SCORE CHART (SUUBPANEL) ---
+    const scoreChart = createChart(scoreContainerRef.current, {
+      width: scoreContainerRef.current.clientWidth,
+      height: 200,
+      layout: {
+        background: { color: themeColors.bg },
+        textColor: themeColors.text,
+        fontSize: 11,
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
+      },
+      grid: {
+        vertLines: { color: themeColors.grid },
+        horzLines: { color: themeColors.grid },
+      },
+      rightPriceScale: {
+        borderColor: themeColors.border,
+        visible: true,
+      },
+      timeScale: {
+        borderColor: themeColors.border,
+        visible: true,
+      },
+      crosshair: {
+        vertLine: { color: "#404048", width: 1, style: 3 },
+        horzLine: { color: "#404048", width: 1, style: 3 },
+      },
+    });
+
+    scoreChartRef.current = scoreChart;
+    registerChart(scoreChartId, scoreChart);
+
+    const scoreSeries = scoreChart.addSeries(AreaSeries, {
+      topColor: themeColors.scoreFill,
       bottomColor: "rgba(139, 92, 246, 0.0)",
       lineColor: themeColors.score,
       lineWidth: 2,
-      priceScaleId: "left",
+      priceScaleId: "right",
     });
 
-    // Bounded reference lines for score (-1.0, 0, 1.0)
-    const upperLimitSeries = chart.addSeries(LineSeries, {
-      color: "rgba(239, 68, 68, 0.2)",
-      lineWidth: 1,
-      lineStyle: 2, // Dashed
-      priceScaleId: "left",
-    });
+    // Add H-Lines
+    const addHLine = (val: number, color: string, style: number) => {
+      const line = scoreChart.addSeries(LineSeries, {
+        color: color,
+        lineWidth: 1,
+        lineStyle: style,
+        priceScaleId: "right",
+      });
+      return line;
+    };
 
-    const lowerLimitSeries = chart.addSeries(LineSeries, {
-      color: "rgba(239, 68, 68, 0.2)",
-      lineWidth: 1,
-      lineStyle: 2,
-      priceScaleId: "left",
-    });
-
-    const zeroLineSeries = chart.addSeries(LineSeries, {
-      color: "rgba(255, 255, 255, 0.15)",
-      lineWidth: 1,
-      lineStyle: 1, // Solid
-      priceScaleId: "left",
-    });
+    const strongBullLine = addHLine(0.8, themeColors.hlineStrong, 2);
+    const weakBullLine = addHLine(0.2, themeColors.hlineWeak, 2);
+    const zeroLine = addHLine(0.0, themeColors.hline, 1);
+    const weakBearLine = addHLine(-0.2, themeColors.hlineWeak, 2);
+    const strongBearLine = addHLine(-0.8, themeColors.hlineBear, 2);
 
     // Format data
     const priceData: any[] = [];
     const scoreData: any[] = [];
-    const upperLimitData: any[] = [];
-    const lowerLimitData: any[] = [];
-    const zeroLineData: any[] = [];
+    const lineDataSets = {
+      sb: [] as any[],
+      wb: [] as any[],
+      z: [] as any[],
+      wbe: [] as any[],
+      sbe: [] as any[],
+    };
 
-    // Sort unique timestamps
     const sortedData = [...data].sort((a, b) => a.date.localeCompare(b.date));
     const seenDates = new Set<string>();
 
@@ -157,73 +186,67 @@ export const LTTDChart: React.FC<LTTDChartProps> = ({ data }) => {
         });
       }
 
-      // Determine Macro Regime color for the Score Overlay
-      let scoreLineColor = "";
-      let scoreTopColor = "";
-      if (r.final_score >= 0.8) {
-        scoreLineColor = "#10b981"; // Strong Bull
-        scoreTopColor = "rgba(16, 185, 129, 0.35)";
-      } else if (r.final_score >= 0.2) {
-        scoreLineColor = "#059669"; // Weak Bull
-        scoreTopColor = "rgba(5, 150, 105, 0.35)";
-      } else if (r.final_score >= -0.2) {
-        scoreLineColor = "#8b5cf6"; // Neutral
-        scoreTopColor = "rgba(139, 92, 246, 0.35)";
-      } else if (r.final_score >= -0.8) {
-        scoreLineColor = "#be123c"; // Weak Bear
-        scoreTopColor = "rgba(190, 18, 60, 0.35)";
-      } else {
-        scoreLineColor = "#ef4444"; // Strong Bear
-        scoreTopColor = "rgba(239, 68, 68, 0.35)";
-      }
-
       scoreData.push({
         time: r.date,
         value: r.final_score,
-        lineColor: scoreLineColor,
-        topColor: scoreTopColor,
-        bottomColor: "rgba(0, 0, 0, 0)",
       });
 
-      upperLimitData.push({ time: r.date, value: 1.0 });
-      lowerLimitData.push({ time: r.date, value: 0.0 });
-      zeroLineData.push({ time: r.date, value: 0.5 });
+      lineDataSets.sb.push({ time: r.date, value: 0.8 });
+      lineDataSets.wb.push({ time: r.date, value: 0.2 });
+      lineDataSets.z.push({ time: r.date, value: 0.0 });
+      lineDataSets.wbe.push({ time: r.date, value: -0.2 });
+      lineDataSets.sbe.push({ time: r.date, value: -0.8 });
     });
 
     candlestickSeries.setData(priceData);
     scoreSeries.setData(scoreData);
-    upperLimitSeries.setData(upperLimitData);
-    lowerLimitSeries.setData(lowerLimitData);
-    zeroLineSeries.setData(zeroLineData);
+    strongBullLine.setData(lineDataSets.sb);
+    weakBullLine.setData(lineDataSets.wb);
+    zeroLine.setData(lineDataSets.z);
+    weakBearLine.setData(lineDataSets.wbe);
+    strongBearLine.setData(lineDataSets.sbe);
 
-    // Register series for sync (use close price as coordinate value)
-    registerSeries(
-      chartId,
-      "price",
-      candlestickSeries,
-      priceData.map((p) => ({ time: p.time, value: p.close }))
-    );
+    // Lock price scales for the score chart to always show -1 to 1 nicely
+    scoreSeries.priceScale().applyOptions({
+      autoScale: false,
+      scaleMargins: { top: 0.1, bottom: 0.1 },
+    });
+    scoreSeries.priceScale().applyOptions({
+       autoScale: false,
+    });
+    // Setting fixed range in Lightweight Charts v4 requires overriding minimum/maximum logic via autoScale=false, 
+    // but the cleanest way is just to ensure the bounds are hit, which the hlines do.
+    
+    // Register series for sync
+    registerSeries(chartId, "price", candlestickSeries, priceData.map((p) => ({ time: p.time, value: p.close })));
+    registerSeries(scoreChartId, "score", scoreSeries, scoreData);
 
-    // Coordinate scale zoom and pan
+    // Main chart sync
     chart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
       syncTimeScale(chartId, range);
     });
-
-    // Coordinate crosshair movements
     chart.subscribeCrosshairMove((param) => {
-      if (param.time) {
-        syncCrosshair(chartId, param.time as string);
-      } else {
-        syncCrosshair(chartId, null);
-      }
+      syncCrosshair(chartId, param.time as string | null);
+    });
+
+    // Score chart sync
+    scoreChart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
+      syncTimeScale(scoreChartId, range);
+    });
+    scoreChart.subscribeCrosshairMove((param) => {
+      syncCrosshair(scoreChartId, param.time as string | null);
     });
 
     chart.timeScale().fitContent();
+    scoreChart.timeScale().fitContent();
 
     return () => {
       unregisterChart(chartId);
+      unregisterChart(scoreChartId);
       chart.remove();
+      scoreChart.remove();
       chartRef.current = null;
+      scoreChartRef.current = null;
     };
   }, [data, scaleMode]);
 
@@ -232,7 +255,7 @@ export const LTTDChart: React.FC<LTTDChartProps> = ({ data }) => {
       <div className="flex justify-between items-center px-2 py-1">
         <div>
           <span className="text-[10px] uppercase tracking-[0.2em] font-semibold text-purple-400">Layer 4 Ensemble</span>
-          <h3 className="text-sm font-semibold text-[#f3f4f6] mt-0.5">Bitcoin Candlestick & Final Score overlay</h3>
+          <h3 className="text-sm font-semibold text-[#f3f4f6] mt-0.5">Bitcoin Candlestick & Final Score</h3>
         </div>
         <div className="flex gap-2">
           <button
@@ -248,9 +271,17 @@ export const LTTDChart: React.FC<LTTDChartProps> = ({ data }) => {
         </div>
       </div>
 
-      <div className="relative w-full h-[400px] rounded-2xl border border-[#202025]/30 bg-[#050505] overflow-hidden">
-        <div ref={containerRef} className="w-full h-full" />
+      <div className="flex flex-col gap-2">
+        {/* Main Price Chart */}
+        <div className="relative w-full h-[400px] rounded-t-2xl border border-[#202025]/30 bg-[#050505] overflow-hidden">
+          <div ref={containerRef} className="w-full h-full" />
+        </div>
+        {/* Score Subpanel */}
+        <div className="relative w-full h-[200px] rounded-b-2xl border border-[#202025]/30 bg-[#050505] overflow-hidden">
+          <div ref={scoreContainerRef} className="w-full h-full" />
+        </div>
       </div>
     </div>
   );
 };
+
