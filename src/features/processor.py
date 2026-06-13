@@ -22,6 +22,7 @@ class FeatureProcessor:
             "KalmanRSI",
             "FourierSupertrend",
             "TrendStrengthIndex",
+            "QuantileDEMA",
         ]
 
     def fit(self, X_train: pd.DataFrame, y_train: pd.Series = None):
