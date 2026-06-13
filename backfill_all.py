@@ -59,8 +59,8 @@ def process_single_day(t, df_merged, feature_matrix, log_returns, y):
             onchain_metrics[col] = float(df_merged.loc[t, col])
         overridden_posteriors = apply_onchain_overrides(res_regime["posteriors"], onchain_metrics)
         
-        # Determine final regime classification using argmax
-        final_regime = max(overridden_posteriors, key=overridden_posteriors.get)
+        # Note: final_regime is determined after final_score is mapped
+        final_regime_hmm = max(overridden_posteriors, key=overridden_posteriors.get)
                 
         # Feature processor
         processor = FeatureProcessor()
@@ -87,6 +87,21 @@ def process_single_day(t, df_merged, feature_matrix, log_returns, y):
         else:
             model.fit(X=X_train)
             final_score = float(model.predict_score(X_test).iloc[0])
+            
+        # Map final score from [0.0, 1.0] to [-1.0, 1.0] domain
+        final_score = 2.0 * final_score - 1.0
+
+        # Determine 5-Regime logic based on the continuous ML final_score [-1.0, 1.0]
+        if final_score >= 0.6:
+            final_regime = "Strong Bull"
+        elif final_score >= 0.2:
+            final_regime = "Weak Bull"
+        elif final_score >= -0.2:
+            final_regime = "Neutral"
+        elif final_score >= -0.6:
+            final_regime = "Weak Bear"
+        else:
+            final_regime = "Strong Bear"
         
         log_ret = float(log_returns.loc[t])
         realized_vol = float(log_returns.rolling(21).std().fillna(0.0).loc[t])
@@ -97,7 +112,7 @@ def process_single_day(t, df_merged, feature_matrix, log_returns, y):
         
         # Get indicator scores and PCA components
         indicator_scores = feature_matrix_t.loc[t, processor.tech_indicators_list].to_dict()
-        indicator_scores = {k: int(v) if not pd.isna(v) else 0 for k, v in indicator_scores.items()}
+        indicator_scores = {k: float(v) if not pd.isna(v) else 0.0 for k, v in indicator_scores.items()}
         
         pca_cols = [c for c in X_test_proc.columns if c.startswith("PC")]
         pca_components = X_test_proc.loc[t, pca_cols].to_dict()
