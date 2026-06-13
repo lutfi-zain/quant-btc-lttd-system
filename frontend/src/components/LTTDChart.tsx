@@ -157,9 +157,32 @@ export const LTTDChart: React.FC<LTTDChartProps> = ({ data }) => {
         });
       }
 
+      // Determine Macro Regime color for the Score Overlay
+      let scoreLineColor = "";
+      let scoreTopColor = "";
+      if (r.final_score >= 0.8) {
+        scoreLineColor = "#10b981"; // Strong Bull
+        scoreTopColor = "rgba(16, 185, 129, 0.35)";
+      } else if (r.final_score >= 0.2) {
+        scoreLineColor = "#059669"; // Weak Bull
+        scoreTopColor = "rgba(5, 150, 105, 0.35)";
+      } else if (r.final_score >= -0.2) {
+        scoreLineColor = "#8b5cf6"; // Neutral
+        scoreTopColor = "rgba(139, 92, 246, 0.35)";
+      } else if (r.final_score >= -0.8) {
+        scoreLineColor = "#be123c"; // Weak Bear
+        scoreTopColor = "rgba(190, 18, 60, 0.35)";
+      } else {
+        scoreLineColor = "#ef4444"; // Strong Bear
+        scoreTopColor = "rgba(239, 68, 68, 0.35)";
+      }
+
       scoreData.push({
         time: r.date,
         value: r.final_score,
+        lineColor: scoreLineColor,
+        topColor: scoreTopColor,
+        bottomColor: "rgba(0, 0, 0, 0)",
       });
 
       upperLimitData.push({ time: r.date, value: 1.0 });
