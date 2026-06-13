@@ -143,8 +143,7 @@ export const LTTDChart: React.FC<LTTDChartProps> = ({ data }) => {
       priceScaleId: "right",
     });
 
-    // Add H-Lines
-    const addHLine = (val: number, color: string, style: number) => {
+    const addHLine = (color: string, style: number) => {
       const line = scoreChart.addSeries(LineSeries, {
         color: color,
         lineWidth: 1,
@@ -154,11 +153,11 @@ export const LTTDChart: React.FC<LTTDChartProps> = ({ data }) => {
       return line;
     };
 
-    const strongBullLine = addHLine(0.8, themeColors.hlineStrong, 2);
-    const weakBullLine = addHLine(0.2, themeColors.hlineWeak, 2);
-    const zeroLine = addHLine(0.0, themeColors.hline, 1);
-    const weakBearLine = addHLine(-0.2, themeColors.hlineWeak, 2);
-    const strongBearLine = addHLine(-0.8, themeColors.hlineBear, 2);
+    const strongBullLine = addHLine(themeColors.hlineStrong, 2);
+    const weakBullLine = addHLine(themeColors.hlineWeak, 2);
+    const zeroLine = addHLine(themeColors.hline, 1);
+    const weakBearLine = addHLine(themeColors.hlineWeak, 2);
+    const strongBearLine = addHLine(themeColors.hlineBear, 2);
 
     // Format data
     const priceData: any[] = [];
