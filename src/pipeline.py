@@ -29,7 +29,7 @@ class LTTDPipeline:
     - Layer 4: Ensemble model fitting (L1-Lasso Logistic Regression)
     - Layer 5: Execution Engine Sizing & Persistence (SQLite WAL mode)
     """
-    def __init__(self, db_path: Optional[str] = None, base_url: str = "https://bitview.space", ensemble_mode: str = "pca_consensus"):
+    def __init__(self, db_path: Optional[str] = None, base_url: str = "https://bitview.space", ensemble_mode: str = "xgboost"):
         self.db_path = db_path
         self.brk_ingestion = BRKIngestionService(base_url=base_url)
         self.execution_engine = ExecutionEngine()
@@ -166,6 +166,12 @@ class LTTDPipeline:
             else:
                 model.fit(X=X_train)
                 final_score = float(model.predict_score(X_test).iloc[0])
+        elif self.ensemble_mode == "xgboost":
+            logger.info("Fitting XGBoost+ElasticNet Consensus model...")
+            from src.ensemble.xgboost_model import XGBoostEnsemble
+            model = XGBoostEnsemble()
+            model.fit(X_train_proc, y_train)
+            final_score = float(model.predict(X_test_proc).iloc[0])
         else:
             logger.info("Fitting L1-Lasso ML Consensus Regression model...")
             model = MLConsensusEngine()

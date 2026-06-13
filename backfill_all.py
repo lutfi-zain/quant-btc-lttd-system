@@ -74,19 +74,11 @@ def process_single_day(t, df_merged, feature_matrix, log_returns, y):
         X_train_proc = processor.transform(X_train)
         X_test_proc = processor.transform(X_test)
         
-        # Fit model and predict (PCA Consensus)
-        from src.ensemble.model import PCAConsensusEnsemble
-        model = PCAConsensusEnsemble()
-        if processor.pca is not None:
-            model.fit(
-                X=X_train,
-                pca_components_matrix=processor.pca.pca.components_,
-                kept_cols=processor.kept_tech_cols
-            )
-            final_score = float(model.predict_score(X_test).iloc[0])
-        else:
-            model.fit(X=X_train)
-            final_score = float(model.predict_score(X_test).iloc[0])
+        # Fit model and predict (XGBoost+ElasticNet)
+        from src.ensemble.xgboost_model import XGBoostEnsemble
+        model = XGBoostEnsemble()
+        model.fit(X_train_proc, y_train)
+        final_score = float(model.predict(X_test_proc).iloc[0])
             
         # Map final score from [0.0, 1.0] to [-1.0, 1.0] domain
         final_score = 2.0 * final_score - 1.0
