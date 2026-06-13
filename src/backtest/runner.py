@@ -61,7 +61,7 @@ class MockExecutionAdapter:
         record = {
             "date": date_str,
             "regime": regime_upper,
-            "final_score": final_score,
+            "final_score": score,
             "target_exposure": target_exposure,
             "transition_occurred": transition_occurred,
         }
@@ -167,13 +167,16 @@ def _run_fold(
                 
         overridden_posteriors = apply_onchain_overrides(posteriors_dict, onchain_metrics)
         
-        if score >= 0.8:
+        if self.ensemble_mode != "pca_consensus":
+            score = 2.0 * score - 1.0
+
+        if score >= 0.6:
             final_regime = "Strong Bull"
-        elif score >= 0.6:
-            final_regime = "Weak Bull"
-        elif score >= 0.4:
-            final_regime = "Neutral"
         elif score >= 0.2:
+            final_regime = "Weak Bull"
+        elif score >= -0.2:
+            final_regime = "Neutral"
+        elif score >= -0.6:
             final_regime = "Weak Bear"
         else:
             final_regime = "Strong Bear"

@@ -172,8 +172,12 @@ class LTTDPipeline:
             model.fit(X_train_proc, y_train)
             final_score = float(model.predict_score(X_test_proc).iloc[0])
 
-        # Map final score from [0.0, 1.0] to [-1.0, 1.0] domain
-        final_score = 2.0 * final_score - 1.0
+        # Both MLConsensusEngine and PCAConsensusEngine predict_score methods 
+        # MUST return the score in the [-1.0, 1.0] domain natively, or we handle it here.
+        # Actually, MLConsensusEngine returns [0.0, 1.0]. PCAConsensus returns [-1.0, 1.0].
+        if self.ensemble_mode != "pca_consensus":
+            # Map MLConsensusEngine [0.0, 1.0] to [-1.0, 1.0]
+            final_score = 2.0 * final_score - 1.0
 
         # Determine 5-Regime logic based on the continuous ML final_score [-1.0, 1.0]
         if final_score >= 0.6:
