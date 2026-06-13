@@ -77,6 +77,7 @@ export const LTTDChart: React.FC<LTTDChartProps> = ({ data }) => {
       rightPriceScale: {
         borderColor: themeColors.border,
         visible: true,
+        minimumWidth: 90,
         mode: scaleMode === "log" ? PriceScaleMode.Logarithmic : PriceScaleMode.Normal,
       },
       timeScale: {
@@ -119,6 +120,7 @@ export const LTTDChart: React.FC<LTTDChartProps> = ({ data }) => {
       rightPriceScale: {
         borderColor: themeColors.border,
         visible: true,
+        minimumWidth: 90,
       },
       timeScale: {
         borderColor: themeColors.border,
