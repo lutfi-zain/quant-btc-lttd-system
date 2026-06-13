@@ -276,6 +276,49 @@ app.get("/api/onchain", async (c) => {
   }
 });
 
+// Action trigger endpoint
+app.post("/api/actions/run", async (c) => {
+  try {
+    const body = await c.req.json();
+    const { action } = body;
+    
+    if (!action) return c.json({ error: "No action provided" }, 400);
+    
+    let command: string[] = [];
+    
+    if (action === "sync_today") {
+      command = ["python3", "run_pipeline.py"];
+    } else if (action === "recover_10d") {
+      command = ["python3", "backfill.py"];
+    } else if (action === "full_repopulation") {
+      command = ["python3", "backfill_all.py"];
+    } else if (action === "reset_db") {
+      command = ["bun", "run", "scripts/init_db.ts"];
+    } else if (action === "vif_audit") {
+      command = ["python3", "scripts/component_audit.py"];
+    } else {
+      return c.json({ error: "Unknown action" }, 400);
+    }
+    
+    // In Bun, spawn creates a child process
+    const proc = Bun.spawn(command, {
+      cwd: process.cwd().endsWith('backend') ? process.cwd().replace('/backend', '') : process.cwd()
+    });
+    
+    const text = await new Response(proc.stdout).text();
+    const errText = await new Response(proc.stderr).text();
+    const exitCode = await proc.exited;
+    
+    return c.json({ 
+      success: exitCode === 0, 
+      output: text, 
+      error_output: errText 
+    });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
 export default {
   port: process.env.PORT || 3000,
   fetch: app.fetch,

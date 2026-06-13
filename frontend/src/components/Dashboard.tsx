@@ -15,6 +15,7 @@ import { LTTDChart } from "./LTTDChart";
 import { RegimePanel } from "./RegimePanel";
 import { FeatureDiagnosticsPanel } from "./FeatureDiagnosticsPanel";
 import { OnChainPanel } from "./OnChainPanel";
+import { ControlCenter } from "./ControlCenter";
 
 export const Dashboard: React.FC = () => {
   // Query backend health
@@ -156,7 +157,7 @@ export const Dashboard: React.FC = () => {
         </div>
         <h2 className="text-xl font-bold text-gray-200 tracking-tight">Hono API Server Unreachable</h2>
         <p className="text-sm text-gray-500 mt-2 max-w-md">
-          The quantitative database status check failed or returned an offline status. Please verify Bun/Hono server execution on port 3000.
+          The quantitative database status check failed or returned an offline status. Please verify Bun/Hono server execution on port 4000.
         </p>
         <button
           onClick={handleRefresh}
@@ -447,6 +448,8 @@ export const Dashboard: React.FC = () => {
                   </div>
                 </div>
               </div>
+
+              <ControlCenter />
             </div>
           </section>
         </SynchronizedChartProvider>
