@@ -185,17 +185,8 @@ class LTTDPipeline:
             # Map MLConsensusEngine [0.0, 1.0] to [-1.0, 1.0]
             final_score = 2.0 * final_score - 1.0
 
-        # Determine 5-Regime logic based on the continuous ML final_score [-1.0, 1.0]
-        if final_score >= 0.6:
-            final_regime = "Strong Bull"
-        elif final_score >= 0.2:
-            final_regime = "Weak Bull"
-        elif final_score >= -0.2:
-            final_regime = "Neutral"
-        elif final_score >= -0.6:
-            final_regime = "Weak Bear"
-        else:
-            final_regime = "Strong Bear"
+        # Use the true HMM regime for the final regime
+        final_regime = final_regime_hmm
 
         # 11. Layer 5: Sizing exposure and persisting daily records to SQLite WAL DB
         logger.info("Executing exposure sizing and DB persistence...")

@@ -83,17 +83,8 @@ def process_single_day(t, df_merged, feature_matrix, log_returns, y):
         # Map final score from [0.0, 1.0] to [-1.0, 1.0] domain
         final_score = 2.0 * final_score - 1.0
 
-        # Determine 5-Regime logic based on the continuous ML final_score [-1.0, 1.0]
-        if final_score >= 0.6:
-            final_regime = "Strong Bull"
-        elif final_score >= 0.2:
-            final_regime = "Weak Bull"
-        elif final_score >= -0.2:
-            final_regime = "Neutral"
-        elif final_score >= -0.6:
-            final_regime = "Weak Bear"
-        else:
-            final_regime = "Strong Bear"
+        # Use the true HMM regime for the final regime
+        final_regime = final_regime_hmm
         
         log_ret = float(log_returns.loc[t])
         realized_vol = float(log_returns.rolling(21).std().fillna(0.0).loc[t])
