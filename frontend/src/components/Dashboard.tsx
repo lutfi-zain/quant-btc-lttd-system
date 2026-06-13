@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   fetchLatestLTTD,
@@ -8,163 +8,99 @@ import {
   fetchRegimeData,
   fetchDiagnosticsData,
   fetchOnChainData,
-  type Regime,
+  triggerAction,
 } from "../api/client";
 import { SynchronizedChartProvider } from "./SynchronizedChartContext";
 import { LTTDChart } from "./LTTDChart";
 import { RegimePanel } from "./RegimePanel";
 import { FeatureDiagnosticsPanel } from "./FeatureDiagnosticsPanel";
 import { OnChainPanel } from "./OnChainPanel";
-import { ControlCenter } from "./ControlCenter";
+import { PerformancePanel } from "./PerformancePanel";
+import { TradingLogPanel } from "./TradingLogPanel";
 
 export const Dashboard: React.FC = () => {
-  // Query backend health
-  const { data: health, isError: isHealthError } = useQuery({
-    queryKey: ["health"],
-    queryFn: fetchHealthStatus,
-    refetchInterval: 10000,
-  });
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [isTriggering, setIsTriggering] = useState(false);
 
-  // Query latest LTTD evaluation
-  const {
-    data: latest,
-    isLoading: isLatestLoading,
-    isError: isLatestError,
-    refetch: refetchLatest,
-  } = useQuery({
-    queryKey: ["latestLTTD"],
-    queryFn: fetchLatestLTTD,
-    refetchInterval: 30000,
-  });
+  const [selectedAction, setSelectedAction] = useState("sync_today");
 
-  // Query historical LTTD evaluations (main history endpoint)
-  const {
-    data: history,
-    isLoading: isHistoryLoading,
-    isError: isHistoryError,
-    refetch: refetchHistory,
-  } = useQuery({
-    queryKey: ["lttdHistory"],
-    queryFn: () => fetchLTTDHistory(),
-  });
+  useEffect(() => {
+    // Check saved theme or system preference
+    const saved = localStorage.getItem("theme");
+    if (saved === "dark" || (!saved && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
+      setTheme("dark");
+      document.documentElement.classList.add("dark");
+    }
+  }, []);
 
-  // Query the 4 specific endpoint hooks
-  const {
-    data: chartData,
-    isLoading: isChartLoading,
-    refetch: refetchChart,
-  } = useQuery({
-    queryKey: ["chartData"],
-    queryFn: () => fetchChartData(),
-  });
+  const toggleTheme = () => {
+    const newTheme = theme === "light" ? "dark" : "light";
+    setTheme(newTheme);
+    localStorage.setItem("theme", newTheme);
+    if (newTheme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  };
 
-  const {
-    data: regimeData,
-    isLoading: isRegimeLoading,
-    refetch: refetchRegime,
-  } = useQuery({
-    queryKey: ["regimeData"],
-    queryFn: () => fetchRegimeData(),
-  });
+  const { data: health, isError: isHealthError } = useQuery({ queryKey: ["health"], queryFn: () => fetchHealthStatus(), refetchInterval: 10000 });
+  const { data: latest, isLoading: isLatestLoading, isError: isLatestError, refetch: refetchLatest } = useQuery({ queryKey: ["latestLTTD"], queryFn: () => fetchLatestLTTD(), refetchInterval: 30000 });
+  const { data: history, isLoading: isHistoryLoading, isError: isHistoryError, refetch: refetchHistory } = useQuery({ queryKey: ["lttdHistory"], queryFn: () => fetchLTTDHistory() });
+  const { data: chartData, isLoading: isChartLoading, refetch: refetchChart } = useQuery({ queryKey: ["chartData"], queryFn: () => fetchChartData() });
+  const { data: regimeData, isLoading: isRegimeLoading, refetch: refetchRegime } = useQuery({ queryKey: ["regimeData"], queryFn: () => fetchRegimeData() });
+  const { data: diagnosticsData, isLoading: isDiagnosticsLoading, refetch: refetchDiagnostics } = useQuery({ queryKey: ["diagnosticsData"], queryFn: () => fetchDiagnosticsData() });
+  const { data: onChainData, isLoading: isOnChainLoading, refetch: refetchOnChain } = useQuery({ queryKey: ["onChainData"], queryFn: () => fetchOnChainData() });
 
-  const {
-    data: diagnosticsData,
-    isLoading: isDiagnosticsLoading,
-    refetch: refetchDiagnostics,
-  } = useQuery({
-    queryKey: ["diagnosticsData"],
-    queryFn: () => fetchDiagnosticsData(),
-  });
-
-  const {
-    data: onChainData,
-    isLoading: isOnChainLoading,
-    refetch: refetchOnChain,
-  } = useQuery({
-    queryKey: ["onChainData"],
-    queryFn: () => fetchOnChainData(),
-  });
-
-  // Calculate regime transitions in-memory from history
   const transitions = useMemo(() => {
     if (!history || history.length < 2) return [];
-    const logs: Array<{
-      date: string;
-      prev: Regime;
-      next: Regime;
-      score: number;
-    }> = [];
-
+    const logs: any[] = [];
     for (let i = 1; i < history.length; i++) {
       if (history[i].regime !== history[i - 1].regime) {
-        logs.push({
-          date: history[i].date,
-          prev: history[i - 1].regime,
-          next: history[i].regime,
-          score: history[i].final_score,
-        });
+        logs.push({ date: history[i].date, prev: history[i - 1].regime, next: history[i].regime, score: history[i].final_score });
       }
     }
     return logs.reverse();
   }, [history]);
 
-  const handleRefresh = () => {
-    refetchLatest();
-    refetchHistory();
-    refetchChart();
-    refetchRegime();
-    refetchDiagnostics();
-    refetchOnChain();
+  const handleRefresh = () => { refetchLatest(); refetchHistory(); refetchChart(); refetchRegime(); refetchDiagnostics(); refetchOnChain(); };
+
+  const handleTriggerFetch = async () => {
+    if (isTriggering) return;
+    
+    if (selectedAction === "reset_db" && !window.confirm("Are you sure you want to completely RESET the database? This cannot be undone.")) return;
+    if (selectedAction === "full_repopulation" && !window.confirm("Full repopulation will take a long time. Proceed?")) return;
+
+    setIsTriggering(true);
+    try {
+      await triggerAction(selectedAction);
+      handleRefresh(); // Refresh UI after fetching data
+      alert(`Action '${selectedAction}' completed successfully.`);
+    } catch (err) {
+      console.error("Failed to run action:", err);
+      alert(`Failed to run action '${selectedAction}'.`);
+    } finally {
+      setIsTriggering(false);
+    }
   };
 
   const isServerOffline = isHealthError || (health && !health.status);
-
-  const isGlobalLoading =
-    isLatestLoading ||
-    isHistoryLoading ||
-    isChartLoading ||
-    isRegimeLoading ||
-    isDiagnosticsLoading ||
-    isOnChainLoading;
+  const isGlobalLoading = isLatestLoading || isHistoryLoading || isChartLoading || isRegimeLoading || isDiagnosticsLoading || isOnChainLoading;
 
   if (isGlobalLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-[#030303] text-gray-400">
-        <div className="relative w-16 h-16">
-          <div className="absolute inset-0 rounded-full border-4 border-purple-500/10 border-t-purple-500 animate-spin"></div>
-        </div>
-        <p className="mt-4 text-xs tracking-widest uppercase text-purple-400/80 animate-pulse">
-          Loading Quantitative Telemetry...
-        </p>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[var(--color-canvas)] text-[var(--color-text-primary)]">
+        <div className="text-sm font-medium animate-pulse text-[var(--color-text-muted)]">Loading interface...</div>
       </div>
     );
   }
 
   if (isLatestError || isHistoryError || isServerOffline) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-[#030303] p-6 text-center">
-        <div className="p-1.5 bg-red-500/10 rounded-full border border-red-500/20 mb-4 animate-bounce">
-          <div className="p-3 bg-red-500/20 rounded-full">
-            <svg className="w-8 h-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-              />
-            </svg>
-          </div>
-        </div>
-        <h2 className="text-xl font-bold text-gray-200 tracking-tight">Hono API Server Unreachable</h2>
-        <p className="text-sm text-gray-500 mt-2 max-w-md">
-          The quantitative database status check failed or returned an offline status. Please verify Bun/Hono server execution on port 4000.
-        </p>
-        <button
-          onClick={handleRefresh}
-          className="mt-6 px-6 py-2.5 rounded-full bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-semibold border border-red-500/20 transition-all duration-300 active:scale-[0.98]"
-        >
-          Retry Connection
-        </button>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[var(--color-canvas)] text-[var(--color-bear)] px-6 text-center">
+        <h2 className="text-2xl font-[var(--font-display)] mb-2">Connection Error</h2>
+        <p className="text-sm text-[var(--color-text-muted)] max-w-md mb-6">Unable to connect to the quantitative backend on port 4000.</p>
+        <button onClick={handleRefresh} className="px-6 py-2 bg-[var(--color-accent)] text-[var(--color-canvas)] rounded-md text-sm">Retry Connection</button>
       </div>
     );
   }
@@ -173,289 +109,232 @@ export const Dashboard: React.FC = () => {
   const finalScore = latest?.final_score ?? 0;
   const targetExposure = latest?.target_exposure ?? 0;
 
-  const regimeMeta = {
-    "Strong Bull": {
-      color: "text-emerald-400",
-      bg: "bg-emerald-500/10",
-      border: "border-emerald-500/20",
-      glow: "shadow-[0_0_50px_rgba(16,185,129,0.15)]",
-      desc: "Extreme uptrend momentum. Max long exposure active.",
-    },
-    "Weak Bull": {
-      color: "text-emerald-400",
-      bg: "bg-emerald-500/10",
-      border: "border-emerald-500/20",
-      glow: "shadow-[0_0_50px_rgba(16,185,129,0.1)]",
-      desc: "Uptrend momentum detected. Partial long exposure active.",
-    },
-    "Neutral": {
-      color: "text-purple-400",
-      bg: "bg-purple-500/10",
-      border: "border-purple-500/20",
-      glow: "shadow-[0_0_50px_rgba(168,85,247,0.15)]",
-      desc: "Mean reversion active. Sizing exposure strictly capped to 0.",
-    },
-    "Weak Bear": {
-      color: "text-rose-400",
-      bg: "bg-rose-500/10",
-      border: "border-rose-500/20",
-      glow: "shadow-[0_0_50px_rgba(239,68,68,0.1)]",
-      desc: "Downtrend bias confirmed. Exposure forced to cash.",
-    },
-    "Strong Bear": {
-      color: "text-rose-400",
-      bg: "bg-rose-500/10",
-      border: "border-rose-500/20",
-      glow: "shadow-[0_0_50px_rgba(239,68,68,0.15)]",
-      desc: "Extreme downtrend bias. Exposure forced to cash.",
-    },
-    BULL: {
-      color: "text-emerald-400",
-      bg: "bg-emerald-500/10",
-      border: "border-emerald-500/20",
-      glow: "shadow-[0_0_50px_rgba(16,185,129,0.15)]",
-      desc: "Uptrend momentum detected. Long exposure active.",
-    },
-    BEAR: {
-      color: "text-rose-400",
-      bg: "bg-rose-500/10",
-      border: "border-rose-500/20",
-      glow: "shadow-[0_0_50px_rgba(239,68,68,0.15)]",
-      desc: "Downtrend bias confirmed. Exposure forced to cash.",
-    },
-    SIDEWAYS: {
-      color: "text-purple-400",
-      bg: "bg-purple-500/10",
-      border: "border-purple-500/20",
-      glow: "shadow-[0_0_50px_rgba(168,85,247,0.15)]",
-      desc: "Mean reversion active. Sizing exposure strictly capped.",
-    },
-  }[currentRegime] || {
-    color: "text-gray-400",
-    bg: "bg-gray-500/10",
-    border: "border-gray-500/20",
-    glow: "",
-    desc: "Unknown regime state."
+  const latestRegimeRecord = regimeData && regimeData.length > 0 ? regimeData[regimeData.length - 1] : null;
+  const posteriorProb = latestRegimeRecord 
+    ? (currentRegime === "BULL" ? latestRegimeRecord.p_bull 
+       : currentRegime === "BEAR" ? latestRegimeRecord.p_bear 
+       : latestRegimeRecord.p_sideways)
+    : 0;
+
+  const getRegimeBg = (regime: string) => {
+    if (regime === 'BULL') return 'bg-[var(--color-bg-bull)] text-[var(--color-bull)]';
+    if (regime === 'BEAR') return 'bg-[var(--color-bg-bear)] text-[var(--color-bear)]';
+    return 'bg-[var(--color-bg-sideways)] text-[var(--color-sideways)]';
   };
 
   return (
-    <div className="min-h-screen bg-[#030303] text-gray-300 font-sans selection:bg-purple-500/30 selection:text-purple-200">
-      {/* Background Mesh Gradients */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-        <div
-          className={`absolute top-[-10%] left-[20%] w-[600px] h-[600px] rounded-full filter blur-[150px] opacity-20 transition-all duration-1000 ${
-            currentRegime.includes("Bull") || currentRegime === "BULL"
-              ? "bg-emerald-500"
-              : currentRegime.includes("Bear") || currentRegime === "BEAR"
-              ? "bg-rose-500"
-              : "bg-purple-500"
-          }`}
-        ></div>
-        <div className="absolute bottom-[10%] right-[10%] w-[500px] h-[500px] rounded-full bg-blue-600/10 filter blur-[130px] pointer-events-none"></div>
-      </div>
-
-      <div className="relative z-10 max-w-7xl mx-auto px-6 py-12 flex flex-col gap-10">
-        {/* Header Section */}
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pb-6 border-b border-[#202025]/30">
+     <div className="min-h-screen bg-[var(--color-canvas)] text-[var(--color-text-primary)] font-[var(--font-sans)] pb-24 transition-colors duration-300">
+        
+        {/* Editorial Header */}
+        <header className="max-w-6xl mx-auto px-6 pt-16 pb-12 flex flex-col md:flex-row justify-between items-start md:items-end gap-6 animate-fade-up">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span className="text-[10px] uppercase tracking-[0.2em] font-semibold text-gray-400">System Live</span>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[var(--color-surface)] border border-[var(--color-border)] mb-6 shadow-sm">
+              <span className={`w-2 h-2 rounded-full ${isServerOffline ? 'bg-[var(--color-bear)]' : 'bg-[var(--color-bull)]'}`}></span>
+              <span className="text-xs font-medium tracking-wide text-[var(--color-text-muted)] uppercase">System Active</span>
             </div>
-            <h1 className="text-3xl font-extrabold text-[#f3f4f6] tracking-tight mt-3">
-              LTTD{" "}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-indigo-400">
-                Quantitative Portal
-              </span>
+            <h1 className="text-4xl md:text-5xl font-[var(--font-display)] tracking-tight text-[var(--color-text-primary)] mb-3">
+              LTTD Quant Dashboard
             </h1>
-            <p className="text-xs text-gray-500 mt-1.5">
-              Macro Directional Trend & Ornstein-Uhlenbeck Regime Telemetry
+            <p className="text-[var(--color-text-muted)] text-sm max-w-lg leading-relaxed">
+              Monitoring Bitcoin's long-term trend direction via Hidden Markov Models and Walk-Forward Optimization.
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="text-right hidden sm:block">
-              <div className="text-[10px] uppercase tracking-wider text-gray-500">Last Synced</div>
-              <div className="text-xs font-semibold text-gray-300 font-mono mt-0.5">{latest?.date}</div>
+          
+          <div className="flex flex-col items-end gap-3">
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={toggleTheme}
+                className="px-3 py-1 text-xs font-medium bg-[var(--color-surface)] border border-[var(--color-border)] rounded shadow-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer"
+              >
+                {theme === 'light' ? 'Dark Mode' : 'Light Mode'}
+              </button>
             </div>
-            <button
-              onClick={handleRefresh}
-              className="p-3 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 text-gray-400 hover:text-white transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-[0.95]"
-              title="Refresh Data"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.253 8H18" />
-              </svg>
-            </button>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-[var(--color-text-muted)] uppercase tracking-wider font-medium">Last Sync: <span className="font-[var(--font-mono)] text-[var(--color-text-primary)]">{latest?.date}</span></span>
+            </div>
+            <div className="flex items-center gap-3 mt-1">
+              <button 
+                onClick={handleRefresh} 
+                className="text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors underline underline-offset-4 decoration-[var(--color-border)] hover:decoration-[var(--color-text-primary)] cursor-pointer mr-2"
+              >
+                Refresh UI
+              </button>
+              <div className="flex items-center shadow-sm">
+                <select
+                  value={selectedAction}
+                  onChange={(e) => setSelectedAction(e.target.value)}
+                  className="px-2 py-1.5 text-xs font-medium bg-[var(--color-surface)] border border-r-0 border-[var(--color-border)] rounded-l text-[var(--color-text-primary)] focus:outline-none cursor-pointer"
+                  disabled={isTriggering}
+                >
+                  <option value="sync_today">Sync Today</option>
+                  <option value="recover_10d">Recover 10d</option>
+                  <option value="full_repopulation">Full Backfill</option>
+                  <option value="vif_audit">VIF Audit</option>
+                  <option value="reset_db">Reset DB</option>
+                </select>
+                <button 
+                  onClick={handleTriggerFetch} 
+                  disabled={isTriggering}
+                  className="px-3 py-1.5 bg-[var(--color-text-primary)] text-[var(--color-canvas)] border border-[var(--color-text-primary)] rounded-r text-xs font-medium hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isTriggering ? 'Running...' : 'Run'}
+                </button>
+              </div>
+            </div>
           </div>
         </header>
 
-        {/* Row 1: Dashboard Bento Cards */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Card A: Regime Widget */}
-          <div
-            className={`group p-0.5 bg-[#15151e]/30 rounded-3xl border border-[#23232f]/30 hover:border-white/10 transition-all duration-500 ${regimeMeta.glow}`}
-          >
-            <div className="p-6 bg-[#08080f]/90 rounded-[calc(1.5rem-0.125rem)] flex flex-col h-full justify-between shadow-[inset_0_1px_1px_rgba(255,255,255,0.03)]">
-              <div>
-                <span className="text-[9px] uppercase tracking-[0.2em] font-semibold text-gray-500">HMM Layer 1 Inference</span>
-                <h3 className="text-lg font-bold text-gray-200 tracking-tight mt-1">Market Regime</h3>
+        <div className="max-w-6xl mx-auto px-6">
+          <SynchronizedChartProvider>
+            <div className="bento-grid">
+              
+              {/* Macro Indicators Row */}
+              <div className="col-span-12 md:col-span-4 minimalist-card flex flex-col justify-between animate-fade-up" style={{ animationDelay: '100ms' }}>
+                 <div>
+                   <span className="text-xs text-[var(--color-text-muted)] font-medium uppercase tracking-wider">Current Regime</span>
+                   <div className="mt-4 flex items-center justify-between">
+                     <div className={`text-4xl font-[var(--font-display)] tracking-tight ${getRegimeBg(currentRegime).split(' ')[1]}`}>
+                       {currentRegime}
+                     </div>
+                     <div className={`px-3 py-1 rounded-full text-xs font-bold tracking-wide ${getRegimeBg(currentRegime)}`}>
+                       {(posteriorProb * 100).toFixed(1)}% PROB
+                     </div>
+                   </div>
+                 </div>
+                 <div className="mt-8 pt-4 border-t border-[var(--color-border)] text-sm text-[var(--color-text-muted)]">
+                   HMM Layer 1 Classification
+                 </div>
               </div>
-              <div className="my-8 flex flex-col items-center">
-                <div className={`text-4xl font-black tracking-wider ${regimeMeta.color} animate-pulse`}>{currentRegime}</div>
-                <div
-                  className={`mt-3 text-[11px] font-medium px-3.5 py-1 rounded-full ${regimeMeta.bg} ${regimeMeta.color} border ${regimeMeta.border}`}
-                >
-                  Posterior Prob: {latest?.posterior_prob ? `${(latest.posterior_prob * 100).toFixed(1)}%` : "N/A"}
-                </div>
-              </div>
-              <p className="text-xs text-gray-500 leading-relaxed text-center">{regimeMeta.desc}</p>
-            </div>
-          </div>
 
-          {/* Card B: Final Score Widget */}
-          <div className="group p-0.5 bg-[#15151e]/30 rounded-3xl border border-[#23232f]/30 hover:border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.2)] transition-all duration-500">
-            <div className="p-6 bg-[#08080f]/90 rounded-[calc(1.5rem-0.125rem)] flex flex-col h-full justify-between shadow-[inset_0_1px_1px_rgba(255,255,255,0.03)]">
-              <div>
-                <span className="text-[9px] uppercase tracking-[0.2em] font-semibold text-gray-500">Lasso Layer 4 Ensemble</span>
-                <h3 className="text-lg font-bold text-gray-200 tracking-tight mt-1">LTTD Final Score</h3>
+              <div className="col-span-12 md:col-span-4 minimalist-card flex flex-col justify-between animate-fade-up" style={{ animationDelay: '150ms' }}>
+                 <div>
+                   <span className="text-xs text-[var(--color-text-muted)] font-medium uppercase tracking-wider">Ensemble Score</span>
+                   <div className="mt-4 flex items-center justify-between">
+                     <div className="text-4xl font-[var(--font-mono)] tracking-tight">
+                       {finalScore > 0 ? `+${finalScore.toFixed(4)}` : finalScore.toFixed(4)}
+                     </div>
+                   </div>
+                 </div>
+                 <div className="mt-8 pt-4 border-t border-[var(--color-border)] text-sm text-[var(--color-text-muted)]">
+                   PCA-Orthogonalized Aggregation
+                 </div>
               </div>
-              <div className="my-6 flex flex-col items-center">
-                <div className="text-5xl font-black tracking-tight text-[#f3f4f6] font-mono">
-                  {finalScore > 0 ? `+${finalScore.toFixed(4)}` : finalScore.toFixed(4)}
-                </div>
 
-                {/* Horizontal meter */}
-                <div className="w-full bg-white/5 h-1.5 rounded-full mt-6 overflow-hidden border border-white/5 relative">
-                  <div
-                    className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full transition-all duration-700 ease-out"
-                    style={{ width: `${((finalScore + 1) / 2) * 100}%` }}
-                  />
-                  <div className="absolute top-0 bottom-0 w-0.5 bg-white/20 left-1/2" /> {/* Center mark */}
-                </div>
-                <div className="flex justify-between w-full text-[9px] text-gray-600 mt-2 font-mono">
-                  <span>-1.0 (Bearish)</span>
-                  <span>0.0</span>
-                  <span>+1.0 (Bullish)</span>
-                </div>
+              <div className="col-span-12 md:col-span-4 minimalist-card flex flex-col justify-between animate-fade-up" style={{ animationDelay: '200ms' }}>
+                 <div>
+                   <span className="text-xs text-[var(--color-text-muted)] font-medium uppercase tracking-wider">Target Exposure</span>
+                   <div className="mt-4 flex items-center justify-between">
+                     <div className="text-4xl font-[var(--font-display)] tracking-tight">
+                       {(targetExposure * 100).toFixed(0)}%
+                     </div>
+                     <div className="px-3 py-1 rounded-full text-xs font-bold tracking-wide bg-[#F7F6F3] text-[var(--color-text-primary)] border border-[var(--color-border)]">
+                       ALLOCATION
+                     </div>
+                   </div>
+                 </div>
+                 <div className="mt-8 pt-4 border-t border-[var(--color-border)] text-sm text-[var(--color-text-muted)]">
+                   Suggested Portfolio Weight
+                 </div>
               </div>
-              <div className="flex justify-between items-center px-2 py-1.5 bg-white/5 rounded-2xl border border-white/5">
-                <span className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">Target Exposure</span>
-                <span className="text-xs font-bold text-indigo-400 font-mono">{(targetExposure * 100).toFixed(0)}%</span>
-              </div>
-            </div>
-          </div>
 
-          {/* Card C: Diagnostic / Metadata Widget */}
-          <div className="group p-0.5 bg-[#15151e]/30 rounded-3xl border border-[#23232f]/30 hover:border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.2)] transition-all duration-500">
-            <div className="p-6 bg-[#08080f]/90 rounded-[calc(1.5rem-0.125rem)] flex flex-col h-full justify-between shadow-[inset_0_1px_1px_rgba(255,255,255,0.03)]">
-              <div>
-                <span className="text-[9px] uppercase tracking-[0.2em] font-semibold text-gray-500">Infrastructure Layer 6</span>
-                <h3 className="text-lg font-bold text-gray-200 tracking-tight mt-1">Telemetry Status</h3>
+              {/* Performance Metrics Row */}
+              <div className="col-span-12 minimalist-card flex flex-col animate-fade-up" style={{ animationDelay: '225ms' }}>
+                 <div className="mb-4">
+                   <h2 className="text-lg font-[var(--font-display)]">System Performance</h2>
+                 </div>
+                 <div className="w-full">
+                    <PerformancePanel data={chartData || []} />
+                 </div>
               </div>
-              <div className="my-4 flex flex-col gap-3">
-                <div className="flex justify-between items-center py-2 border-b border-[#202025]/30">
-                  <span className="text-xs text-gray-500">Database Status</span>
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                    <span className="w-1 h-1 rounded-full bg-emerald-400"></span>
-                    WAL Active
-                  </span>
+
+              {/* Main Chart Row - Stable Height */}
+              <div className="col-span-12 minimalist-card flex flex-col animate-fade-up" style={{ animationDelay: '250ms' }}>
+                 <div className="mb-6 flex justify-between items-center">
+                   <h2 className="text-lg font-[var(--font-display)]">Price Action, LTTD Score, Exposure & Equity</h2>
+                   <span className="text-xs text-[var(--color-text-muted)] font-[var(--font-mono)]">BTC/USD (Daily)</span>
+                 </div>
+                 {/* Fixed/Stable Height Container */}
+                 <div className="w-full h-[750px]">
+                    <LTTDChart data={chartData || []} />
+                 </div>
+              </div>
+
+              {/* Diagnostics Row */}
+              <div className="col-span-12 md:col-span-6 minimalist-card flex flex-col animate-fade-up" style={{ animationDelay: '300ms' }}>
+                 <div className="mb-6">
+                   <h2 className="text-lg font-[var(--font-display)]">On-Chain Indicators</h2>
+                 </div>
+                 <div className="flex-1 h-[300px]">
+                    <OnChainPanel data={onChainData || []} />
+                 </div>
+              </div>
+
+              <div className="col-span-12 md:col-span-6 minimalist-card flex flex-col animate-fade-up" style={{ animationDelay: '350ms' }}>
+                 <div className="mb-6">
+                   <h2 className="text-lg font-[var(--font-display)]">Feature Diagnostics</h2>
+                 </div>
+                 <div className="flex-1 h-[300px] overflow-y-auto hidden-scrollbar">
+                    <FeatureDiagnosticsPanel data={diagnosticsData || []} />
+                 </div>
+              </div>
+
+              {/* Regime Probability Row */}
+              <div className="col-span-12 minimalist-card flex flex-col animate-fade-up" style={{ animationDelay: '375ms' }}>
+                 <div className="mb-6 flex justify-between items-center">
+                   <h2 className="text-lg font-[var(--font-display)]">Regime Probability History</h2>
+                 </div>
+                 <div className="w-full h-[300px]">
+                    <RegimePanel data={regimeData || []} />
+                 </div>
+              </div>
+
+              {/* Audit Logs Row */}
+              <div className="col-span-12 md:col-span-6 minimalist-card animate-fade-up" style={{ animationDelay: '400ms' }}>
+                <div className="mb-6">
+                  <h2 className="text-lg font-[var(--font-display)]">Regime Transition Audit</h2>
                 </div>
-                <div className="flex justify-between items-center py-2 border-b border-[#202025]/30">
-                  <span className="text-xs text-gray-500">Ingest Freshness</span>
-                  <span className="text-xs font-semibold text-gray-300 font-mono">Fresh</span>
-                </div>
-                <div className="flex justify-between items-center py-2">
-                  <span className="text-xs text-gray-500">Trailing Epoch context</span>
-                  <span className="text-xs font-semibold text-gray-300 font-mono">1,200 Days</span>
-                </div>
-              </div>
-              <div className="text-[10px] text-gray-600 bg-white/5 px-3 py-2 rounded-xl border border-white/5 font-mono break-all text-center">
-                DB: lttd.db
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Row 2: Synchronized Interactive Charts & Telemetry panels */}
-        <SynchronizedChartProvider>
-          <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* Left Column: Visual Charts (LTTD Chart, Regime stacked, Onchain lines) */}
-            <div className="lg:col-span-8 flex flex-col gap-6">
-              <LTTDChart data={chartData || []} />
-              <RegimePanel data={regimeData || []} />
-              <OnChainPanel data={onChainData || []} />
-            </div>
-
-            {/* Right Column: Feature Diagnostics & Transitions Log */}
-            <div className="lg:col-span-4 flex flex-col gap-6">
-              <FeatureDiagnosticsPanel data={diagnosticsData || []} />
-
-              {/* Regime Shift Transitions table */}
-              <div className="p-0.5 bg-[#15151e]/30 rounded-3xl border border-[#23232f]/30 hover:border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.2)]">
-                <div className="p-6 bg-[#08080f]/90 rounded-[calc(1.5rem-0.125rem)] shadow-[inset_0_1px_1px_rgba(255,255,255,0.03)]">
-                  <span className="text-[9px] uppercase tracking-[0.2em] font-semibold text-gray-500 font-mono">
-                    System Logs
-                  </span>
-                  <h3 className="text-sm font-bold text-gray-200 tracking-tight mt-1 mb-4">Regime Transition Log</h3>
-
-                  <div className="overflow-y-auto max-h-[300px] pr-2 scrollbar-thin scrollbar-thumb-white/10">
-                    <table className="w-full text-left border-collapse">
-                      <thead className="sticky top-0 bg-[#08080f] z-10 shadow-[inset_0_-1px_0_rgba(255,255,255,0.05)]">
-                        <tr className="border-b border-[#202025]/40 text-gray-500 text-[9px] uppercase tracking-wider font-semibold">
-                          <th className="pb-2 pl-2 bg-[#08080f]">Date</th>
-                          <th className="pb-2 bg-[#08080f]">Prev</th>
-                          <th className="pb-2 bg-[#08080f]">Next</th>
-                          <th className="pb-2 pr-2 text-right bg-[#08080f]">Score</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#202025]/30 text-[11px]">
-                        {transitions.length > 0 ? (
-                          transitions.map((t, idx) => (
-                            <tr key={idx} className="hover:bg-white/5 transition-all duration-300">
-                              <td className="py-2.5 pl-2 font-semibold text-gray-300 font-mono">{t.date}</td>
-                              <td className="py-2.5">
-                                <span className="px-1.5 py-0.2 rounded-md bg-white/5 border border-white/10 text-gray-500 font-mono text-[9px]">
-                                  {t.prev.substring(0, 4)}
-                                </span>
-                              </td>
-                              <td className="py-2.5">
-                                <span
-                                  className={`px-2 py-0.5 rounded-full font-bold border text-[9px] ${
-                                    t.next.includes("Bull")
-                                      ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                                      : t.next.includes("Bear")
-                                      ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
-                                      : "bg-purple-500/10 text-purple-400 border-purple-500/20"
-                                  }`}
-                                >
-                                  {t.next}
-                                </span>
-                              </td>
-                              <td className="py-2.5 pr-2 text-right font-mono text-gray-400">
-                                {t.score > 0 ? `+${t.score.toFixed(2)}` : t.score.toFixed(2)}
-                              </td>
-                            </tr>
-                          ))
-                        ) : (
-                          <tr>
-                            <td colSpan={4} className="py-8 text-center text-gray-600">
-                              No transitions detected.
+                <div className="overflow-x-auto h-[350px] overflow-y-auto hidden-scrollbar">
+                  <table className="w-full text-left border-collapse">
+                    <thead className="sticky top-0 bg-[var(--color-canvas)] z-10">
+                      <tr className="border-b border-[var(--color-border)] text-[var(--color-text-muted)] text-xs font-medium uppercase tracking-wider">
+                        <th className="pb-3 pl-2">Date</th>
+                        <th className="pb-3">Shift</th>
+                        <th className="pb-3 pr-2 text-right">Score at Transition</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--color-border)] text-sm">
+                      {transitions.map((t, i) => (
+                          <tr key={i} className="hover:bg-[var(--color-surface-hover)] transition-colors">
+                            <td className="py-3 pl-2 font-[var(--font-mono)] text-[var(--color-text-muted)]">{t.date}</td>
+                            <td className="py-3">
+                              <span className="font-medium text-[var(--color-text-primary)]">{t.prev}</span>
+                              <span className="mx-2 text-[var(--color-text-muted)]">→</span>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide ${getRegimeBg(t.next)}`}>
+                                {t.next}
+                              </span>
                             </td>
+                            <td className="py-3 pr-2 text-right font-[var(--font-mono)]">{t.score > 0 ? `+${t.score.toFixed(4)}` : t.score.toFixed(4)}</td>
                           </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
-              <ControlCenter />
+              {/* Trading Log Row */}
+              <div className="col-span-12 md:col-span-6 minimalist-card animate-fade-up" style={{ animationDelay: '425ms' }}>
+                <div className="mb-6">
+                  <h2 className="text-lg font-[var(--font-display)]">Trading Log</h2>
+                </div>
+                <div className="h-[350px] overflow-y-auto hidden-scrollbar">
+                  <TradingLogPanel data={chartData || []} />
+                </div>
+              </div>
+
             </div>
-          </section>
-        </SynchronizedChartProvider>
-      </div>
-    </div>
+          </SynchronizedChartProvider>
+        </div>
+     </div>
   );
 };
-
 export default Dashboard;

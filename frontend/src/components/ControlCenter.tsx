@@ -71,40 +71,34 @@ export const ControlCenter: React.FC = () => {
       id: "sync_today",
       name: "Sync Today's Data",
       description: "Run run_pipeline.py for today",
-      icon: <Play weight="duotone" className="w-5 h-5" />,
-      color: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
+      icon: <Play weight="bold" className="w-5 h-5" />,
+      color: "text-[var(--color-bull)] bg-[var(--color-surface)] border-[var(--color-border)]",
     },
     {
       id: "recover_10d",
       name: "Recover Last 10 Days",
       description: "Run backfill.py",
-      icon: <ArrowsClockwise weight="duotone" className="w-5 h-5" />,
-      color: "text-blue-400 bg-blue-400/10 border-blue-400/20",
+      icon: <ArrowsClockwise weight="bold" className="w-5 h-5" />,
+      color: "text-[#1F6C9F] bg-[#E1F3FE] border-[var(--color-border)]",
     },
     {
       id: "vif_audit",
       name: "Run VIF Audit",
       description: "Check multicollinearity (VIF > 10)",
-      icon: <ChartLineUp weight="duotone" className="w-5 h-5" />,
-      color: "text-purple-400 bg-purple-400/10 border-purple-400/20",
+      icon: <ChartLineUp weight="bold" className="w-5 h-5" />,
+      color: "text-[#5B3E96] bg-[#F1EDF9] border-[var(--color-border)]",
     },
     {
       id: "full_repopulation",
-      name: "Full Repopulation (2016)",
+      name: "Full Repopulation",
       description: "Run backfill_all.py (Heavy)",
-      icon: <Database weight="duotone" className="w-5 h-5" />,
-      color: "text-orange-400 bg-orange-400/10 border-orange-400/20",
+      icon: <Database weight="bold" className="w-5 h-5" />,
+      color: "text-[var(--color-bear)] bg-[var(--color-surface)] border-[var(--color-border)]",
     },
   ];
 
   return (
-    <div className="flex flex-col gap-4 bg-[#0a0a0f] p-6 rounded-3xl border border-[#202025]/50 shadow-[0_8px_32px_rgba(0,0,0,0.4)] backdrop-blur-xl">
-      <div>
-        <span className="text-[10px] uppercase tracking-[0.2em] font-semibold text-gray-500">
-          Developer Tools
-        </span>
-        <h3 className="text-sm font-semibold text-[#f3f4f6] mt-0.5">Control Center</h3>
-      </div>
+    <div className="flex flex-col gap-4 h-full">
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
         {actions.map((act) => (
@@ -112,50 +106,50 @@ export const ControlCenter: React.FC = () => {
             key={act.id}
             onClick={() => triggerAction(act.id, act.name)}
             disabled={isRunning}
-            className={`flex items-start gap-3 p-3 text-left rounded-xl border border-[#202025] bg-[#050505] transition-all
-              ${isRunning ? "opacity-50 cursor-not-allowed" : "hover:border-gray-700 hover:bg-[#111] active:scale-[0.98]"}`}
+            className={`flex items-start gap-3 p-3 text-left rounded border border-[var(--color-border)] bg-[var(--color-surface)] transition-all shadow-sm
+              ${isRunning ? "opacity-50 cursor-not-allowed" : "hover:bg-[var(--color-surface)] active:scale-[0.98]"}`}
           >
-            <div className={`p-2 rounded-lg border ${act.color}`}>
+            <div className={`p-2 rounded border ${act.color}`}>
               {act.icon}
             </div>
             <div>
-              <div className="text-xs font-semibold text-gray-200">{act.name}</div>
-              <div className="text-[10px] text-gray-500 mt-0.5">{act.description}</div>
+              <div className="text-sm font-medium text-[var(--color-text-primary)]">{act.name}</div>
+              <div className="text-[10px] font-mono text-[var(--color-text-muted)] mt-0.5">{act.description}</div>
             </div>
           </button>
         ))}
       </div>
 
       {logs.length > 0 && (
-        <div className="mt-4 border border-[#202025] rounded-xl bg-[#050505] overflow-hidden flex flex-col">
-          <div className="bg-[#111] px-4 py-2 border-b border-[#202025] flex items-center gap-2">
-            <Terminal className="w-4 h-4 text-gray-400" />
-            <span className="text-xs font-mono text-gray-400 uppercase tracking-widest">Execution Log</span>
+        <div className="mt-4 border border-[var(--color-border)] rounded bg-[var(--color-surface)] shadow-sm overflow-hidden flex flex-col">
+          <div className="bg-[var(--color-surface)] px-4 py-2 border-b border-[var(--color-border)] flex items-center gap-2">
+            <Terminal className="w-4 h-4 text-[var(--color-text-muted)]" />
+            <span className="text-[10px] font-mono text-[var(--color-text-muted)] uppercase tracking-[0.1em]">Execution Log</span>
           </div>
           <div className="p-4 flex flex-col gap-3 max-h-[200px] overflow-y-auto custom-scrollbar">
             {logs.map((log) => (
-              <div key={log.id} className="flex flex-col gap-1.5 border-b border-[#202025]/50 pb-3 last:border-0 last:pb-0">
+              <div key={log.id} className="flex flex-col gap-1.5 border-b border-[var(--color-border)] pb-3 last:border-0 last:pb-0">
                 <div className="flex items-center gap-2 text-xs">
-                  <span className="text-gray-600 font-mono">{log.timestamp}</span>
-                  <span className="text-gray-300 font-medium">{log.action}</span>
+                  <span className="text-[var(--color-text-muted)] font-mono text-[10px]">{log.timestamp}</span>
+                  <span className="text-[var(--color-text-primary)] font-mono text-[10px]">{log.action}</span>
                   {log.status === "running" && (
-                    <span className="ml-auto text-yellow-500 flex items-center gap-1">
+                    <span className="ml-auto text-[var(--color-sideways)] flex items-center gap-1 font-mono text-[10px] bg-[var(--color-surface)] px-1.5 rounded">
                       <ArrowsClockwise className="w-3.5 h-3.5 animate-spin" /> Running
                     </span>
                   )}
                   {log.status === "success" && (
-                    <span className="ml-auto text-emerald-500 flex items-center gap-1">
+                    <span className="ml-auto text-[var(--color-bull)] flex items-center gap-1 font-mono text-[10px] bg-[var(--color-surface)] px-1.5 rounded">
                       <CheckCircle className="w-3.5 h-3.5" /> Success
                     </span>
                   )}
                   {log.status === "error" && (
-                    <span className="ml-auto text-rose-500 flex items-center gap-1">
+                    <span className="ml-auto text-[var(--color-bear)] flex items-center gap-1 font-mono text-[10px] bg-[var(--color-surface)] px-1.5 rounded">
                       <WarningCircle className="w-3.5 h-3.5" /> Failed
                     </span>
                   )}
                 </div>
                 {log.output && (
-                  <pre className="text-[10px] font-mono text-gray-400 bg-[#0a0a0f] p-2 rounded border border-[#202025] overflow-x-auto whitespace-pre-wrap">
+                  <pre className="text-[10px] font-mono text-[var(--color-text-muted)] bg-[var(--color-surface)] p-2 rounded border border-[var(--color-border)] overflow-x-auto whitespace-pre-wrap">
                     {log.output}
                   </pre>
                 )}

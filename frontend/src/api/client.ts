@@ -106,6 +106,7 @@ export interface ChartRecord {
   close?: number;
   volume?: number;
   final_score: number;
+  target_exposure?: number;
 }
 
 export interface RegimeRecord {
@@ -184,6 +185,21 @@ export async function fetchOnChainData(start?: string, end?: string): Promise<On
   } catch (err: any) {
     if (err instanceof APIError) throw err;
     throw new APIError(err.message || "Failed to fetch on-chain data");
+  }
+}
+
+export async function triggerAction(action: string): Promise<{ success: boolean; output: string; error_output: string }> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/actions/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action }),
+    });
+    if (!res.ok) throw new APIError(`Failed to trigger action: ${res.statusText}`, res.status);
+    return await res.json();
+  } catch (err: any) {
+    if (err instanceof APIError) throw err;
+    throw new APIError(err.message || "Failed to trigger action");
   }
 }
 

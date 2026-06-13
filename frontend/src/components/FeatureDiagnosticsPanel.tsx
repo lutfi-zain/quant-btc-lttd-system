@@ -102,7 +102,7 @@ export const FeatureDiagnosticsPanel: React.FC<FeatureDiagnosticsPanelProps> = (
 
   if (!activeRecord) {
     return (
-      <div className="bg-[#0a0a0f] p-6 rounded-3xl border border-[#202025]/50 text-gray-500 text-center text-xs">
+      <div className="bg-[var(--color-surface)] p-6 rounded-none border border-[var(--color-border)] text-[var(--color-text-muted)] text-center text-xs font-mono">
         No diagnostics telemetry available.
       </div>
     );
@@ -124,43 +124,35 @@ export const FeatureDiagnosticsPanel: React.FC<FeatureDiagnosticsPanelProps> = (
   };
 
   return (
-    <div className="flex flex-col gap-6 bg-[#0a0a0f] p-6 rounded-3xl border border-[#202025]/50 shadow-[0_8px_32px_rgba(0,0,0,0.4)] backdrop-blur-xl transition-all duration-300">
+    <div className="flex flex-col gap-6 h-full transition-all duration-300">
       {/* Panel Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-[#202025]/30 pb-4">
-        <div>
-          <span className="text-[10px] uppercase tracking-[0.2em] font-semibold text-purple-400">
-            Layer 3 & 4 Transparency
-          </span>
-          <h3 className="text-sm font-semibold text-[#f3f4f6] mt-0.5">
-            Feature Analytics & Calculation Rules
-          </h3>
-        </div>
-        <div className="text-[10px] text-gray-500 font-mono bg-white/5 px-2.5 py-1 rounded-lg border border-white/5">
+      <div className="flex justify-between items-center border-b border-[var(--color-border)] pb-4">
+        <div className="text-[10px] text-[var(--color-text-muted)] font-mono bg-[var(--color-surface)] px-3 py-1.5 rounded border border-[var(--color-border)] inline-block">
           AS OF: {activeRecord.date}
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex bg-[#05050a] p-1 rounded-xl border border-[#202025]/30">
+      <div className="flex bg-[var(--color-surface)] p-1 rounded-none border border-[var(--color-border)]">
         <button
           onClick={() => setActiveTab("technical")}
-          className={`flex-1 py-2 text-[10px] font-bold tracking-wider rounded-lg transition-all duration-300 ${
+          className={`flex-1 py-1.5 text-[10px] font-mono uppercase tracking-[0.05em] rounded transition-all duration-200 ${
             activeTab === "technical"
-              ? "bg-purple-500/10 text-purple-400 border border-purple-500/20"
-              : "text-gray-500 hover:text-gray-300"
+              ? "bg-[var(--color-surface)] text-[var(--color-text-primary)] shadow-[0_1px_2px_rgba(0,0,0,0.05)] font-semibold"
+              : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
           }`}
         >
-          TECHNICAL INDICATORS ({Object.keys(vif).length})
+          Technical ({Object.keys(vif).length})
         </button>
         <button
           onClick={() => setActiveTab("onchain")}
-          className={`flex-1 py-2 text-[10px] font-bold tracking-wider rounded-lg transition-all duration-300 ${
+          className={`flex-1 py-1.5 text-[10px] font-mono uppercase tracking-[0.05em] rounded transition-all duration-200 ${
             activeTab === "onchain"
-              ? "bg-purple-500/10 text-purple-400 border border-purple-500/20"
-              : "text-gray-500 hover:text-gray-300"
+              ? "bg-[var(--color-surface)] text-[var(--color-text-primary)] shadow-[0_1px_2px_rgba(0,0,0,0.05)] font-semibold"
+              : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
           }`}
         >
-          ON-CHAIN OVERRIDES ({ON_CHAIN_DETAILS.length})
+          Overrides ({ON_CHAIN_DETAILS.length})
         </button>
       </div>
 
@@ -169,83 +161,74 @@ export const FeatureDiagnosticsPanel: React.FC<FeatureDiagnosticsPanelProps> = (
           {/* PCA & VIF Metrics Overview */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* PCA Card */}
-            <div className="p-4 bg-white/3 rounded-2xl border border-white/5 flex flex-col justify-between hover:bg-white/5 transition-all duration-300">
-              <div className="text-[9px] uppercase tracking-wider text-gray-500 font-mono">
+            <div className="p-4 bg-[var(--color-surface)] rounded border border-[var(--color-border)] flex flex-col justify-between">
+              <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] font-mono">
                 PCA Variance Explained
               </div>
               <div className="flex items-baseline gap-2 mt-2">
-                <span className="text-2xl font-bold text-cyan-400 font-mono">
+                <span className="text-xl font-medium text-[var(--color-text-primary)] font-mono">
                   {pcaVariance.toFixed(1)}%
                 </span>
-                <span className="text-[9px] text-emerald-400 font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                <span className="text-[9px] text-[var(--color-bull)] uppercase tracking-wider px-2 py-0.5 rounded-none bg-[var(--color-surface)] border border-[var(--color-border)]">
                   &gt; 85% Target Met
                 </span>
               </div>
-              <p className="text-[10px] text-gray-500 mt-2 leading-relaxed">
+              <p className="text-[10px] text-[var(--color-text-muted)] mt-2 leading-relaxed">
                 Komponen utama ortogonal menyaring linear redundancy, menyisakan konsensus trend murni.
               </p>
             </div>
 
             {/* VIF Warning Card */}
             <div
-              className={`p-4 rounded-2xl border flex flex-col justify-between transition-all duration-300 ${
+              className={`p-4 rounded border flex flex-col justify-between ${
                 collinearCount > 0
-                  ? "bg-rose-500/5 border-rose-500/20 shadow-[0_0_20px_rgba(239,68,68,0.05)] font-mono"
-                  : "bg-white/3 border-white/5 hover:bg-white/5"
+                  ? "bg-[var(--color-surface)] border-[var(--color-bear)] font-mono"
+                  : "bg-[var(--color-surface)] border-[var(--color-border)]"
               }`}
             >
-              <div className="text-[9px] uppercase tracking-wider text-gray-500 font-mono">
+              <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] font-mono">
                 Multicollinearity Status
               </div>
               <div className="flex items-center gap-2 mt-2">
                 {collinearCount > 0 ? (
                   <>
-                    <span className="text-2xl font-bold text-rose-400 font-mono">
+                    <span className="text-xl font-medium text-[var(--color-bear)] font-mono">
                       {collinearCount} Alert
                     </span>
-                    <span className="text-[9px] text-rose-400 font-bold px-2 py-0.5 rounded-full bg-rose-500/15 border border-rose-500/30 animate-pulse">
+                    <span className="text-[9px] text-[var(--color-bear)] uppercase tracking-wider px-2 py-0.5 rounded-none bg-[var(--color-surface)] border border-[var(--color-bear)]">
                       CRITICAL: VIF &gt; 10
                     </span>
                   </>
                 ) : (
                   <>
-                    <span className="text-2xl font-bold text-emerald-400 font-mono">
+                    <span className="text-xl font-medium text-[var(--color-bull)] font-mono">
                       Clean
                     </span>
-                    <span className="text-[9px] text-emerald-400 font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                    <span className="text-[9px] text-[var(--color-bull)] uppercase tracking-wider px-2 py-0.5 rounded-none bg-[var(--color-surface)] border border-[var(--color-border)]">
                       VIF &le; 10 Passed
                     </span>
                   </>
                 )}
               </div>
-              <p className="text-[10px] text-gray-500 mt-2 leading-relaxed">
+              <p className="text-[10px] text-[var(--color-text-muted)] mt-2 leading-relaxed">
                 Variance Inflation Factor memastikan tidak ada stacking indikator momentum berlebih.
               </p>
             </div>
           </div>
 
           {/* Feature Matrix Table */}
-          <div className="flex flex-col gap-2">
-            <div className="flex justify-between items-center px-1">
-              <span className="text-[9px] uppercase tracking-[0.15em] font-semibold text-gray-500">
-                Technical Indicator Matrix
-              </span>
-              <span className="text-[9px] text-purple-400 font-medium animate-pulse">
-                ℹ️ Klik baris untuk detail rumus & performa
-              </span>
-            </div>
-
-            <div className="overflow-x-auto rounded-2xl border border-[#202025]/30">
+          <div className="flex flex-col gap-2 mt-2">
+            <div className="overflow-x-auto border border-[var(--color-border)] rounded">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="border-b border-[#202025]/30 bg-white/3 font-semibold text-gray-400">
-                    <th className="p-3 pl-4">Indicator</th>
-                    <th className="p-3">Score</th>
-                    <th className="p-3">VIF Value</th>
-                    <th className="p-3 pr-4 text-right">Expansion Detail</th>
+                  <tr className="border-b border-[var(--color-border)] bg-[var(--color-surface)] font-mono text-[var(--color-text-muted)] text-[10px] uppercase tracking-wider">
+                    <th className="p-3 pl-4 font-normal">Indicator</th>
+                    <th className="p-3 font-normal">Score</th>
+                    <th className="p-3 font-normal">VIF</th>
+                    <th className="p-3 pr-4 text-right font-normal">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#202025]/20 bg-white/2">
+                <tbody className="divide-y divide-[#EAEAEA] bg-[var(--color-surface)]">
                   {Object.keys(vif).map((name) => {
                     const score = scores[name] ?? 0;
                     const vifValue = vif[name] ?? 0;
@@ -258,19 +241,19 @@ export const FeatureDiagnosticsPanel: React.FC<FeatureDiagnosticsPanelProps> = (
                       <React.Fragment key={name}>
                         <tr
                           onClick={() => toggleExpand(name)}
-                          className={`cursor-pointer transition-all duration-300 select-none ${
-                            isExpanded ? "bg-purple-950/20" : "hover:bg-white/5"
-                          } ${isCollinear ? "bg-rose-500/3" : ""}`}
+                          className={`cursor-pointer transition-colors duration-200 select-none ${
+                            isExpanded ? "bg-[var(--color-surface)]" : "hover:bg-[var(--color-surface)]"
+                          } ${isCollinear ? "bg-[var(--color-surface)]/30" : ""}`}
                         >
-                          <td className="p-3.5 pl-4 font-semibold text-gray-200 font-mono">
+                          <td className="p-3.5 pl-4 text-[var(--color-text-primary)] font-mono">
                             {name}
                           </td>
                           <td className="p-3.5">
                             <span
-                              className={`inline-flex items-center justify-center px-2.5 py-0.5 rounded-md text-[10px] font-bold font-mono ${
+                              className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-[10px] font-mono ${
                                 isBullish
-                                  ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                                  : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                                  ? "bg-[var(--color-surface)] text-[var(--color-bull)] border border-[var(--color-border)]"
+                                  : "bg-[var(--color-surface)] text-[var(--color-bear)] border border-[var(--color-border)]"
                               }`}
                             >
                               {score > 0 ? `+${score}` : score}
@@ -279,52 +262,52 @@ export const FeatureDiagnosticsPanel: React.FC<FeatureDiagnosticsPanelProps> = (
                           <td className="p-3.5 font-mono">
                             <span
                               className={
-                                isCollinear ? "text-rose-400 font-bold" : "text-gray-400"
+                                isCollinear ? "text-[var(--color-bear)]" : "text-[var(--color-text-muted)]"
                               }
                             >
                               {vifValue.toFixed(2)}
                             </span>
                           </td>
                           <td className="p-3.5 pr-4 text-right">
-                            <span className="text-[10px] text-purple-400 font-semibold inline-flex items-center gap-1">
-                              {isExpanded ? "Hide ▲" : "Show Detail ▼"}
+                            <span className="text-[10px] text-[var(--color-text-muted)] font-mono inline-flex items-center">
+                              {isExpanded ? "Less ▲" : "More ▼"}
                             </span>
                           </td>
                         </tr>
 
                         {isExpanded && details && (
-                          <tr className="bg-purple-950/5">
-                            <td colSpan={4} className="p-4 pl-6 pr-6 border-b border-[#202025]/40">
-                              <div className="flex flex-col gap-4 text-gray-400 text-xs">
+                          <tr className="bg-[var(--color-surface)]">
+                            <td colSpan={4} className="p-4 pl-6 pr-6 border-b border-[var(--color-border)]">
+                              <div className="flex flex-col gap-4 text-[var(--color-text-muted)] text-xs">
                                 {/* Indicator Full Name & Math Formula */}
-                                <div className="flex flex-col sm:flex-row justify-between gap-2 border-b border-white/5 pb-2">
+                                <div className="flex flex-col sm:flex-row justify-between gap-2 border-b border-[var(--color-border)] pb-3">
                                   <div>
-                                    <div className="text-[10px] text-gray-500 font-mono">
-                                      INDICATOR METRIC
+                                    <div className="text-[9px] uppercase tracking-wider text-[var(--color-text-muted)] font-mono">
+                                      Indicator Metric
                                     </div>
-                                    <div className="text-sm font-bold text-gray-200">
+                                    <div className="text-sm font-serif text-[var(--color-text-primary)] mt-0.5">
                                       {details.fullName}
                                     </div>
                                   </div>
-                                  <div className="text-right sm:text-right">
-                                    <div className="text-[10px] text-gray-500 font-mono">
-                                      MATHEMATICAL FORMULA
+                                  <div className="text-left sm:text-right">
+                                    <div className="text-[9px] uppercase tracking-wider text-[var(--color-text-muted)] font-mono">
+                                      Mathematical Formula
                                     </div>
-                                    <div className="font-mono text-cyan-300 text-xs bg-black/40 px-3 py-1 rounded-lg border border-white/5 mt-0.5 inline-block">
+                                    <div className="font-mono text-[var(--color-text-primary)] text-xs bg-[var(--color-surface)] px-2 py-1 rounded border border-[var(--color-border)] mt-1 inline-block">
                                       {details.formula}
                                     </div>
                                   </div>
                                 </div>
 
                                 {/* Indicator Description */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                  <div className="md:col-span-2 flex flex-col gap-2">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                  <div className="md:col-span-2 flex flex-col gap-3">
                                     <div>
-                                      <span className="font-bold text-gray-300">Deskripsi: </span>
+                                      <span className="font-medium text-[var(--color-text-primary)]">Deskripsi: </span>
                                       {details.description}
                                     </div>
                                     <div>
-                                      <span className="font-bold text-gray-300">
+                                      <span className="font-medium text-[var(--color-text-primary)]">
                                         Logika Interpretasi LTTD:{" "}
                                       </span>
                                       {details.interpretation}
@@ -332,25 +315,25 @@ export const FeatureDiagnosticsPanel: React.FC<FeatureDiagnosticsPanelProps> = (
                                   </div>
 
                                   {/* Stats Table */}
-                                  <div className="p-3 bg-white/2 rounded-xl border border-white/5 flex flex-col gap-2">
-                                    <div className="text-[9px] uppercase tracking-wider text-gray-500 font-mono">
-                                      Historical Performance (BTC)
+                                  <div className="p-3 bg-[var(--color-surface)] rounded border border-[var(--color-border)] flex flex-col gap-2">
+                                    <div className="text-[9px] uppercase tracking-wider text-[var(--color-text-muted)] font-mono mb-1">
+                                      Historical Performance
                                     </div>
-                                    <div className="flex justify-between items-center py-1 border-b border-white/5">
-                                      <span className="text-gray-500">Korelasi (r)</span>
-                                      <span className="font-mono font-bold text-emerald-400">
+                                    <div className="flex justify-between items-center py-1 border-b border-[var(--color-border)]">
+                                      <span className="text-[var(--color-text-muted)]">Korelasi (r)</span>
+                                      <span className="font-mono text-[var(--color-text-primary)]">
                                         {details.stats.correlation}
                                       </span>
                                     </div>
-                                    <div className="flex justify-between items-center py-1 border-b border-white/5">
-                                      <span className="text-gray-500">Akurasi Arah</span>
-                                      <span className="font-mono font-bold text-cyan-400">
+                                    <div className="flex justify-between items-center py-1 border-b border-[var(--color-border)]">
+                                      <span className="text-[var(--color-text-muted)]">Akurasi Arah</span>
+                                      <span className="font-mono text-[var(--color-text-primary)]">
                                         {details.stats.accuracy}
                                       </span>
                                     </div>
                                     <div className="flex justify-between items-center py-1">
-                                      <span className="text-gray-500">Bobot PC1 Loading</span>
-                                      <span className="font-mono font-bold text-purple-400">
+                                      <span className="text-[var(--color-text-muted)]">Bobot PC1 Loading</span>
+                                      <span className="font-mono text-[var(--color-text-primary)]">
                                         {details.stats.pcaWeight}
                                       </span>
                                     </div>
@@ -369,41 +352,40 @@ export const FeatureDiagnosticsPanel: React.FC<FeatureDiagnosticsPanelProps> = (
           </div>
         </>
       ) : (
-        /* On-Chain Override Logic transparency panel */
-        <div className="flex flex-col gap-4">
-          <div className="p-4 bg-purple-500/5 border border-purple-500/15 rounded-2xl">
-            <h4 className="text-xs font-bold text-purple-400 font-mono mb-1">
+        <div className="flex flex-col gap-4 mt-2">
+          <div className="p-4 bg-[var(--color-surface)] border border-[var(--color-border)] rounded">
+            <h4 className="text-[10px] uppercase tracking-wider font-medium text-[var(--color-text-primary)] font-mono mb-2">
               Override Logic (Layer 2)
             </h4>
-            <p className="text-[11px] text-gray-400 leading-relaxed">
+            <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
               Meskipun Layer 4 (Ensemble Aggregator) menghasilkan skor Bullish, sistem melacak status
               on-chain yang bersifat <strong>leading</strong> pada puncak siklus pasar. Jika batas
-              ambang (threshold) di bawah terlampaui, alokasi exposure akan segera dipotong/di-bypass
-              secara langsung untuk melindungi modal dari resiko koreksi makro (Risk-Off).
+              ambang (threshold) terlampaui, alokasi exposure akan segera dipotong
+              secara langsung untuk melindungi modal dari resiko koreksi makro.
             </p>
           </div>
 
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
             {ON_CHAIN_DETAILS.map((item, idx) => (
               <div
                 key={idx}
-                className="p-4 bg-white/2 rounded-2xl border border-[#202025]/40 flex flex-col gap-2 hover:bg-white/4 transition-all duration-300"
+                className="p-4 bg-[var(--color-surface)] rounded border border-[var(--color-border)] flex flex-col gap-3"
               >
-                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-1.5">
-                  <span className="text-xs font-bold text-gray-200 font-mono">{item.name}</span>
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+                  <span className="text-sm font-medium text-[var(--color-text-primary)]">{item.name}</span>
                   <div className="flex gap-2">
-                    <span className="px-2 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-md text-[9px] font-mono">
+                    <span className="px-2 py-0.5 bg-[var(--color-surface)] text-[var(--color-bear)] border border-[var(--color-border)] rounded text-[10px] font-mono">
                       Threshold: {item.threshold}
                     </span>
-                    <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-md text-[9px] font-mono">
+                    <span className="px-2 py-0.5 bg-[var(--color-surface)] text-[var(--color-sideways)] border border-[var(--color-border)] rounded text-[10px] font-mono">
                       {item.action}
                     </span>
                   </div>
                 </div>
-                <div className="text-[10px] text-cyan-300 font-mono bg-black/30 px-2 py-0.5 rounded border border-white/3 self-start">
+                <div className="text-[10px] text-[var(--color-text-primary)] font-mono bg-[var(--color-surface)] px-2 py-1 rounded border border-[var(--color-border)] self-start">
                   Formula: {item.formula}
                 </div>
-                <p className="text-[11px] text-gray-400 leading-relaxed mt-1">
+                <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
                   {item.description}
                 </p>
               </div>
@@ -414,11 +396,11 @@ export const FeatureDiagnosticsPanel: React.FC<FeatureDiagnosticsPanelProps> = (
 
       {/* Date slider to view historical diagnostics */}
       {data.length > 1 && activeIdx !== null && (
-        <div className="flex flex-col gap-2 pt-2 border-t border-[#202025]/30">
-          <div className="flex justify-between items-center text-[10px] text-gray-500 font-mono">
-            <span>Historical Navigation Slider</span>
+        <div className="flex flex-col gap-3 mt-4 pt-4 border-t border-[var(--color-border)]">
+          <div className="flex justify-between items-center text-[10px] text-[var(--color-text-muted)] font-mono uppercase tracking-wider">
+            <span>Historical Navigation</span>
             <span>
-              Date Index: {activeIdx + 1} / {data.length}
+              Index: {activeIdx + 1} / {data.length}
             </span>
           </div>
           <input
@@ -427,7 +409,7 @@ export const FeatureDiagnosticsPanel: React.FC<FeatureDiagnosticsPanelProps> = (
             max={data.length - 1}
             value={activeIdx}
             onChange={(e) => setSelectedIdx(Number(e.target.value))}
-            className="w-full accent-purple-500 bg-[#12121a] h-1.5 rounded-lg appearance-none cursor-pointer"
+            className="w-full accent-[var(--color-accent)] h-1 bg-[#EAEAEA] rounded appearance-none cursor-pointer"
           />
         </div>
       )}

@@ -50,13 +50,13 @@ export const OnChainPanel: React.FC<OnChainPanelProps> = ({ data }) => {
     }
 
     const themeColors = {
-      bg: "#050505",
-      grid: "#111115",
-      text: "#8a8f98",
-      border: "#202025",
-      mvrv: "#38bdf8", // Sky blue
-      nupl: "#fb7185", // Rose pink
-      alert: "#ef4444",
+      bg: "#FFFFFF",
+      grid: "#EAEAEA",
+      text: "#787774",
+      border: "#EAEAEA",
+      mvrv: "#1F6C9F", // Muted blue
+      nupl: "#9F2F2D", // Muted red
+      alert: "#9F2F2D",
     };
 
     const commonOptions = {
@@ -80,8 +80,8 @@ export const OnChainPanel: React.FC<OnChainPanelProps> = ({ data }) => {
         visible: true,
       },
       crosshair: {
-        vertLine: { color: "#404048", width: 1 as any, style: 3 as any },
-        horzLine: { color: "#404048", width: 1 as any, style: 3 as any },
+        vertLine: { color: "#D1D1D1", width: 1 as any, style: 3 as any },
+        horzLine: { color: "#D1D1D1", width: 1 as any, style: 3 as any },
       },
     };
 
@@ -216,55 +216,49 @@ export const OnChainPanel: React.FC<OnChainPanelProps> = ({ data }) => {
   const isNuplAlert = activeVal && activeVal.sth_nupl !== undefined && activeVal.sth_nupl > 0.75;
 
   return (
-    <div className="flex flex-col gap-4 bg-[#0a0a0f] p-6 rounded-3xl border border-[#202025]/50 shadow-[0_8px_32px_rgba(0,0,0,0.4)] backdrop-blur-xl">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 px-2 py-1">
-        <div>
-          <span className="text-[10px] uppercase tracking-[0.2em] font-semibold text-purple-400">Layer 2 Signal overrides</span>
-          <h3 className="text-sm font-semibold text-[#f3f4f6] mt-0.5">On-Chain Cycle Volatility</h3>
-        </div>
-
-        {activeVal && (
-          <div className="flex flex-wrap items-center gap-3 bg-white/5 border border-white/10 px-3 py-1 rounded-2xl text-[10px]">
-            <span className="text-gray-500 font-mono">{activeVal.date}</span>
-            <div className="flex items-center gap-2">
-              <span className="text-gray-400 font-medium">STH-MVRV:</span>
-              <span className={`font-bold font-mono ${isMvrvAlert ? "text-rose-400" : "text-sky-400"}`}>
-                {activeVal.sth_mvrv?.toFixed(2) ?? "N/A"}
+    <div className="flex flex-col gap-6 h-full">
+      {activeVal && (
+        <div className="flex flex-wrap items-center gap-3 bg-[var(--color-surface)] border border-[var(--color-border)] px-4 py-2 rounded text-[10px]">
+          <span className="text-[var(--color-text-muted)] font-mono uppercase tracking-wider">{activeVal.date}</span>
+          <div className="w-[1px] h-3 bg-[#EAEAEA]"></div>
+          <div className="flex items-center gap-2">
+            <span className="text-[var(--color-text-muted)] font-medium tracking-wider">STH-MVRV</span>
+            <span className={`font-mono ${isMvrvAlert ? "text-[var(--color-bear)]" : "text-[var(--color-text-primary)]"}`}>
+              {activeVal.sth_mvrv?.toFixed(2) ?? "N/A"}
+            </span>
+            {isMvrvAlert && (
+              <span className="px-1.5 py-0.5 bg-[var(--color-surface)] text-[var(--color-bear)] border border-[var(--color-bear)] rounded font-medium text-[8px] tracking-widest uppercase">
+                Euphoria
               </span>
-              {isMvrvAlert && (
-                <span className="px-1.5 py-0.2 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-md font-bold text-[8px] animate-pulse">
-                  EUPHORIA
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-gray-400 font-medium">STH-NUPL:</span>
-              <span className={`font-bold font-mono ${isNuplAlert ? "text-rose-400" : "text-rose-400"}`}>
-                {activeVal.sth_nupl?.toFixed(2) ?? "N/A"}
-              </span>
-              {isNuplAlert && (
-                <span className="px-1.5 py-0.2 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-md font-bold text-[8px] animate-pulse">
-                  ALERT
-                </span>
-              )}
-            </div>
+            )}
           </div>
-        )}
-      </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[var(--color-text-muted)] font-medium tracking-wider">STH-NUPL</span>
+            <span className={`font-mono ${isNuplAlert ? "text-[var(--color-bear)]" : "text-[var(--color-text-primary)]"}`}>
+              {activeVal.sth_nupl?.toFixed(2) ?? "N/A"}
+            </span>
+            {isNuplAlert && (
+              <span className="px-1.5 py-0.5 bg-[var(--color-surface)] text-[var(--color-bear)] border border-[var(--color-bear)] rounded font-medium text-[8px] tracking-widest uppercase">
+                Alert
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* STH-MVRV Chart Container */}
-      <div className="flex flex-col gap-1">
-        <span className="text-[9px] uppercase tracking-wider text-gray-500 px-2 font-mono">Short-Term Holder MVRV</span>
-        <div className="relative w-full h-[160px] rounded-2xl border border-[#202025]/30 bg-[#050505] overflow-hidden">
-          <div ref={mvrvContainerRef} className="w-full h-full" />
+      <div className="flex flex-col gap-2">
+        <span className="text-[9px] uppercase tracking-[0.1em] font-medium text-[var(--color-text-muted)] px-1 font-mono">Short-Term Holder MVRV</span>
+        <div className="relative w-full h-[160px] rounded border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
+          <div ref={mvrvContainerRef} className="absolute inset-0" />
         </div>
       </div>
 
       {/* STH-NUPL Chart Container */}
-      <div className="flex flex-col gap-1">
-        <span className="text-[9px] uppercase tracking-wider text-gray-500 px-2 font-mono">Short-Term Holder NUPL</span>
-        <div className="relative w-full h-[160px] rounded-2xl border border-[#202025]/30 bg-[#050505] overflow-hidden">
-          <div ref={nuplContainerRef} className="w-full h-full" />
+      <div className="flex flex-col gap-2">
+        <span className="text-[9px] uppercase tracking-[0.1em] font-medium text-[var(--color-text-muted)] px-1 font-mono">Short-Term Holder NUPL</span>
+        <div className="relative w-full h-[160px] rounded border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
+          <div ref={nuplContainerRef} className="absolute inset-0" />
         </div>
       </div>
     </div>

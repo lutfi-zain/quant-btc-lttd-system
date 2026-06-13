@@ -1,6 +1,105 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&family=JetBrains+Mono:wght@400;500;700;800&family=Switzer:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Switzer', 'SF Pro Display', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Lyon Text', 'Playfair Display', serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+
+  --color-canvas: var(--color-canvas);
+  --color-surface: var(--color-surface);
+  --color-surface-hover: var(--color-surface-hover);
+  --color-border: var(--color-border);
+  --color-text-primary: var(--color-text-primary);
+  --color-text-muted: var(--color-text-muted);
+  
+  --color-accent: var(--color-accent);
+  --color-accent-hover: var(--color-accent-hover);
+
+  --color-bull: var(--color-bull);
+  --color-bear: var(--color-bear);
+  --color-sideways: var(--color-sideways);
+  
+  --color-bg-bull: var(--color-bg-bull);
+  --color-bg-bear: var(--color-bg-bear);
+  --color-bg-sideways: var(--color-bg-sideways);
 }
+
+:root {
+  color-scheme: light;
+  --color-canvas: #FBFBFA;
+  --color-surface: #FFFFFF;
+  --color-surface-hover: #F7F6F3;
+  --color-border: #EAEAEA;
+  --color-text-primary: #111111;
+  --color-text-muted: #787774;
+  --color-accent: #111111;
+  --color-accent-hover: #333333;
+  --color-bull: #346538;
+  --color-bear: #9F2F2D;
+  --color-sideways: #956400;
+  --color-bg-bull: #EDF3EC;
+  --color-bg-bear: #FDEBEC;
+  --color-bg-sideways: #FBF3DB;
+}
+
+:root.dark {
+  color-scheme: dark;
+  --color-canvas: #0A0A0A;
+  --color-surface: #121212;
+  --color-surface-hover: #1A1A1A;
+  --color-border: #333333;
+  --color-text-primary: #EAEAEA;
+  --color-text-muted: #888888;
+  --color-accent: #EAEAEA;
+  --color-accent-hover: #FFFFFF;
+  --color-bull: #4AF626;
+  --color-bear: #E61919;
+  --color-sideways: #A0A0A0;
+  --color-bg-bull: rgba(74, 246, 38, 0.1);
+  --color-bg-bear: rgba(230, 25, 25, 0.1);
+  --color-bg-sideways: rgba(160, 160, 160, 0.1);
+}
+
+body {
+  background-color: var(--color-canvas);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@layer utilities {
+  .bento-grid {
+    display: grid;
+    gap: 1.5rem;
+    grid-template-columns: repeat(12, 1fr);
+  }
+  
+  .minimalist-card {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    position: relative;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+    transition: box-shadow 200ms ease, transform 200ms ease;
+  }
+  
+  .minimalist-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+  }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-up {
+  animation: fade-up 600ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+}
+
+

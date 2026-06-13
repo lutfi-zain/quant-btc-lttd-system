@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
 import React, { useEffect, useRef, useState } from "react";
-import { createChart, AreaSeries } from "lightweight-charts";
+import { createChart, AreaSeries, ColorType } from "lightweight-charts";
 import type { IChartApi } from "lightweight-charts";
 import { useSynchronizedCharts } from "./SynchronizedChartContext";
 import type { RegimeRecord } from "../api/client";
@@ -50,24 +50,33 @@ export const RegimePanel: React.FC<RegimePanelProps> = ({ data }) => {
       chartRef.current = null;
     }
 
+    const getVar = (name: string, fallback: string) => {
+      if (typeof window === 'undefined') return fallback;
+      const val = getComputedStyle(document.documentElement).getPropertyValue(name);
+      return val ? val.trim() : fallback;
+    };
+
+    const defaultBorder = getVar('--color-border', 'rgba(255,255,255,0.1)');
     const themeColors = {
-      bg: "#050505",
-      grid: "#111115",
-      text: "#8a8f98",
-      border: "#202025",
-      bull: "rgba(16, 185, 129, 0.4)",      // Emerald green
-      bear: "rgba(239, 68, 68, 0.4)",        // Rose red
-      sideways: "rgba(168, 85, 247, 0.4)",    // Purple
+      bg: "transparent",
+      grid: defaultBorder,
+      text: getVar('--color-text-muted', '#a1a1aa'),
+      border: defaultBorder,
+      fontFamily: getVar('--font-mono', "'JetBrains Mono', monospace"),
+      crosshair: getVar('--color-text-primary', '#f4f4f5'),
+      bull: getVar('--color-bull', '#10b981'),
+      bear: getVar('--color-bear', '#ef4444'),
+      sideways: getVar('--color-sideways', '#f59e0b'),
     };
 
     const chart = createChart(containerRef.current, {
       width: containerRef.current.clientWidth,
       height: 220,
       layout: {
-        background: { color: themeColors.bg },
+        background: { type: ColorType.Solid, color: themeColors.bg },
         textColor: themeColors.text,
         fontSize: 11,
-        fontFamily: "'Plus Jakarta Sans', sans-serif",
+        fontFamily: themeColors.fontFamily,
       },
       grid: {
         vertLines: { color: themeColors.grid },
@@ -84,12 +93,12 @@ export const RegimePanel: React.FC<RegimePanelProps> = ({ data }) => {
       },
       crosshair: {
         vertLine: {
-          color: "#404048",
+          color: themeColors.crosshair,
           width: 1,
           style: 3,
         },
         horzLine: {
-          color: "#404048",
+          color: themeColors.crosshair,
           width: 1,
           style: 3,
         },
@@ -102,27 +111,27 @@ export const RegimePanel: React.FC<RegimePanelProps> = ({ data }) => {
     // Area series for stacked representation:
     // 1. Top Area (representing Bull) = p_sideways + p_bear + p_bull = 1.0
     const bullSeries = chart.addSeries(AreaSeries, {
-      topColor: "rgba(16, 185, 129, 0.5)",
+      topColor: "rgba(16, 185, 129, 0.3)",
       bottomColor: "rgba(16, 185, 129, 0.05)",
-      lineColor: "#10b981",
+      lineColor: themeColors.bull,
       lineWidth: 1,
       priceScaleId: "right",
     });
 
     // 2. Middle Area (representing Bear) = p_sideways + p_bear
     const bearSeries = chart.addSeries(AreaSeries, {
-      topColor: "rgba(239, 68, 68, 0.5)",
+      topColor: "rgba(239, 68, 68, 0.3)",
       bottomColor: "rgba(239, 68, 68, 0.05)",
-      lineColor: "#ef4444",
+      lineColor: themeColors.bear,
       lineWidth: 1,
       priceScaleId: "right",
     });
 
     // 3. Bottom Area (representing Sideways) = p_sideways
     const sidewaysSeries = chart.addSeries(AreaSeries, {
-      topColor: "rgba(168, 85, 247, 0.5)",
-      bottomColor: "rgba(168, 85, 247, 0.05)",
-      lineColor: "#a855f7",
+      topColor: "rgba(245, 158, 11, 0.3)",
+      bottomColor: "rgba(245, 158, 11, 0.05)",
+      lineColor: themeColors.sideways,
       lineWidth: 1,
       priceScaleId: "right",
     });
@@ -189,48 +198,50 @@ export const RegimePanel: React.FC<RegimePanelProps> = ({ data }) => {
   const pBear = activeState ? activeState.p_bear : 0;
   const pSideways = activeState ? activeState.p_sideways : 0;
 
+  const getRegimeColor = (regime: string) => {
+    switch (regime) {
+      case "BULL": return { bg: "bg-[var(--color-surface)]", border: "border-[var(--color-border)]", text: "text-[var(--color-bull)]" };
+      case "BEAR": return { bg: "bg-[var(--color-surface)]", border: "border-[var(--color-border)]", text: "text-[var(--color-bear)]" };
+      default: return { bg: "bg-[var(--color-surface)]", border: "border-[var(--color-border)]", text: "text-[var(--color-sideways)]" };
+    }
+  };
+
   return (
-    <div className="flex flex-col gap-2 bg-[#0a0a0f] p-6 rounded-3xl border border-[#202025]/50 shadow-[0_8px_32px_rgba(0,0,0,0.4)] backdrop-blur-xl">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 px-2 py-1">
-        <div>
-          <span className="text-[10px] uppercase tracking-[0.2em] font-semibold text-purple-400">Layer 1 Regime Detection</span>
-          <h3 className="text-sm font-semibold text-[#f3f4f6] mt-0.5">3-State HMM Probabilities</h3>
-        </div>
-
-        {activeState && (
-          <div className="flex flex-wrap items-center gap-3 bg-white/5 border border-white/10 px-3.5 py-1.5 rounded-2xl text-[10px]">
-            <span className="text-gray-500 font-mono">{activeState.date}</span>
-            <div className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#10b981]"></span>
-              <span className="text-gray-400">Bull: {(pBull * 100).toFixed(0)}%</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#ef4444]"></span>
-              <span className="text-gray-400">Bear: {(pBear * 100).toFixed(0)}%</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#a855f7]"></span>
-              <span className="text-gray-400">Sideways: {(pSideways * 100).toFixed(0)}%</span>
-            </div>
-
-            {dominantRegime && (
-              <span className={`ml-2 px-2 py-0.5 rounded-full font-bold border ${
-                dominantRegime === "BULL"
-                  ? "bg-[#10b981]/15 text-[#10b981] border-[#10b981]/25"
-                  : dominantRegime === "BEAR"
-                  ? "bg-[#ef4444]/15 text-[#ef4444] border-[#ef4444]/25"
-                  : "bg-[#a855f7]/15 text-[#a855f7] border-[#a855f7]/25"
-              }`}>
-                {dominantRegime} DOMINANT
-              </span>
-            )}
+    <div className="flex flex-col gap-4 h-full">
+      {activeState && (
+        <div className="flex flex-wrap items-center gap-3 bg-[var(--color-surface)] border border-[var(--color-border)] px-4 py-2 rounded text-[10px]">
+          <span className="text-[var(--color-text-muted)] font-[var(--font-mono)] tracking-wider">{activeState.date}</span>
+          <div className="w-[1px] h-3 bg-[var(--color-border)]"></div>
+          <div className="flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-none bg-[var(--color-bull)]"></span>
+            <span className="text-[var(--color-text-primary)] font-[var(--font-mono)]">Bull: {(pBull * 100).toFixed(0)}%</span>
           </div>
-        )}
-      </div>
+          <div className="flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-none bg-[var(--color-bear)]"></span>
+            <span className="text-[var(--color-text-primary)] font-[var(--font-mono)]">Bear: {(pBear * 100).toFixed(0)}%</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-none bg-[var(--color-sideways)]"></span>
+            <span className="text-[var(--color-text-primary)] font-[var(--font-mono)]">Side: {(pSideways * 100).toFixed(0)}%</span>
+          </div>
 
-      <div className="relative w-full h-[220px] rounded-2xl border border-[#202025]/30 bg-[#050505] overflow-hidden">
-        <div ref={containerRef} className="w-full h-full" />
+          {dominantRegime && (
+            <span className={`ml-auto px-2 py-0.5 rounded font-medium tracking-widest uppercase border text-[9px] ${
+              (() => {
+                const colors = getRegimeColor(dominantRegime);
+                return `${colors.bg} ${colors.border} ${colors.text}`;
+              })()
+            }`}>
+              {dominantRegime} DOMINANT
+            </span>
+          )}
+        </div>
+      )}
+
+      <div className="relative flex-1 w-full rounded border border-[var(--color-border)] bg-transparent overflow-hidden min-h-[220px]">
+        <div ref={containerRef} className="absolute inset-0" />
       </div>
     </div>
   );
 };
+

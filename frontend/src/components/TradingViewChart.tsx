@@ -372,7 +372,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({ data }) => {
   }, [data, showPCA, priceScaleMode, scoreScaleMode]);
 
   return (
-    <div className="flex flex-col gap-2 bg-[#0a0a0f] p-4 rounded-3xl border border-[#202025]/50 shadow-[0_8px_32px_rgba(0,0,0,0.4)] backdrop-blur-xl">
+    <div className="flex flex-col gap-2 bg-[#0a0a0f] p-4 rounded-none border border-[#202025]/50 shadow-[0_8px_32px_rgba(0,0,0,0.4)] backdrop-blur-xl">
       <div className="flex justify-between items-center px-2 py-1">
         <div>
           <span className="text-[10px] uppercase tracking-[0.2em] font-semibold text-purple-400">Layer 6 telemetry</span>
@@ -380,24 +380,24 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({ data }) => {
         </div>
         <button
           onClick={() => setShowPCA(!showPCA)}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-none text-xs font-medium border transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${
             showPCA
               ? "bg-[#22d3ee]/10 text-[#22d3ee] border-[#22d3ee]/30"
               : "bg-white/5 text-gray-400 border-white/10 hover:bg-white/10"
           }`}
         >
-          <span className={`w-1.5 h-1.5 rounded-full ${showPCA ? "bg-[#22d3ee] animate-pulse" : "bg-gray-500"}`}></span>
+          <span className={`w-1.5 h-1.5 rounded-none ${showPCA ? "bg-[#22d3ee] animate-pulse" : "bg-gray-500"}`}></span>
           PCA Overlay
         </button>
       </div>
 
       {/* Primary Pane (Price Candlestick) */}
-      <div className="relative w-full h-[350px] rounded-2xl border border-[#202025]/30 bg-[#050505] overflow-hidden">
+      <div className="relative w-full h-[350px] rounded-none border border-[#202025]/30 bg-[#050505] overflow-hidden">
         <div ref={priceChartContainerRef} className="w-full h-full" />
         <div className="absolute top-3 right-3 z-10 flex gap-2">
           <button
             onClick={() => setPriceScaleMode(priceScaleMode === "log" ? "linear" : "log")}
-            className={`px-2.5 py-1 rounded-full border text-[10px] font-semibold tracking-wider transition-all duration-300 shadow-md cursor-pointer ${
+            className={`px-2.5 py-1 rounded-none border text-[10px] font-semibold tracking-wider transition-all duration-300 shadow-md cursor-pointer ${
               priceScaleMode === "log"
                 ? "bg-purple-500/20 text-purple-400 border-purple-500/40 hover:bg-purple-500/30"
                 : "bg-white/5 text-gray-400 border-white/10 hover:bg-white/10 hover:text-white"
@@ -409,12 +409,12 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({ data }) => {
       </div>
 
       {/* Secondary Pane (LTTD Score) */}
-      <div className="relative w-full h-[150px] rounded-2xl border border-[#202025]/30 bg-[#050505] overflow-hidden">
+      <div className="relative w-full h-[150px] rounded-none border border-[#202025]/30 bg-[#050505] overflow-hidden">
         <div ref={scoreChartContainerRef} className="w-full h-full" />
         <div className="absolute top-3 right-3 z-10 flex gap-2">
           <button
             onClick={() => setScoreScaleMode(scoreScaleMode === "log" ? "linear" : "log")}
-            className={`px-2.5 py-1 rounded-full border text-[10px] font-semibold tracking-wider transition-all duration-300 shadow-md cursor-pointer ${
+            className={`px-2.5 py-1 rounded-none border text-[10px] font-semibold tracking-wider transition-all duration-300 shadow-md cursor-pointer ${
               scoreScaleMode === "log"
                 ? "bg-purple-500/20 text-purple-400 border-purple-500/40 hover:bg-purple-500/30"
                 : "bg-white/5 text-gray-400 border-white/10 hover:bg-white/10 hover:text-white"

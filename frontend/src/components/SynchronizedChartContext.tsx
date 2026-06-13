@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useRef, useCallback } from "react";
 import type { IChartApi, ISeriesApi } from "lightweight-charts";
 
-type AllowedSeries = ISeriesApi<"Line" | "Area" | "Candlestick">;
+type AllowedSeries = ISeriesApi<any>;
 
 interface ChartRegistry {
   chart: IChartApi;

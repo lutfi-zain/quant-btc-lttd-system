@@ -146,6 +146,7 @@ app.get("/api/chart", (c) => {
       close: h.close,
       volume: h.volume,
       final_score: h.final_score,
+      target_exposure: h.target_exposure,
     }));
     return c.json(chartData);
   } catch (err: any) {
