@@ -1,0 +1,367 @@
+{
+  "generated_at": "2026-06-17T03:13:50.768144Z",
+  "data_range": {
+    "start": "2018-05-01 00:00:00",
+    "end": "2025-02-15 00:00:00",
+    "total_days": 2483
+  },
+  "indicator_count": 6,
+  "indicators": [
+    "FDI",
+    "AdvancedStochastic",
+    "KalmanRSI",
+    "FourierSupertrend",
+    "TrendStrengthIndex",
+    "QuantileDEMA"
+  ],
+  "indicator_statistics": {
+    "FDI": {
+      "n": 2483,
+      "mean": 0.622231,
+      "std": 0.484927,
+      "skewness": -0.5042,
+      "kurtosis": -1.7458,
+      "jarque_bera_stat": 420.5207,
+      "jarque_bera_pval": 0.0,
+      "shapiro_wilk_stat": 0.6145,
+      "shapiro_wilk_pval": 0.0,
+      "adf_stat": -4.372,
+      "adf_pval": 0.000333,
+      "adf_lags_used": 10,
+      "acf": {
+        "lag_1": 0.9452,
+        "lag_5": 0.861,
+        "lag_10": 0.7853,
+        "lag_21": 0.6642
+      }
+    },
+    "AdvancedStochastic": {
+      "n": 2483,
+      "mean": 0.553399,
+      "std": 0.409641,
+      "skewness": -0.1909,
+      "kurtosis": -1.6787,
+      "jarque_bera_stat": 306.6346,
+      "jarque_bera_pval": 0.0,
+      "shapiro_wilk_stat": 0.8171,
+      "shapiro_wilk_pval": 0.0,
+      "adf_stat": -4.1662,
+      "adf_pval": 0.000751,
+      "adf_lags_used": 6,
+      "acf": {
+        "lag_1": 0.9968,
+        "lag_5": 0.9668,
+        "lag_10": 0.9106,
+        "lag_21": 0.7762
+      }
+    },
+    "KalmanRSI": {
+      "n": 2483,
+      "mean": 0.513332,
+      "std": 0.376672,
+      "skewness": -0.0806,
+      "kurtosis": -1.4906,
+      "jarque_bera_stat": 232.5667,
+      "jarque_bera_pval": 0.0,
+      "shapiro_wilk_stat": 0.8775,
+      "shapiro_wilk_pval": 0.0,
+      "adf_stat": -2.5624,
+      "adf_pval": 0.101024,
+      "adf_lags_used": 4,
+      "acf": {
+        "lag_1": 0.9998,
+        "lag_5": 0.9948,
+        "lag_10": 0.9816,
+        "lag_21": 0.9363
+      }
+    },
+    "FourierSupertrend": {
+      "n": 2483,
+      "mean": 0.511099,
+      "std": 0.158007,
+      "skewness": -0.003,
+      "kurtosis": -0.3544,
+      "jarque_bera_stat": 12.9949,
+      "jarque_bera_pval": 0.001507,
+      "shapiro_wilk_stat": 0.9957,
+      "shapiro_wilk_pval": 2e-06,
+      "adf_stat": -13.9652,
+      "adf_pval": 0.0,
+      "adf_lags_used": 2,
+      "acf": {
+        "lag_1": 0.9232,
+        "lag_5": 0.4391,
+        "lag_10": 0.1625,
+        "lag_21": 0.057
+      }
+    },
+    "TrendStrengthIndex": {
+      "n": 2483,
+      "mean": 0.532823,
+      "std": 0.499022,
+      "skewness": -0.1316,
+      "kurtosis": -1.9827,
+      "jarque_bera_stat": 413.8643,
+      "jarque_bera_pval": 0.0,
+      "shapiro_wilk_stat": 0.635,
+      "shapiro_wilk_pval": 0.0,
+      "adf_stat": -3.6397,
+      "adf_pval": 0.005046,
+      "adf_lags_used": 0,
+      "acf": {
+        "lag_1": 0.9895,
+        "lag_5": 0.9473,
+        "lag_10": 0.8944,
+        "lag_21": 0.7774
+      }
+    },
+    "QuantileDEMA": {
+      "n": 2483,
+      "mean": 0.752718,
+      "std": 0.431519,
+      "skewness": -1.1715,
+      "kurtosis": -0.6275,
+      "jarque_bera_stat": 608.7213,
+      "jarque_bera_pval": 0.0,
+      "shapiro_wilk_stat": 0.5362,
+      "shapiro_wilk_pval": 0.0,
+      "adf_stat": -2.3191,
+      "adf_pval": 0.165873,
+      "adf_lags_used": 0,
+      "acf": {
+        "lag_1": 0.9957,
+        "lag_5": 0.9783,
+        "lag_10": 0.9567,
+        "lag_21": 0.9089
+      }
+    }
+  },
+  "cross_correlation": {
+    "pearson": {
+      "FDI": {
+        "FDI": 1.0,
+        "AdvancedStochastic": 0.7853,
+        "KalmanRSI": 0.71,
+        "FourierSupertrend": 0.2404,
+        "TrendStrengthIndex": 0.7988,
+        "QuantileDEMA": 0.3197
+      },
+      "AdvancedStochastic": {
+        "FDI": 0.7853,
+        "AdvancedStochastic": 1.0,
+        "KalmanRSI": 0.7314,
+        "FourierSupertrend": 0.181,
+        "TrendStrengthIndex": 0.8832,
+        "QuantileDEMA": 0.2687
+      },
+      "KalmanRSI": {
+        "FDI": 0.71,
+        "AdvancedStochastic": 0.7314,
+        "KalmanRSI": 1.0,
+        "FourierSupertrend": 0.1559,
+        "TrendStrengthIndex": 0.6982,
+        "QuantileDEMA": 0.3861
+      },
+      "FourierSupertrend": {
+        "FDI": 0.2404,
+        "AdvancedStochastic": 0.181,
+        "KalmanRSI": 0.1559,
+        "FourierSupertrend": 1.0,
+        "TrendStrengthIndex": 0.1989,
+        "QuantileDEMA": 0.061
+      },
+      "TrendStrengthIndex": {
+        "FDI": 0.7988,
+        "AdvancedStochastic": 0.8832,
+        "KalmanRSI": 0.6982,
+        "FourierSupertrend": 0.1989,
+        "TrendStrengthIndex": 1.0,
+        "QuantileDEMA": 0.1893
+      },
+      "QuantileDEMA": {
+        "FDI": 0.3197,
+        "AdvancedStochastic": 0.2687,
+        "KalmanRSI": 0.3861,
+        "FourierSupertrend": 0.061,
+        "TrendStrengthIndex": 0.1893,
+        "QuantileDEMA": 1.0
+      }
+    },
+    "spearman": {
+      "FDI": {
+        "FDI": 1.0,
+        "AdvancedStochastic": 0.7482,
+        "KalmanRSI": 0.705,
+        "FourierSupertrend": 0.2468,
+        "TrendStrengthIndex": 0.7988,
+        "QuantileDEMA": 0.3197
+      },
+      "AdvancedStochastic": {
+        "FDI": 0.7482,
+        "AdvancedStochastic": 1.0,
+        "KalmanRSI": 0.7255,
+        "FourierSupertrend": 0.2276,
+        "TrendStrengthIndex": 0.8315,
+        "QuantileDEMA": 0.2864
+      },
+      "KalmanRSI": {
+        "FDI": 0.705,
+        "AdvancedStochastic": 0.7255,
+        "KalmanRSI": 1.0,
+        "FourierSupertrend": 0.1928,
+        "TrendStrengthIndex": 0.6934,
+        "QuantileDEMA": 0.4033
+      },
+      "FourierSupertrend": {
+        "FDI": 0.2468,
+        "AdvancedStochastic": 0.2276,
+        "KalmanRSI": 0.1928,
+        "FourierSupertrend": 1.0,
+        "TrendStrengthIndex": 0.1997,
+        "QuantileDEMA": 0.053
+      },
+      "TrendStrengthIndex": {
+        "FDI": 0.7988,
+        "AdvancedStochastic": 0.8315,
+        "KalmanRSI": 0.6934,
+        "FourierSupertrend": 0.1997,
+        "TrendStrengthIndex": 1.0,
+        "QuantileDEMA": 0.1893
+      },
+      "QuantileDEMA": {
+        "FDI": 0.3197,
+        "AdvancedStochastic": 0.2864,
+        "KalmanRSI": 0.4033,
+        "FourierSupertrend": 0.053,
+        "TrendStrengthIndex": 0.1893,
+        "QuantileDEMA": 1.0
+      }
+    }
+  },
+  "vif_summary": {
+    "window_size": 252,
+    "mean_vif": {
+      "FDI": 309605053.8954,
+      "AdvancedStochastic": 9.9167,
+      "KalmanRSI": 9.1209,
+      "FourierSupertrend": 1.2263,
+      "TrendStrengthIndex": 339935743.9034,
+      "QuantileDEMA": 2.1541
+    },
+    "max_vif": {
+      "FDI": 4999999586.2982,
+      "AdvancedStochastic": 78.87,
+      "KalmanRSI": 87.6841,
+      "FourierSupertrend": 1.8612,
+      "TrendStrengthIndex": 4999999586.2982,
+      "QuantileDEMA": 5.2907
+    },
+    "latest_vif": {
+      "FDI": 1.5948,
+      "AdvancedStochastic": 1.9997,
+      "KalmanRSI": 1.3823,
+      "FourierSupertrend": 1.2573,
+      "TrendStrengthIndex": 2.1355,
+      "QuantileDEMA": NaN
+    },
+    "n_windows": 2231
+  },
+  "pca_variance_summary": {
+    "window_size": 252,
+    "mean_cumulative_variance": {
+      "PC1": 0.6081,
+      "PC2": 0.8207,
+      "PC3": 0.9323,
+      "PC4": 0.9769,
+      "PC5": 0.9968,
+      "PC6": 1.0
+    },
+    "latest_cumulative_variance": {
+      "PC1": 0.4691,
+      "PC2": 0.7164,
+      "PC3": 0.8499,
+      "PC4": 0.9425,
+      "PC5": 1.0,
+      "PC6": NaN
+    }
+  },
+  "regime_analysis": {
+    "counts": {
+      "SIDEWAYS": 1241,
+      "BULL": 979,
+      "BEAR": 263
+    },
+    "percentages": {
+      "SIDEWAYS": 49.98,
+      "BULL": 39.43,
+      "BEAR": 10.59
+    },
+    "transition_matrix_counts": {
+      "BULL": {
+        "BULL": 776,
+        "BEAR": 53,
+        "SIDEWAYS": 150
+      },
+      "BEAR": {
+        "BULL": 49,
+        "BEAR": 181,
+        "SIDEWAYS": 33
+      },
+      "SIDEWAYS": {
+        "BULL": 153,
+        "BEAR": 29,
+        "SIDEWAYS": 1058
+      }
+    },
+    "transition_matrix_probabilities": {
+      "BULL": {
+        "BULL": 0.7935,
+        "BEAR": 0.2015,
+        "SIDEWAYS": 0.1209
+      },
+      "BEAR": {
+        "BULL": 0.0501,
+        "BEAR": 0.6882,
+        "SIDEWAYS": 0.0266
+      },
+      "SIDEWAYS": {
+        "BULL": 0.1564,
+        "BEAR": 0.1103,
+        "SIDEWAYS": 0.8525
+      }
+    },
+    "total_transitions_from_transitions_table": 467
+  },
+  "final_score_by_regime": {
+    "BULL": {
+      "n": 979,
+      "mean": 0.0027,
+      "std": 0.6897,
+      "min": -0.9962,
+      "max": 0.9952,
+      "median": 0.2694,
+      "q25": -0.7181,
+      "q75": 0.6273
+    },
+    "BEAR": {
+      "n": 263,
+      "mean": -0.1468,
+      "std": 0.7255,
+      "min": -0.9966,
+      "max": 0.9947,
+      "median": -0.3337,
+      "q25": -0.8805,
+      "q75": 0.5749
+    },
+    "SIDEWAYS": {
+      "n": 1241,
+      "mean": -0.0012,
+      "std": 0.6872,
+      "min": -0.9966,
+      "max": 0.9946,
+      "median": 0.1589,
+      "q25": -0.7039,
+      "q75": 0.6261
+    }
+  }
+}
