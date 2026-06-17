@@ -67,12 +67,12 @@
 
 ## 8. P3 Fixes — Backtest-Production Alignment (1 day)
 
-- [ ] 8.1 Update `src/pipeline.py`: Change purge_days from 7 to 14
-- [ ] 8.2 Verify backtest runner and pipeline use identical purge days
-- [ ] 8.3 Update `src/backtest/runner.py`: Use score-based regime mapping (same as pipeline)
-- [ ] 8.4 Run full backtest with WFO
-- [ ] 8.5 Compare before/after metrics (IC, ACF(1), Sharpe, max drawdown)
-- [ ] 8.6 Commit: `fix(backtest): align purge days and regime mapping with pipeline`
+- [x] 8.1 Update `src/pipeline.py`: Change purge_days from 7 to 14
+- [x] 8.2 Verify backtest runner and pipeline use identical purge days
+- [x] 8.3 Update `src/backtest/runner.py`: Use score-based regime mapping (same as pipeline)
+- [x] 8.4 Run full backtest with WFO
+- [x] 8.5 Compare before/after metrics (IC, ACF(1), Sharpe, max drawdown)
+- [x] 8.6 Commit: `fix(backtest): align purge days and regime mapping with pipeline`
 
 ## 9. Validation & Documentation (1 day)
 

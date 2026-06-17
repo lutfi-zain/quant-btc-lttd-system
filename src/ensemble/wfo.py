@@ -110,7 +110,7 @@ class WFOEnsemble:
         return train_processed, test_processed
 
     def purge_train_set(
-        self, train_index: pd.DatetimeIndex, test_intervals: list, purge_days: int = 7
+        self, train_index: pd.DatetimeIndex, test_intervals: list, purge_days: int = 14
     ) -> pd.DatetimeIndex:
         """
         Purges training indices that fall within `purge_days` of any test interval
@@ -128,7 +128,7 @@ class WFOEnsemble:
         return train_index.difference(to_drop)
 
     def cpcv_split(
-        self, X: pd.DataFrame, n_groups: int = 6, n_test_groups: int = 2, purge_days: int = 7
+        self, X: pd.DataFrame, n_groups: int = 6, n_test_groups: int = 2, purge_days: int = 14
     ):
         """
         CPCV splitter. Splits indices into n_groups.
@@ -194,7 +194,7 @@ class WFOEnsemble:
             
             if len(train_idx) > 0 and len(val_idx) > 0 and len(test_idx) > 0:
                 test_intervals = [(val_idx.min(), test_idx.max())]
-                train_idx_purged = self.purge_train_set(train_idx, test_intervals, purge_days=7)
+                train_idx_purged = self.purge_train_set(train_idx, test_intervals, purge_days=14)
                 yield train_idx_purged, val_idx, test_idx
                 
             # Slide forward by test_window_days

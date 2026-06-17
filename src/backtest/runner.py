@@ -200,9 +200,15 @@ def _run_fold(
                 
         overridden_posteriors = apply_onchain_overrides(posteriors_dict, onchain_metrics)
         
-        # Ensure score is [-1.0, 1.0] for all models
-        if ensemble_mode == "pca_consensus":
+        # Map score to [-1.0, 1.0] for models returning [0.0, 1.0]
+        if ensemble_mode not in ["pca_consensus", "xgboost"]:
             score = 2.0 * score - 1.0
+
+        # Invert score to convert contrarian IC to momentum IC
+        score = -1.0 * score
+
+        # Ensure score is strictly within [-1.0, 1.0]
+        score = max(-1.0, min(1.0, score))
 
         if score >= 0.6:
             final_regime = "Strong Bull"
