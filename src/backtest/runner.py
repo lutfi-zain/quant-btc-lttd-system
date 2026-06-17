@@ -115,8 +115,9 @@ def _run_fold(
     # Purge the last train bar where shift(-1) target references the test period
     effective_train_idx = train_idx[:-1] if len(train_idx) > 0 else train_idx
 
-    X_train = feature_matrix.loc[effective_train_idx]
-    y_train = y.loc[effective_train_idx]
+    valid_train_idx = effective_train_idx[~y.loc[effective_train_idx].isna()]
+    X_train = feature_matrix.loc[valid_train_idx]
+    y_train = y.loc[valid_train_idx]
     X_test = feature_matrix.loc[test_idx]
     
     processor.fit(X_train, y_train)
@@ -256,7 +257,7 @@ class BacktestRunner:
         
         # Define target y using isp-regimes-btcusd.csv (continuous intensity)
         from src.data.target_loader import load_regime_targets
-        y = load_regime_targets(df_merged.index)
+        y = load_regime_targets(df_merged.index, close_series=df_merged["close"])
         y = y.loc[common_idx]
         
         # 3. Generate WFO folds (3yr train -> 6mo val -> 6mo test)

@@ -116,11 +116,11 @@ class LTTDPipeline:
 
         # 7. Compute indicators and features (cautiously ensuring zero lookahead)
         builder = FeatureMatrixBuilder(dynamic_lookback=dynamic_lookback)
-        feature_matrix = builder.build_matrix(df_merged)
+        feature_matrix = builder.build_matrix(df_merged, onchain_df=df_merged)
 
         # Define targets y for training using regime targets
         from src.data.target_loader import load_regime_targets
-        y = load_regime_targets(df_merged.index)
+        y = load_regime_targets(df_merged.index, close_series=df_merged["close"])
 
         # 8. Layer 1: Train HMM on training window and predict today's regime
         logger.info("Running HMM Regime Inference...")
@@ -141,10 +141,14 @@ class LTTDPipeline:
         # 9. Layer 3: Feature Processor (VIF pruning and PCA)
         logger.info("Running VIF/PCA Feature Processor...")
         processor = FeatureProcessor()
-        # Purge training set adjacent to execution date t to prevent target leakage
-        train_idx_purged = train_idx[train_idx < t - pd.Timedelta(days=7)]
-        X_train = feature_matrix.loc[train_idx_purged]
-        y_train = y.loc[train_idx_purged]
+        # Purge training set adjacent to execution date t to prevent target leakage (14 days purge)
+        train_idx_purged = train_idx[train_idx < t - pd.Timedelta(days=14)]
+        
+        # Drop NaN values from training targets (due to 21-day forward return horizon)
+        valid_train_idx = train_idx_purged[~y.loc[train_idx_purged].isna()]
+        
+        X_train = feature_matrix.loc[valid_train_idx]
+        y_train = y.loc[valid_train_idx]
         X_test = feature_matrix.loc[[t]]
 
         processor.fit(X_train, y_train)
@@ -181,12 +185,15 @@ class LTTDPipeline:
         # Both MLConsensusEngine and PCAConsensusEngine predict_score methods 
         # MUST return the score in the [-1.0, 1.0] domain natively, or we handle it here.
         # Actually, MLConsensusEngine returns [0.0, 1.0]. PCAConsensus returns [-1.0, 1.0].
-        if self.ensemble_mode != "pca_consensus":
+        if self.ensemble_mode not in ["pca_consensus", "xgboost"]:
             # Map MLConsensusEngine [0.0, 1.0] to [-1.0, 1.0]
             final_score = 2.0 * final_score - 1.0
 
         # Invert final_score to convert contrarian IC to momentum IC
         final_score = -1.0 * final_score
+
+        # Ensure final_score is strictly within SQLite constraints [-1.0, 1.0]
+        final_score = max(-1.0, min(1.0, final_score))
 
         # Map HMM regime to 5-level regime using score-based mapping with HMM fallback mapping
         hmm_fallback_map = {"BULL": "Weak Bull", "BEAR": "Weak Bear", "SIDEWAYS": "Neutral"}

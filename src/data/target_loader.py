@@ -1,91 +1,80 @@
+import numpy as np
 import pandas as pd
 from pathlib import Path
+from src.data.pipeline import ohlcv_pipeline
 
-REGIME_MAPPING = {
-    "Strong Bull": 1.0,
-    "Weak Bull": 0.75,
-    "Neutral": 0.50,
-    "Weak Bear": 0.25,
-    "Strong Bear": 0.0
-}
+def compute_forward_returns_target(close_series: pd.Series) -> pd.Series:
+    """
+    Computes 21-day forward log return, z-score normalized using a rolling 252-day window,
+    and clipped to [-1, +1].
+    """
+    # 21-day forward log return: log(close[t+21] / close[t])
+    log_close = np.log(close_series)
+    fwd_ret = log_close.shift(-21) - log_close
+    
+    # Rolling 252-day window z-score normalization
+    rolling_mean = fwd_ret.rolling(window=252, min_periods=120).mean()
+    rolling_std = fwd_ret.rolling(window=252, min_periods=120).std()
+    
+    # Prevent division by zero/NaN in rolling std
+    rolling_std_clean = rolling_std.replace(0.0, np.nan)
+    
+    zscore = (fwd_ret - rolling_mean) / rolling_std_clean
+    zscore = zscore.fillna(0.0)
+    
+    # Clip to [-1.0, 1.0]
+    target = zscore.clip(-1.0, 1.0)
+    
+    # Explicitly ensure target for date t is NaN if t+21 is not in the close_series index
+    # (i.e. we don't have price data for t+21)
+    if len(target) >= 21:
+        target.iloc[-21:] = np.nan
+    else:
+        target.iloc[:] = np.nan
+            
+    return target
 
-def load_and_forward_fill_targets(csv_path: str | Path, start_date: str = None, end_date: str = None) -> pd.Series:
+def load_regime_targets(index: pd.DatetimeIndex, close_series: pd.Series = None) -> pd.Series:
     """
-    Loads sparse regime targets from CSV, maps them to [0, 1] intensities,
-    and forward-fills to create a daily continuous target series.
+    Computes and loads forward returns targets aligned to the provided index.
     """
-    df = pd.read_csv(csv_path)
-    df['Date'] = pd.to_datetime(df['Date'])
+    if close_series is None:
+        df_ohlcv = ohlcv_pipeline()
+        close_series = df_ohlcv["close"]
+
+    # Ensure index is standardized timezone wise
+    if close_series.index.tz is None and index.tz is not None:
+        close_series.index = close_series.index.tz_localize("UTC")
+    elif close_series.index.tz is not None and index.tz is None:
+        close_series.index = close_series.index.tz_localize(None)
+
+    # Compute targets on the close series
+    targets = compute_forward_returns_target(close_series)
     
-    # Map regimes to intensities
-    df['RegimeIntensity'] = df['Regime'].map(REGIME_MAPPING)
+    # Align to the requested index
+    aligned_targets = targets.reindex(index)
     
-    if df['RegimeIntensity'].isnull().any():
-        missing = df[df['RegimeIntensity'].isnull()]['Regime'].unique()
-        raise ValueError(f"Unknown regimes found in target CSV: {missing}")
+    # Forward fill then backward fill to handle alignment bounds
+    # but only up to the last 21 rows (to avoid leakage/fake data filling)
+    if len(aligned_targets) > 21:
+        non_nan_part = aligned_targets.iloc[:-21].ffill().bfill()
+        aligned_targets.iloc[:-21] = non_nan_part
         
-    df.set_index('Date', inplace=True)
-    df = df.sort_index()
-    
-    # Create daily date range
-    first_date = df.index.min()
-    if start_date is not None:
-        first_date = min(first_date, pd.to_datetime(start_date))
-        
-    last_date = df.index.max()
-    if end_date is not None:
-        last_date = max(last_date, pd.to_datetime(end_date))
-        
-    if pd.isna(first_date) or pd.isna(last_date):
-        return pd.Series(dtype=float, name="RegimeIntensity")
-        
-    # We must ensure we cover from first_date to last_date.
-    daily_idx = pd.date_range(start=first_date, end=last_date, freq='D')
-    
-    # Combine the original index with the daily index to ensure we don't miss any intra-day (if any, though they should be daily)
-    combined_idx = df.index.union(daily_idx).sort_values()
-    
-    # Reindex and forward fill
-    filled_series = df['RegimeIntensity'].reindex(combined_idx).ffill()
-    
-    # Slice to exact daily index required
-    if start_date is not None and end_date is not None:
-        filled_series = filled_series.loc[pd.to_datetime(start_date):pd.to_datetime(end_date)]
-        # ensure strict daily freq
-        filled_series = filled_series.asfreq('D')
-        
-    return filled_series
+    return aligned_targets
 
 def validate_target_alignment(y: pd.Series, X: pd.DataFrame) -> None:
     """
-    Validates that the target series y perfectly aligns with feature dataframe X,
-    and checks for NaN gaps.
+    Validates that the target series y perfectly aligns with feature dataframe X.
+    NaNs are permitted in the last 21 rows of y (freshness warmup).
     """
     if not y.index.equals(X.index):
         raise ValueError("Target index does not match Feature index. Misalignment detected.")
         
-    if y.isnull().any():
-        raise ValueError("Target series contains NaN values (gaps).")
-
-def load_regime_targets(index: pd.DatetimeIndex, csv_path: str | Path = None) -> pd.Series:
-    """
-    Convenience function to load and forward fill the ISP regime targets,
-    and align exactly to the provided DatetimeIndex.
-    """
-    if csv_path is None:
-        csv_path = Path(__file__).resolve().parent.parent.parent / "docs" / "isps" / "isp-regimes-btcusd-2026-06-13.csv"
-        
-    # Standardize index timezone if any
-    start_date = index.min().strftime("%Y-%m-%d") if not index.empty else None
-    end_date = index.max().strftime("%Y-%m-%d") if not index.empty else None
-    
-    y = load_and_forward_fill_targets(csv_path, start_date=start_date, end_date=end_date)
-    
-    # Ensure index alignment and timezone match
-    if y.index.tz is None and index.tz is not None:
-        y.index = y.index.tz_localize("UTC")
-    elif y.index.tz is not None and index.tz is None:
-        y.index = y.index.tz_localize(None)
-        
-    y = y.reindex(index).ffill().bfill()
-    return y
+    # Check for NaNs except in the last 21 rows of the dataset
+    if len(y) > 21:
+        non_fresh_y = y.iloc[:-21]
+        if non_fresh_y.isnull().any():
+            raise ValueError("Target series contains NaN values (gaps) in historical period.")
+    else:
+        # If dataset is smaller than 21, all can be NaN
+        pass

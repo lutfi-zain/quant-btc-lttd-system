@@ -1,38 +1,63 @@
 import pandas as pd
+import numpy as np
 import pytest
-from src.data.target_loader import load_and_forward_fill_targets, validate_target_alignment
+from src.data.target_loader import load_regime_targets, validate_target_alignment, compute_forward_returns_target
 
-def test_load_and_forward_fill_targets(tmp_path):
-    csv_path = tmp_path / "mock_targets.csv"
-    csv_path.write_text("Date,Regime\n2025-01-01,Strong Bull\n2025-01-03,Weak Bear\n")
+def test_compute_forward_returns_target():
+    # Generate mock close prices (300 days)
+    np.random.seed(42)
+    dates = pd.date_range("2025-01-01", periods=300, freq="D")
+    closes = pd.Series(np.exp(np.cumsum(np.random.normal(0.001, 0.01, 300))), index=dates)
     
-    # Test basic forward fill
-    y = load_and_forward_fill_targets(csv_path)
-    assert len(y) == 3
-    assert y.loc['2025-01-01'] == 1.0
-    assert y.loc['2025-01-02'] == 1.0 # Forward filled
-    assert y.loc['2025-01-03'] == 0.25
+    target = compute_forward_returns_target(closes)
     
-    # Test with custom date range
-    y2 = load_and_forward_fill_targets(csv_path, start_date="2025-01-01", end_date="2025-01-05")
-    assert len(y2) == 5
-    assert y2.loc['2025-01-05'] == 0.25
+    # Verify shape and type
+    assert isinstance(target, pd.Series)
+    assert len(target) == 300
     
+    # Check freshness constraint: target for last 21 days must be NaN
+    assert target.iloc[-21:].isnull().all()
+    
+    # Check that historical targets (up to t-21) are calculated
+    assert not target.iloc[:-21].isnull().any()
+    
+    # Check values are clipped to [-1.0, 1.0]
+    assert (target.dropna() >= -1.0).all()
+    assert (target.dropna() <= 1.0).all()
+    
+    # Z-score properties (mean should be close to 0, std should be close to 1)
+    mean_val = target.dropna().mean()
+    std_val = target.dropna().std()
+    assert abs(mean_val) < 0.25
+    assert 0.5 <= std_val <= 1.5
+
+def test_load_regime_targets():
+    dates = pd.date_range("2025-01-01", periods=100, freq="D")
+    closes = pd.Series(np.exp(np.cumsum(np.random.normal(0.001, 0.01, 100))), index=dates)
+    
+    y = load_regime_targets(dates, close_series=closes)
+    
+    assert len(y) == 100
+    assert y.index.equals(dates)
+    assert y.iloc[-21:].isnull().all()
+
 def test_validate_target_alignment():
-    idx = pd.date_range("2025-01-01", "2025-01-03", freq="D")
-    y = pd.Series([1.0, 1.0, 0.5], index=idx)
-    X = pd.DataFrame({"feat": [1, 2, 3]}, index=idx)
+    idx = pd.date_range("2025-01-01", periods=50, freq="D")
+    # Last 21 rows are NaN, rest are valid floats
+    vals = [0.5] * 29 + [np.nan] * 21
+    y = pd.Series(vals, index=idx)
+    X = pd.DataFrame({"feat": [1] * 50}, index=idx)
     
-    # Should not raise
+    # Valid alignment should not raise
     validate_target_alignment(y, X)
     
-    # Test misalignment
-    X_bad = pd.DataFrame({"feat": [1, 2]}, index=idx[:2])
+    # Target index misalignment
+    X_bad = pd.DataFrame({"feat": [1] * 40}, index=idx[:40])
     with pytest.raises(ValueError, match="Target index does not match"):
         validate_target_alignment(y, X_bad)
         
-    # Test NaN gaps
-    y_gap = y.copy()
-    y_gap.iloc[1] = None
-    with pytest.raises(ValueError, match="NaN values"):
-        validate_target_alignment(y_gap, X)
+    # Historical NaN gap (excluding the last 21 rows)
+    y_bad = y.copy()
+    y_bad.iloc[5] = np.nan
+    with pytest.raises(ValueError, match="Target series contains NaN values"):
+        validate_target_alignment(y_bad, X)
