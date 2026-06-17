@@ -31,7 +31,7 @@ class CausalFilter(abc.ABC):
         """
         Resolves the dynamic_lookback parameter/callback/value into a pd.Series
         of lookback windows (integers) aligned with the data index.
-        Clamps the lookback values to [120, 350] range.
+        Clamps the lookback values to [10, 400] range to prevent extreme lagging or overfitting.
         """
         if self.dynamic_lookback is None:
             resolved = pd.Series(default_lookback, index=data.index)
@@ -50,8 +50,8 @@ class CausalFilter(abc.ABC):
         else:
             resolved = pd.Series(self.dynamic_lookback, index=data.index)
 
-        # Clamp to [120, 350] range and round to integer
-        resolved = resolved.clip(120, 350).round().astype(int)
+        # Clamp to [10, 400] range and round to integer
+        resolved = resolved.clip(10, 400).round().astype(int)
         return resolved
 
     @abc.abstractmethod

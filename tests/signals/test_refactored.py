@@ -8,7 +8,7 @@ from src.signals.kalman_rsi import KalmanRSI
 from src.signals.quantile_dema import QuantileDEMA
 from src.signals.trend_strength import TrendStrengthIndex
 
-def test_all_signals_output_0_1():
+def test_all_signals_output_minus1_1():
     # Create mock OHLCV data
     idx = pd.date_range("2025-01-01", periods=300, freq="D")
     data = pd.DataFrame({
@@ -21,7 +21,6 @@ def test_all_signals_output_0_1():
     
     indicators = [
         AdvancedStochastic(),
-        FDI(),
         AdaptiveFourierSupertrend(),
         KalmanRSI(),
         QuantileDEMA(),
@@ -30,8 +29,5 @@ def test_all_signals_output_0_1():
     
     for ind in indicators:
         res = ind.compute(data)
-        if isinstance(ind, KalmanRSI):
-            assert res.min() >= -1.0, f"{ind.__class__.__name__} has values < -1.0"
-        else:
-            assert res.min() >= 0.0, f"{ind.__class__.__name__} has values < 0.0"
+        assert res.min() >= -1.0, f"{ind.__class__.__name__} has values < -1.0"
         assert res.max() <= 1.0, f"{ind.__class__.__name__} has values > 1.0"

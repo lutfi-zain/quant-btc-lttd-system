@@ -71,7 +71,7 @@ class AdvancedStochastic(CausalFilter):
             end_len = int(max(start_len, round(30 * (N / self.default_lookback))))
             
             avg = np.mean(trends_matrix[start_len - 1 : end_len, :], axis=0)
-            signals = (avg + 1.0) / 2.0
+            signals = avg
         else:
             # Determine maximum length needed for the loop
             max_ratio = lookbacks.max() / self.default_lookback
@@ -96,8 +96,6 @@ class AdvancedStochastic(CausalFilter):
                 start_len = int(max(1, round(1 * ratio)))
                 end_len = int(max(start_len, round(30 * ratio)))
                 signals[t] = np.mean(trends_matrix[start_len - 1 : end_len, t])
-
-            signals = (signals + 1.0) / 2.0
 
         return pd.Series(signals, index=data.index, dtype=float)
 

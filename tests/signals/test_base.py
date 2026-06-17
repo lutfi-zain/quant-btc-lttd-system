@@ -76,22 +76,22 @@ def test_dynamic_lookback_resolution(sample_data):
     resolved_int = indicator_int._resolve_lookback(sample_data)
     assert (resolved_int == 150).all()
 
-    # Test clamping limits: 100 -> 120, 400 -> 350
-    indicator_clamp = DummyDynamicIndicator(dynamic_lookback=100)
+    # Test clamping limits: 5 -> 10, 500 -> 400
+    indicator_clamp = DummyDynamicIndicator(dynamic_lookback=5)
     resolved_clamp = indicator_clamp._resolve_lookback(sample_data)
-    assert (resolved_clamp == 120).all()
+    assert (resolved_clamp == 10).all()
 
-    indicator_clamp_high = DummyDynamicIndicator(dynamic_lookback=400)
-    resolved_clamp_high = indicator_clamp_high._resolve_lookback(sample_data)
-    assert (resolved_clamp_high == 350).all()
+    indicator_clamp2 = DummyDynamicIndicator(dynamic_lookback=500)
+    resolved_clamp2 = indicator_clamp2._resolve_lookback(sample_data)
+    assert (resolved_clamp2 == 400).all()
 
     # Test pd.Series dynamic lookbacks
     dyn_series = pd.Series(100, index=sample_data.index)
     dyn_series.iloc[250:] = 400
     indicator_series = DummyDynamicIndicator(dynamic_lookback=dyn_series)
     resolved_series = indicator_series._resolve_lookback(sample_data)
-    assert resolved_series.iloc[0] == 120
-    assert resolved_series.iloc[250] == 350
+    assert resolved_series.iloc[0] == 100
+    assert resolved_series.iloc[250] == 400
 
     # Test callable lookback
     indicator_call = DummyDynamicIndicator(

@@ -109,5 +109,4 @@ class TrendStrengthIndex(CausalFilter):
             elif prev_strength >= -self.trend_exit and curr_strength < -self.trend_exit:
                 signals[t] = -1.0
 
-        signals = (signals + 1.0) / 2.0
         return pd.Series(signals, index=data.index, dtype=float)

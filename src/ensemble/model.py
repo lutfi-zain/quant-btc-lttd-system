@@ -61,14 +61,11 @@ class MLConsensusEngine:
     @staticmethod
     def discretize(scores: pd.Series) -> pd.Series:
         """
-        Discretizes continuous [0.0, 1.0] intensities into 5 discrete regimes.
+        Discretizes continuous [0.0, 1.0] intensities into 3 discrete regimes.
         """
-        regimes = pd.Series("Neutral", index=scores.index)
-        regimes[scores >= 0.8] = "Strong Bull"
-        regimes[(scores >= 0.6) & (scores < 0.8)] = "Weak Bull"
-        regimes[(scores >= 0.4) & (scores < 0.6)] = "Neutral"
-        regimes[(scores >= 0.2) & (scores < 0.4)] = "Weak Bear"
-        regimes[scores < 0.2] = "Strong Bear"
+        regimes = pd.Series("SIDEWAYS", index=scores.index)
+        regimes[scores >= 0.6] = "BULL"
+        regimes[scores <= 0.4] = "BEAR"
         return regimes
 
 
@@ -144,7 +141,6 @@ class PCAConsensusEnsemble:
     def __init__(self):
         self.weights = None
         self.kept_tech_cols = None
-        self.scaler = StandardScaler()
         self.fitted = False
 
     def fit(self, X: pd.DataFrame, y: pd.Series = None, pca_components_matrix: np.ndarray = None, kept_cols: list = None):
@@ -162,8 +158,6 @@ class PCAConsensusEnsemble:
                 self.weights = np.abs(pc1_loadings) / sum_loadings
             self.kept_tech_cols = kept_cols
             
-            # Fit scaler on X[kept_cols]
-            self.scaler.fit(X[self.kept_tech_cols])
             self.fitted = True
         else:
             # Fallback equal weights if no PCA components supplied
@@ -171,8 +165,6 @@ class PCAConsensusEnsemble:
             self.kept_tech_cols = cols
             self.weights = np.ones(len(cols)) / len(cols)
             
-            # Fit scaler on X[cols]
-            self.scaler.fit(X[cols])
             self.fitted = True
 
     def predict_score(self, X: pd.DataFrame) -> pd.Series:
@@ -185,13 +177,10 @@ class PCAConsensusEnsemble:
         score = pd.Series(0.0, index=X.index)
         if self.kept_tech_cols:
             X_subset = X[self.kept_tech_cols]
-            X_scaled_arr = self.scaler.transform(X_subset)
-            X_scaled = pd.DataFrame(X_scaled_arr, columns=self.kept_tech_cols, index=X.index)
             
             for i, col in enumerate(self.kept_tech_cols):
-                score += self.weights[i] * X_scaled[col]
+                score += self.weights[i] * X_subset[col]
         return score.clip(-1.0, 1.0)
 
     def predict(self, X: pd.DataFrame) -> pd.Series:
         return self.predict_score(X)
-

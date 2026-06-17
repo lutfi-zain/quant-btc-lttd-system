@@ -126,7 +126,7 @@ def _run_fold(
     df_test_hmm = pd.DataFrame(test_posteriors, index=test_idx)
     df_test_hmm = df_test_hmm.rename(columns={"BULL": "p_bull", "BEAR": "p_bear", "SIDEWAYS": "p_sideways"})
     
-    for col in ["p_bull", "p_bear", "p_sideways"]:
+    for col in ["p_bull", "p_bear"]:
         feature_matrix_fold[col] = 0.0
         if not df_train_hmm.empty and col in df_train_hmm.columns:
             train_vals = df_train_hmm[col].reindex(train_idx)
@@ -180,7 +180,7 @@ def _run_fold(
     adapter = MockExecutionAdapter()
     fold_records = []
     
-    # Use returns/volatility from raw data for transitioning telemetry
+    # Use annualized returns/volatility from raw data for transitioning telemetry
     log_returns_series = np.log(df_merged["close"] / df_merged["close"].shift(1)).fillna(0.0)
     realized_vol_series = log_returns_series.rolling(21).std().fillna(0.0)
     
@@ -200,26 +200,19 @@ def _run_fold(
                 
         overridden_posteriors = apply_onchain_overrides(posteriors_dict, onchain_metrics)
         
-        # Map score to [-1.0, 1.0] for models returning [0.0, 1.0]
-        if ensemble_mode not in ["pca_consensus", "xgboost"]:
-            score = 2.0 * score - 1.0
+        # Score is already in [-1.0, 1.0] from predict_score
 
-        # Invert score to convert contrarian IC to momentum IC
-        score = -1.0 * score
-
+        # Removed score inversion (fixes Hit-Rate Inversion Paradox)
         # Ensure score is strictly within [-1.0, 1.0]
         score = max(-1.0, min(1.0, score))
 
-        if score >= 0.6:
-            final_regime = "Strong Bull"
-        elif score >= 0.2:
-            final_regime = "Weak Bull"
-        elif score >= -0.2:
-            final_regime = "Neutral"
-        elif score >= -0.6:
-            final_regime = "Weak Bear"
+        # Map final score to strictly BULL, BEAR, or SIDEWAYS
+        if score >= 0.2:
+            final_regime = "BULL"
+        elif score <= -0.2:
+            final_regime = "BEAR"
         else:
-            final_regime = "Strong Bear"
+            final_regime = "SIDEWAYS"
                 
         # HMM posteriors are still passed but regime is driven by ML score now
                 
@@ -260,7 +253,7 @@ def _run_fold(
 
 
 class BacktestRunner:
-    def __init__(self, legacy_fixed_window: bool = False, ensemble_mode: str = "pca_consensus"):
+    def __init__(self, legacy_fixed_window: bool = False, ensemble_mode: str = "xgboost"):
         self.legacy_fixed_window = legacy_fixed_window
         self.ensemble_mode = ensemble_mode
 
@@ -328,7 +321,8 @@ class BacktestRunner:
         # Convert to DataFrame
         results_df = pd.DataFrame(records).set_index("date")
         results_df = results_df[~results_df.index.duplicated(keep="first")]
-        
+        results_df.to_csv('tmp_backtest_results.csv')
+
         # 5. Compute vectorbt portfolio state
         close_series = results_df["close"]
         exposure = results_df["target_exposure"]
@@ -356,7 +350,7 @@ class BacktestRunner:
         # Hit rate (win rate) Partitioned by HMM Regime
         # Win is defined as positive daily return when active exposure is non-zero
         regime_metrics = {}
-        for regime_name in ["Strong Bull", "Weak Bull", "Neutral", "Weak Bear", "Strong Bear", "BULL", "BEAR", "SIDEWAYS"]:
+        for regime_name in ["BULL", "BEAR", "SIDEWAYS"]:
             regime_df = results_df[results_df["regime"] == regime_name]
             if len(regime_df) > 0:
                 # Active days (where exposure > 0)
@@ -392,13 +386,8 @@ class BacktestRunner:
 
 def main():
     parser = argparse.ArgumentParser(description="LTTD WFO Backtest Runner")
-    parser.add_argument(
-        "--ensemble-mode",
-        type=str,
-        default="pca_consensus",
-        choices=["pca_consensus", "lasso", "xgboost"],
-        help="Choose ensemble aggregation mode: 'pca_consensus' (Option A) or 'lasso' (Option B)",
-    )
+    parser.add_argument("--ensemble-mode", choices=["pca_consensus", "lasso", "xgboost"], default="xgboost",
+                        help="Choose ensemble aggregation mode: 'pca_consensus' (Option A), 'lasso' (Option B), or 'xgboost' (Default)")
     parser.add_argument(
         "--legacy-fixed-window",
         action="store_true",
@@ -419,20 +408,62 @@ def main():
     print(f"Joining datasets causally...")
     df_merged = point_in_time_join(df_ohlcv, onchain)
     
-    # Filter by date range
-    df_merged = df_merged.loc[args.start:args.end]
-    print(f"Available data rows for backtest: {len(df_merged)}")
+    print(f"Available data rows for backtest warmup and training: {len(df_merged)}")
     
     runner = BacktestRunner(legacy_fixed_window=args.legacy_fixed_window, ensemble_mode=args.ensemble_mode)
     res = runner.run(df_merged)
     
-    metrics = res["metrics"]
+    # Filter results by date range AFTER out-of-sample predictions are generated
+    results_df = res["results"].loc[args.start:args.end]
+    res["results"] = results_df
+    
+    # Re-calculate metrics based on the sliced results
+    close_series = results_df["close"]
+    exposure = results_df["target_exposure"]
+    import vectorbt as vbt
+    portfolio = vbt.Portfolio.from_orders(
+        close_series,
+        size=exposure,
+        size_type='targetpercent',
+        init_cash=10000.0,
+        fees=0.001
+    )
+    
+    bh_return = (close_series.iloc[-1] / close_series.iloc[0]) - 1.0
+    bh_daily_returns = close_series.pct_change().dropna()
+    bh_sharpe = (bh_daily_returns.mean() / bh_daily_returns.std() * np.sqrt(365)) if bh_daily_returns.std() > 0 else 0.0
+    
+    # Calculate Buy and Hold max drawdown manually
+    roll_max = close_series.cummax()
+    drawdown = close_series / roll_max - 1.0
+    bh_max_dd = drawdown.min()
+    
+    metrics = {
+        "total_return": portfolio.total_return(),
+        "annualized_sharpe": (portfolio.returns().mean() / portfolio.returns().std() * np.sqrt(365)) if portfolio.returns().std() > 0 else 0.0,
+        "max_drawdown": portfolio.max_drawdown(),
+        "bh_return": bh_return,
+        "bh_sharpe": bh_sharpe,
+        "bh_max_dd": bh_max_dd,
+        "regime_metrics": {}
+    }
+    daily_returns = portfolio.returns()
+    for regime_name in ["BULL", "BEAR", "SIDEWAYS"]:
+        regime_df = results_df[results_df["regime"] == regime_name]
+        if len(regime_df) > 0:
+            active_days = daily_returns.loc[regime_df.index.intersection(daily_returns.index)]
+            non_zero_days = active_days[results_df.loc[active_days.index, "target_exposure"] > 0]
+            hit_rate = float((non_zero_days > 0).sum() / len(non_zero_days)) if len(non_zero_days) > 0 else 0.0
+            metrics["regime_metrics"][regime_name] = {"count": len(regime_df), "active_days": len(non_zero_days), "hit_rate": hit_rate}
+        else:
+            metrics["regime_metrics"][regime_name] = {"count": 0, "active_days": 0, "hit_rate": 0.0}
+    
     print("\n==========================================================================")
     print("                      LTTD SYSTEM - BACKTEST RESULTS                      ")
     print("==========================================================================")
-    print(f"Total Return             : {metrics['total_return']:.2%}")
-    print(f"Annualized Sharpe Ratio  : {metrics['annualized_sharpe']:.4f}")
-    print(f"Max Drawdown             : {metrics['max_drawdown']:.2%}")
+    print(f"Total Return             : {metrics['total_return']*100:.2f}% (B&H: {metrics['bh_return']*100:.2f}%)")
+    print(f"Annualized Sharpe Ratio  : {metrics['annualized_sharpe']:.4f} (B&H: {metrics['bh_sharpe']:.4f})")
+    print(f"Max Drawdown             : {metrics['max_drawdown']*100:.2f}% (B&H: {metrics['bh_max_dd']*100:.2f}%)")
     print("\nRegime Partitioned Metrics:")
     for regime, r_met in metrics["regime_metrics"].items():
         print(f"  → {regime:10}: Total Days={r_met['count']:<5} Active Days={r_met['active_days']:<5} Hit Rate={r_met['hit_rate']:.2%}")

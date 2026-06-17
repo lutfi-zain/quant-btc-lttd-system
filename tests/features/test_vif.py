@@ -66,3 +66,22 @@ def test_vif_pruning():
     # Only one of the collinear group (x1, x2, x3) should be left (or they should be pruned to satisfy VIF <= 10)
     collinear_count = sum([col in pruned_df.columns for col in ["x1", "x2", "x3"]])
     assert collinear_count <= 1
+
+
+def test_onchain_vif_pruning():
+    np.random.seed(42)
+    # Simulate sth_mvrv and sth_nupl being highly collinear
+    sth_mvrv = np.random.randn(100)
+    sth_nupl = sth_mvrv + np.random.normal(0, 0.05, 100)
+    
+    # Target is mainly driven by sth_mvrv
+    y = 3.0 * sth_mvrv + np.random.normal(0, 0.1, 100)
+    
+    df = pd.DataFrame({"sth_mvrv": sth_mvrv, "sth_nupl": sth_nupl})
+    
+    pruned_df = prune_multicollinear_indicators(df, y, vif_threshold=10.0)
+    
+    # sth_nupl should be dropped due to lower Pratt's measure
+    assert "sth_mvrv" in pruned_df.columns
+    assert "sth_nupl" not in pruned_df.columns
+    assert len(pruned_df.columns) == 1

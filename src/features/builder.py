@@ -41,7 +41,7 @@ class FeatureMatrixBuilder:
 
         matrix = pd.DataFrame(
             {
-                "FDI": fdi_scores,
+                # "FDI": fdi_scores,  # Removed because it's non-directional and breaks linear consensus
                 "AdvancedStochastic": stoch_scores,
                 "RSI-50": rsi50_scores,
                 "FourierSupertrend": fourier_scores,

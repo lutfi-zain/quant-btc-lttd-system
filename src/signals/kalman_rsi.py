@@ -15,7 +15,7 @@ class KalmanRSI(CausalFilter):
     def __init__(
         self,
         dynamic_lookback=None,
-        rsi_period=50,
+        rsi_period=250,
         process_noise=0.75,
         measurement_noise=205.0,
         smooth=False,
@@ -118,11 +118,27 @@ class KalmanRSI(CausalFilter):
         else:
             raise ValueError("Input DataFrame must contain 'close' column.")
 
-        # Compute RSI directly on pricesource (no Kalman filter)
-        rsi = self._pandas_rsi(pricesource, self.rsi_period)
+        # 1. Apply Kalman Filter
+        filtered_price = self._apply_kalman(pricesource)
 
-        # Convert to binary signal: +1 if RSI > 50, else -1
-        score = pd.Series(np.where(rsi > 50.0, 1.0, -1.0), index=pricesource.index)
+        lookbacks = self._resolve_lookback(data, default_lookback=self.rsi_period)
+        # 2. Compute RSI on Kalman-filtered price. We'll use the median of the dynamic lookback to keep it simple, 
+        # or we can compute an EWM with a dynamic span. For pandas_rsi, we'll use the median lookback over the data.
+        eff_period = int(lookbacks.median()) if len(lookbacks) > 0 else self.rsi_period
+        rsi = self._pandas_rsi(filtered_price, eff_period)
+
+        # 3. Normalize over 100-day window (Pine Script: lowest/highest(rsi, 100))
+        lowest_100 = rsi.rolling(window=100, min_periods=1).min()
+        highest_100 = rsi.rolling(window=100, min_periods=1).max()
+        
+        denom = highest_100 - lowest_100
+        # Avoid division by zero
+        denom = np.where(denom == 0, 1.0, denom)
+        
+        normalized_rsi = (rsi - lowest_100) / denom - 0.5
+
+        # 4. Convert to binary signal: +1.0 if normalized_rsi >= 0, else -1.0
+        score = pd.Series(np.where(normalized_rsi >= 0.0, 1.0, -1.0), index=pricesource.index)
         score[pricesource.isna()] = np.nan
         
         return score

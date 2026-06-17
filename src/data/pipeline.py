@@ -3,7 +3,7 @@ import logging
 from typing import Optional
 from datetime import datetime, timezone
 from src.config import BTC_DATA_SOURCE, DB_PATH
-from src.data.exchange_adapter import ExchangeAdapter, BinanceAdapter
+from src.data.exchange_adapter import ExchangeAdapter, BinanceAdapter, BRKExchangeAdapter
 from src.data.db import SQLiteCache
 
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ def standardize_and_validate(df: pd.DataFrame) -> pd.DataFrame:
 def get_exchange_adapter() -> ExchangeAdapter:
     if BTC_DATA_SOURCE.lower() == "binance":
         return BinanceAdapter()
-    return BinanceAdapter()
+    return BRKExchangeAdapter()
 
 
 def ohlcv_pipeline(end_time: Optional[datetime] = None) -> pd.DataFrame:
@@ -75,8 +75,8 @@ def ohlcv_pipeline(end_time: Optional[datetime] = None) -> pd.DataFrame:
             df_new = df_new[df_new.index > max_t]
             cache.save_dataframe(df_new)
     else:
-        logger.info("Fetching all history since 2015")
-        df_new = adapter.fetch_ohlcv(start_time=datetime(2015, 1, 1, tzinfo=timezone.utc), end_time=end_time)
+        logger.info("Fetching all history since 2011")
+        df_new = adapter.fetch_ohlcv(start_time=datetime(2011, 1, 1, tzinfo=timezone.utc), end_time=end_time)
         if not df_new.empty:
             df_new = standardize_and_validate(df_new)
             cache.save_dataframe(df_new)

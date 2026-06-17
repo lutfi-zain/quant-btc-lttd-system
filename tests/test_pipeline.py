@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 from src.pipeline import LTTDPipeline, DataStaleException
 from src.data.brk_ingestion_service import BRKFeed
 from src.execution.database import get_connection
+import src.features.processor
 
 
 @pytest.fixture
@@ -58,15 +59,21 @@ def test_pipeline_run_daily_success(tmp_path, mock_ohlcv_data, mock_onchain_data
     pipeline.brk_ingestion.fetch_latest = MagicMock(return_value=latest_feed)
     pipeline.brk_ingestion.fetch_historical = MagicMock(return_value=mock_onchain_data)
     
-    # Mock ohlcv_pipeline
-    with patch("src.pipeline.ohlcv_pipeline", return_value=mock_ohlcv_data):
+    # Mock FeatureProcessor.fit to intercept X_train and check for p_sideways
+    original_fit = src.features.processor.FeatureProcessor.fit
+    def mock_fit(self, X_train, y_train=None):
+        assert "p_sideways" not in X_train.columns, "Dummy variable trap: p_sideways should be dropped"
+        return original_fit(self, X_train, y_train)
+
+    with patch("src.pipeline.ohlcv_pipeline", return_value=mock_ohlcv_data), \
+         patch("src.features.processor.FeatureProcessor.fit", side_effect=mock_fit, autospec=True):
         res = pipeline.run_daily(current_date=target_date)
         
         # Verify return structure
         assert res["status"] == "success"
         assert res["date"] == "2023-07-24"
         assert -1.0 <= res["final_score"] <= 1.0
-        assert res["regime"] in ["Strong Bull", "Weak Bull", "Neutral", "Weak Bear", "Strong Bear", "BULL", "BEAR", "SIDEWAYS"]
+        assert res["regime"] in ["BULL", "BEAR", "SIDEWAYS"]
         assert 0.0 <= res["target_exposure"] <= 1.0
         assert "posteriors" in res
         assert "indicator_scores" in res
@@ -84,7 +91,7 @@ def test_pipeline_run_daily_success(tmp_path, mock_ohlcv_data, mock_onchain_data
             
             # Verify telemetry persistence
             cursor.execute("SELECT COUNT(*) FROM indicator_scores WHERE date = '2023-07-24'")
-            assert cursor.fetchone()[0] == 5 # exactly 5 technical indicators
+            assert cursor.fetchone()[0] == 4 # exactly 4 technical indicators
             
             cursor.execute("SELECT COUNT(*) FROM pca_components WHERE date = '2023-07-24'")
             assert cursor.fetchone()[0] > 0 # PCA components persisted

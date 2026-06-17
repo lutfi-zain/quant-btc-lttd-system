@@ -21,7 +21,7 @@ def test_stochastic_functionality(sample_data):
 
     assert isinstance(signals, pd.Series)
     assert len(signals) == len(sample_data)
-    assert signals.dropna().min() >= 0.0
+    assert signals.dropna().min() >= -1.0
     assert signals.dropna().max() <= 1.0
 
 

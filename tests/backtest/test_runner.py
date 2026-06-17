@@ -16,7 +16,7 @@ def test_mock_execution_adapter():
     
     # 2. Second record (transition from BULL to BEAR)
     res2 = adapter.run("2026-01-02", -0.2, "BEAR", {"BULL": 0.0, "BEAR": 0.9, "SIDEWAYS": 0.1})
-    assert res2["target_exposure"] == pytest.approx(0.7)
+    assert res2["target_exposure"] == pytest.approx(0.63333333)
     assert res2["regime"] == "BEAR"
     assert res2["transition_occurred"] is True
     assert len(adapter.transitions) == 1

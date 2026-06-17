@@ -145,13 +145,13 @@ def point_in_time_join(ohlcv_df: pd.DataFrame, onchain_df: pd.DataFrame) -> pd.D
             onchain['stamp'] = pd.to_datetime(onchain.index)
             
     # Ensure stamp column is datetime and sorted
-    onchain['stamp'] = pd.to_datetime(onchain['stamp'])
+    onchain['stamp'] = pd.to_datetime(onchain['stamp'], utc=True)
     onchain = onchain.sort_values('stamp')
     
     # Reset ohlcv index to make it a mergeable column
     ohlcv = ohlcv.reset_index()
     ohlcv_date_col = ohlcv.columns[0]
-    ohlcv[ohlcv_date_col] = pd.to_datetime(ohlcv[ohlcv_date_col])
+    ohlcv[ohlcv_date_col] = pd.to_datetime(ohlcv[ohlcv_date_col], utc=True)
     
     # merge_asof backward keyed on stamp / date
     merged = pd.merge_asof(

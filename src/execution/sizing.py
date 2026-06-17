@@ -18,8 +18,10 @@ def calculate_target_exposure(
     Bounded between [0.3, 1.0].
     Smoothed using a 5-day EMA with a maximum daily change limit of 0.2.
     """
-    conviction = abs(final_score)
-    base_exposure = 0.5 + 0.5 * conviction
+    # Use final_score directly to map [-1.0, 1.0] to [0.0, 1.0]
+    # Strong bear (-1.0) -> 0.0 base exposure
+    # Strong bull (+1.0) -> 1.0 base exposure
+    base_exposure = 0.5 + 0.5 * final_score
     vol_scalar = max(0.3, 1.0 - vol / 0.8)
     
     raw_exposure = base_exposure * vol_scalar

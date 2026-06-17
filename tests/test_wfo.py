@@ -98,13 +98,13 @@ def test_wfo_fit_predict_l1lasso_and_hmm():
 def test_point_in_time_join():
     from src.backtest.wfo import point_in_time_join
     
-    dates_ohlcv = pd.date_range("2026-01-01", "2026-01-05", freq="D")
+    dates_ohlcv = pd.date_range("2026-01-01", "2026-01-05", freq="D", tz="UTC")
     ohlcv = pd.DataFrame({"close": [100, 101, 102, 103, 104]}, index=dates_ohlcv)
 
     # On-chain data is missing for 2026-01-03
     onchain = pd.DataFrame({
         "sth_mvrv": [1.1, 1.2, 1.4],
-        "stamp": pd.to_datetime(["2026-01-01", "2026-01-02", "2026-01-04"])
+        "stamp": pd.to_datetime(["2026-01-01", "2026-01-02", "2026-01-04"], utc=True)
     })
 
     merged = point_in_time_join(ohlcv, onchain)

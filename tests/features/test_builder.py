@@ -26,7 +26,6 @@ def test_feature_matrix_builder_shape(sample_data):
     assert len(matrix) == len(sample_data)
     assert sorted(list(matrix.columns)) == sorted(
         [
-            "FDI",
             "AdvancedStochastic",
             "RSI-50",
             "FourierSupertrend",
@@ -51,19 +50,19 @@ def test_feature_matrix_vif_and_pruning(sample_data):
 
     # Artificially inject a highly correlated column to test Pratt's Measure pruning
     collinear_matrix = matrix.copy()
-    # Adding a column that is almost identical to FDI
-    collinear_matrix["FDI_collinear"] = collinear_matrix["FDI"] + np.random.normal(
+    # Adding a column that is almost identical to RSI-50
+    collinear_matrix["RSI_collinear"] = collinear_matrix["RSI-50"] + np.random.normal(
         0, 0.001, len(collinear_matrix)
     )
 
     # Calculate VIF on the collinear matrix
     vifs_collinear = calculate_vif(collinear_matrix)
-    assert vifs_collinear["FDI"] > 10.0
-    assert vifs_collinear["FDI_collinear"] > 10.0
+    assert vifs_collinear["RSI-50"] > 10.0
+    assert vifs_collinear["RSI_collinear"] > 10.0
 
     # Run pruning
     # Create a dummy target y
-    y = collinear_matrix["FDI"] * 2.0 + np.random.normal(0, 0.1, len(collinear_matrix))
+    y = collinear_matrix["RSI-50"] * 2.0 + np.random.normal(0, 0.1, len(collinear_matrix))
     pruned_matrix = prune_multicollinear_indicators(
         collinear_matrix, y, vif_threshold=10.0
     )
@@ -72,10 +71,11 @@ def test_feature_matrix_vif_and_pruning(sample_data):
     vifs_pruned = calculate_vif(pruned_matrix)
     for col in pruned_matrix.columns:
         assert vifs_pruned[col] <= 10.0
-    # Ensure one of FDI or FDI_collinear was dropped
+    # Ensure one of RSI-50 or RSI_collinear was dropped
     assert not (
-        "FDI" in pruned_matrix.columns and "FDI_collinear" in pruned_matrix.columns
+        "RSI-50" in pruned_matrix.columns and "RSI_collinear" in pruned_matrix.columns
     )
+    assert "RSI-50" in pruned_matrix.columns or "RSI_collinear" in pruned_matrix.columns
 
 
 def test_feature_matrix_onchain_momentum_pruning(sample_data):

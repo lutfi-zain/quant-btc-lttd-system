@@ -29,7 +29,7 @@ class LTTDPipeline:
     - Layer 4: Ensemble model fitting (L1-Lasso Logistic Regression)
     - Layer 5: Execution Engine Sizing & Persistence (SQLite WAL mode)
     """
-    def __init__(self, db_path: Optional[str] = None, base_url: str = "https://bitview.space", ensemble_mode: str = "pca_consensus"):
+    def __init__(self, db_path: Optional[str] = None, base_url: str = "https://bitview.space", ensemble_mode: str = "xgboost"):
         self.db_path = db_path
         self.brk_ingestion = BRKIngestionService(base_url=base_url)
         self.execution_engine = ExecutionEngine()
@@ -141,7 +141,7 @@ class LTTDPipeline:
         # Add HMM posteriors as features in the feature matrix
         from src.regime.hmm import infer_regime_history
         df_hmm_hist = infer_regime_history(hmm_model, state_to_regime, df_merged.loc[:t, "close"], window=21)
-        for col in ["p_bull", "p_bear", "p_sideways"]:
+        for col in ["p_bull", "p_bear"]:
             if not df_hmm_hist.empty and col in df_hmm_hist.columns:
                 feature_matrix[col] = df_hmm_hist[col].reindex(feature_matrix.index).fillna(0.0)
             else:
@@ -193,29 +193,19 @@ class LTTDPipeline:
 
         # Both MLConsensusEngine and PCAConsensusEngine predict_score methods 
         # MUST return the score in the [-1.0, 1.0] domain natively, or we handle it here.
-        # Actually, MLConsensusEngine returns [0.0, 1.0]. PCAConsensus returns [-1.0, 1.0].
-        if self.ensemble_mode not in ["pca_consensus", "xgboost"]:
-            # Map MLConsensusEngine [0.0, 1.0] to [-1.0, 1.0]
-            final_score = 2.0 * final_score - 1.0
+        # Actually, MLConsensusEngine returns [-1.0, 1.0] directly. PCAConsensus returns [-1.0, 1.0].
 
-        # Invert final_score to convert contrarian IC to momentum IC
-        final_score = -1.0 * final_score
-
+        # Removed final_score inversion (fixes Hit-Rate Inversion Paradox)
         # Ensure final_score is strictly within SQLite constraints [-1.0, 1.0]
         final_score = max(-1.0, min(1.0, final_score))
 
-        # Map HMM regime to 5-level regime using score-based mapping with HMM fallback mapping
-        hmm_fallback_map = {"BULL": "Weak Bull", "BEAR": "Weak Bear", "SIDEWAYS": "Neutral"}
-        if final_score >= 0.6:
-            final_regime = "Strong Bull"
-        elif final_score >= 0.2:
-            final_regime = "Weak Bull"
-        elif final_score >= -0.2:
-            final_regime = "Neutral"
-        elif final_score >= -0.6:
-            final_regime = "Weak Bear"
+        # Map final score to strictly BULL, BEAR, or SIDEWAYS
+        if final_score >= 0.2:
+            final_regime = "BULL"
+        elif final_score <= -0.2:
+            final_regime = "BEAR"
         else:
-            final_regime = "Strong Bear"
+            final_regime = "SIDEWAYS"
 
 
         # 11. Layer 5: Sizing exposure and persisting daily records to SQLite WAL DB

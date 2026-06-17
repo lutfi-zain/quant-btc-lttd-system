@@ -17,7 +17,6 @@ class FeatureProcessor:
         self.pca = None
         self.kept_tech_cols = None
         self.tech_indicators_list = [
-            "FDI",
             "AdvancedStochastic",
             "RSI-50",
             "FourierSupertrend",
@@ -47,6 +46,14 @@ class FeatureProcessor:
         else:
             self.pca = None
 
+        # 4. Run VIF pruning on On-Chain indicators (excluding HMM probs)
+        onchain_cols = [c for c in X_train.columns if c not in self.tech_indicators_list and c not in ["p_bull", "p_bear", "p_sideways"]]
+        X_onchain = X_train[onchain_cols]
+        X_onchain_pruned = prune_multicollinear_indicators(
+            X_onchain, y_train, vif_threshold=self.vif_threshold
+        )
+        self.kept_onchain_cols = X_onchain_pruned.columns.tolist()
+
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         if self.kept_tech_cols is None:
             raise ValueError("FeatureProcessor must be fitted before calling transform.")
@@ -61,9 +68,12 @@ class FeatureProcessor:
         else:
             X_pca = pd.DataFrame(index=X.index)
 
-        # 2. On-Chain indicators: bypass PCA completely
-        onchain_cols = [c for c in X.columns if c not in self.tech_indicators_list]
-        X_onchain = X[onchain_cols]
+        # 2. On-Chain indicators: bypass PCA completely but use pruned columns
+        X_onchain = X[self.kept_onchain_cols] if hasattr(self, 'kept_onchain_cols') else X[[c for c in X.columns if c not in self.tech_indicators_list and c not in ["p_bull", "p_bear", "p_sideways"]]]
 
-        # 3. Return the merged dataframe
-        return X_pca.join(X_onchain, how="left")
+        # 3. Add back HMM probs
+        prob_cols = [c for c in X.columns if c in ["p_bull", "p_bear", "p_sideways"]]
+        X_probs = X[prob_cols]
+
+        # 4. Return the merged dataframe
+        return X_pca.join(X_onchain, how="left").join(X_probs, how="left")
