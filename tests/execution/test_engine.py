@@ -81,7 +81,7 @@ def test_engine_run_pipeline_multiday(tmp_path):
         db_path=db_path
     )
     assert day1_res["status"] == "success"
-    assert day1_res["target_exposure"] == 1.0
+    assert day1_res["target_exposure"] == pytest.approx(0.765)
     assert day1_res["transition_occurred"] is False  # No previous regime recorded
 
     # Verify Day 1 DB insertion
@@ -92,7 +92,7 @@ def test_engine_run_pipeline_multiday(tmp_path):
         assert row is not None
         assert row["regime"] == "BULL"
         assert row["final_score"] == 0.8
-        assert row["target_exposure"] == 1.0
+        assert row["target_exposure"] == pytest.approx(0.765)
         assert row["posterior_prob"] == 0.9
 
         # No transitions yet
@@ -110,7 +110,7 @@ def test_engine_run_pipeline_multiday(tmp_path):
         db_path=db_path
     )
     assert day2_res["status"] == "success"
-    assert day2_res["target_exposure"] == 1.0
+    assert day2_res["target_exposure"] == pytest.approx(0.71125)
     assert day2_res["transition_occurred"] is False  # Same regime
 
     # Verify Day 2 DB insertion
@@ -121,7 +121,7 @@ def test_engine_run_pipeline_multiday(tmp_path):
         assert row is not None
         assert row["regime"] == "BULL"
         assert row["final_score"] == 0.4
-        assert row["target_exposure"] == 1.0
+        assert row["target_exposure"] == pytest.approx(0.71125)
         assert row["posterior_prob"] == 0.8
 
         # Still no transitions
@@ -139,7 +139,7 @@ def test_engine_run_pipeline_multiday(tmp_path):
         db_path=db_path
     )
     assert day3_res["status"] == "success"
-    assert day3_res["target_exposure"] == 0.0  # Maps to Neutral (0.0)
+    assert day3_res["target_exposure"] == pytest.approx(0.69375)
     assert day3_res["transition_occurred"] is True  # Transition from BULL to SIDEWAYS
 
     # Verify Day 3 DB insertion and Transition insertion
@@ -150,7 +150,7 @@ def test_engine_run_pipeline_multiday(tmp_path):
         assert row is not None
         assert row["regime"] == "SIDEWAYS"
         assert row["final_score"] == 0.7
-        assert row["target_exposure"] == 0.0
+        assert row["target_exposure"] == pytest.approx(0.69375)
         assert row["posterior_prob"] == 0.7
 
         # Transition recorded

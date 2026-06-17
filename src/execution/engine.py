@@ -62,6 +62,31 @@ class ExecutionEngine:
             
         return None
 
+    def get_previous_exposure_from_db(self, date_str: str, db_path=None) -> Optional[float]:
+        """
+        Queries the database to find the last recorded target_exposure prior to the current date.
+        """
+        from src.execution.database import get_connection
+        
+        db_args = {}
+        if db_path is not None:
+            db_args["db_path"] = db_path
+
+        try:
+            with get_connection(**db_args) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT target_exposure FROM daily_lttd WHERE date < ? ORDER BY date DESC LIMIT 1",
+                    (date_str,),
+                )
+                row = cursor.fetchone()
+                if row:
+                    return row["target_exposure"]
+        except Exception as e:
+            logger.warning(f"Could not fetch previous target_exposure from DB: {e}")
+            
+        return None
+
     def run(
         self,
         date_str: str,
@@ -84,8 +109,16 @@ class ExecutionEngine:
         # Use exact regime case
         regime_upper = regime
 
+        # Retrieve previous exposure from database
+        prev_exposure = self.get_previous_exposure_from_db(date_str, db_path=db_path)
+
         # 1. Calculate target exposure
-        target_exposure = calculate_target_exposure(final_score, regime_upper)
+        target_exposure = calculate_target_exposure(
+            final_score,
+            realized_volatility,
+            regime_upper,
+            prev_exposure=prev_exposure
+        )
 
         # 2. Extract posteriors
         posteriors_clean = posteriors or {"BULL": 0.0, "BEAR": 0.0, "SIDEWAYS": 0.0}

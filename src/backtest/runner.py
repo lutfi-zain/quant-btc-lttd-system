@@ -28,6 +28,7 @@ class MockExecutionAdapter:
     def __init__(self):
         self.records: List[Dict[str, Any]] = []
         self.previous_regime: Optional[str] = None
+        self.previous_exposure: Optional[float] = None
         self.transitions: List[Dict[str, Any]] = []
 
     def run(
@@ -40,7 +41,13 @@ class MockExecutionAdapter:
         realized_volatility: float = 0.0,
     ) -> Dict[str, Any]:
         regime_upper = regime
-        target_exposure = calculate_target_exposure(final_score, regime_upper)
+        target_exposure = calculate_target_exposure(
+            final_score,
+            realized_volatility,
+            regime_upper,
+            prev_exposure=self.previous_exposure
+        )
+        self.previous_exposure = target_exposure
         
         # Calculate transition (in-memory)
         transition_occurred = False
