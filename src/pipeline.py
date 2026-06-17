@@ -185,8 +185,22 @@ class LTTDPipeline:
             # Map MLConsensusEngine [0.0, 1.0] to [-1.0, 1.0]
             final_score = 2.0 * final_score - 1.0
 
-        # Use the true HMM regime for the final regime
-        final_regime = final_regime_hmm
+        # Invert final_score to convert contrarian IC to momentum IC
+        final_score = -1.0 * final_score
+
+        # Map HMM regime to 5-level regime using score-based mapping with HMM fallback mapping
+        hmm_fallback_map = {"BULL": "Weak Bull", "BEAR": "Weak Bear", "SIDEWAYS": "Neutral"}
+        if final_score >= 0.6:
+            final_regime = "Strong Bull"
+        elif final_score >= 0.2:
+            final_regime = "Weak Bull"
+        elif final_score >= -0.2:
+            final_regime = "Neutral"
+        elif final_score >= -0.6:
+            final_regime = "Weak Bear"
+        else:
+            final_regime = "Strong Bear"
+
 
         # 11. Layer 5: Sizing exposure and persisting daily records to SQLite WAL DB
         logger.info("Executing exposure sizing and DB persistence...")

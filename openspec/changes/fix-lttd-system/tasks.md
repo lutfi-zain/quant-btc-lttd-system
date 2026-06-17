@@ -1,10 +1,10 @@
 ## 1. P0 Fixes — Production Functionality (1 day)
 
-- [ ] 1.1 Fix regime name mapping in `src/pipeline.py`: Add `{"BULL": "Weak Bull", "BEAR": "Weak Bear", "SIDEWAYS": "Neutral"}` mapping before execution engine
-- [ ] 1.2 Add signal inversion in `src/pipeline.py`: Multiply `final_score` by -1 after ensemble computation
-- [ ] 1.3 Verify production exposure > 0: Run pipeline and check `target_exposure` is not always 0.0
-- [ ] 1.4 Run tests: `python -m pytest -xvs` — all existing tests must pass
-- [ ] 1.5 Commit: `fix(execution): map HMM regime to 5-level and invert signal`
+- [x] 1.1 Fix regime name mapping in `src/pipeline.py`: Add `{"BULL": "Weak Bull", "BEAR": "Weak Bear", "SIDEWAYS": "Neutral"}` mapping before execution engine
+- [x] 1.2 Add signal inversion in `src/pipeline.py`: Multiply `final_score` by -1 after ensemble computation
+- [x] 1.3 Verify production exposure > 0: Run pipeline and check `target_exposure` is not always 0.0
+- [x] 1.4 Run tests: `python -m pytest -xvs` — all existing tests must pass
+- [x] 1.5 Commit: `fix(execution): map HMM regime to 5-level and invert signal`
 
 ## 2. P1 Fixes — Target Variable Redesign (2-3 days)
 

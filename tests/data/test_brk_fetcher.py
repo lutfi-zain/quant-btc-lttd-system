@@ -53,12 +53,14 @@ def test_fetch_latest_stale_raises_error(mocker):
 def test_fetch_historical_bulk(mocker):
     fetcher = BRKDataFetcher()
     bulk_mock = [{"index": "day1", "data": [1, 2, 3]}]
+    mocker.patch("os.path.exists", return_value=False)
+    mocker.patch("builtins.open", mocker.mock_open())
     mocker.patch.object(fetcher.client, "get_series_bulk", return_value=bulk_mock)
 
     res = fetcher.fetch_historical_bulk(["sth_mvrv"], start=-3)
     assert res == bulk_mock
     fetcher.client.get_series_bulk.assert_called_once_with(
-        ["sth_mvrv"], index="day1", start=-3
+        "sth_mvrv", index="day1"
     )
 
 

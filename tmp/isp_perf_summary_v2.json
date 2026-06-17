@@ -1,0 +1,34 @@
+{
+  "v": 2,
+  "period": "2015-10-28 to 2025-08-21",
+  "years": 9.8,
+  "daily_bars": 3586,
+  "total_return_pct": 365027.3,
+  "cagr_pct": 130.6,
+  "btc_cagr_pct": 83.3,
+  "sharpe": 7.9,
+  "sortino": 5.23,
+  "calmar": 9.3,
+  "max_drawdown_pct": -14.1,
+  "volatility_pct": 7.3,
+  "win_rate_pct": 100.0,
+  "profit_factor": Infinity,
+  "n_trades": 14,
+  "avg_signal_lag_days": 1.2,
+  "btc_beta": 0.471,
+  "alpha_annual_pct": 38.0,
+  "r_squared": 0.435,
+  "t_stat": 29.58,
+  "sharpe_ci_95": [
+    6.47,
+    9.09
+  ],
+  "scorecard": "10/10",
+  "warnings": [
+    "\u26a0 Sharpe 7.90 > 3.0 \u2014 LIKELY OVERFITTING or look-ahead bias",
+    "\u26a0 100% win rate \u2014 IMPOSSIBLE in real markets. Check for look-ahead bias",
+    "\u26a0 REGIME LOOK-AHEAD: Regimes are labeled post-hoc from historical data",
+    "  The strategy 'knows' which regime it's in \u2014 this is IN-SAMPLE, not real-time",
+    "  In production, regime detection would lag by days/weeks"
+  ]
+}

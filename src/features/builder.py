@@ -23,12 +23,13 @@ class FeatureMatrixBuilder:
         self.trend_strength = TrendStrengthIndex(dynamic_lookback=dynamic_lookback)
         self.quantile_dema = QuantileDEMA(dynamic_lookback=dynamic_lookback)
 
-    def build_matrix(self, data: pd.DataFrame) -> pd.DataFrame:
+    def build_matrix(self, data: pd.DataFrame, onchain_df: pd.DataFrame = None) -> pd.DataFrame:
         """
         Computes all registered technical indicators and constructs the feature matrix.
 
         Args:
             data (pd.DataFrame): OHLCV data.
+            onchain_df (pd.DataFrame, optional): On-chain metrics dataframe.
 
         Returns:
             pd.DataFrame: Feature matrix of indicator scores with shape (T, N_features).
@@ -51,5 +52,20 @@ class FeatureMatrixBuilder:
             },
             index=data.index,
         )
+
+        onchain_cols = ["sth_mvrv", "sth_nupl", "sth_sopr_24h", "sth_supply_in_profit"]
+        onchain_source = None
+        if onchain_df is not None:
+            onchain_source = onchain_df
+        else:
+            if any(c in data.columns for c in onchain_cols):
+                onchain_source = data
+
+        if onchain_source is not None:
+            for col in onchain_cols:
+                if col in onchain_source.columns:
+                    col_series = onchain_source[col].reindex(data.index).ffill().bfill()
+                    matrix[col] = col_series
+                    matrix[f"{col}_roc_7"] = ((col_series - col_series.shift(7)) / col_series.shift(7)).fillna(0.0)
 
         return matrix

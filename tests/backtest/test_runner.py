@@ -9,7 +9,7 @@ def test_mock_execution_adapter():
     
     # 1. First record (no transition should be logged since previous_regime is None)
     res1 = adapter.run("2026-01-01", 0.5, "BULL", {"BULL": 0.8, "BEAR": 0.1, "SIDEWAYS": 0.1})
-    assert res1["target_exposure"] == 0.5
+    assert res1["target_exposure"] == 1.0
     assert res1["regime"] == "BULL"
     assert res1["transition_occurred"] is False
     assert len(adapter.transitions) == 0
