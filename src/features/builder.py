@@ -52,27 +52,4 @@ class FeatureMatrixBuilder:
             index=data.index,
         )
 
-        # Add Raw On-chain metrics
-        for name in ["sth_mvrv", "sth_nupl", "sth_sopr_24h", "sth_supply_in_profit"]:
-            if name in data.columns:
-                matrix[f"{name}_raw"] = data[name]
-                matrix[f"{name}_roc_7"] = data[name].diff(7).fillna(0.0)
-                matrix[f"{name}_roc_30"] = data[name].diff(30).fillna(0.0)
-
-        # Multi-horizon price momentum (log returns)
-        import numpy as np
-        if "close" in data.columns:
-            log_close = np.log(data["close"])
-            for h in [1, 3, 7, 14, 30, 90, 180]:
-                matrix[f"mom_{h}"] = log_close.diff(h).fillna(0.0)
-            
-            # Distance from SMA
-            for h in [20, 50, 100, 200]:
-                sma = data["close"].rolling(h, min_periods=1).mean()
-                matrix[f"dist_sma_{h}"] = (data["close"] / sma) - 1.0
-                
-            # Volatility
-            for h in [14, 30, 90]:
-                matrix[f"vol_{h}"] = log_close.diff(1).rolling(h, min_periods=1).std().fillna(0.0)
-
         return matrix

@@ -61,7 +61,7 @@ class MockExecutionAdapter:
         record = {
             "date": date_str,
             "regime": regime_upper,
-            "final_score": score,
+            "final_score": final_score,
             "target_exposure": target_exposure,
             "transition_occurred": transition_occurred,
         }
@@ -172,7 +172,8 @@ def _run_fold(
                 
         overridden_posteriors = apply_onchain_overrides(posteriors_dict, onchain_metrics)
         
-        if self.ensemble_mode != "pca_consensus":
+        # Ensure score is [-1.0, 1.0] for all models
+        if ensemble_mode == "pca_consensus":
             score = 2.0 * score - 1.0
 
         if score >= 0.6:
@@ -377,9 +378,9 @@ def main():
     print(f"Loading daily BTC OHLCV from Binance...")
     df_ohlcv = ohlcv_pipeline()
     
-    print(f"Loading historical on-chain metrics from BRK API...")
+    print("Loading historical on-chain metrics from BRK API...")
     feed = OnChainFeed()
-    onchain = feed.fetch_historical_bulk(start=-2500)
+    onchain = feed.fetch_historical_bulk(start=-4500)
     
     print(f"Joining datasets causally...")
     df_merged = point_in_time_join(df_ohlcv, onchain)
