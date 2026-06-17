@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 from src.signals.fdi import FDI
 from src.signals.advanced_stochastic import AdvancedStochastic
 from src.signals.kalman_rsi import KalmanRSI
@@ -62,6 +63,8 @@ class FeatureMatrixBuilder:
                 if col in onchain_source.columns:
                     col_series = onchain_source[col].reindex(data.index).ffill().bfill()
                     matrix[col] = col_series
-                    matrix[f"{col}_roc_7"] = ((col_series - col_series.shift(7)) / col_series.shift(7)).fillna(0.0)
+                    shift_col = col_series.shift(7)
+                    roc = (col_series - shift_col) / shift_col.replace(0.0, np.nan)
+                    matrix[f"{col}_roc_7"] = roc.replace([np.inf, -np.inf], np.nan).fillna(0.0)
 
         return matrix

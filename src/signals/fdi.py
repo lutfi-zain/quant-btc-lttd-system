@@ -10,7 +10,7 @@ class FDI(CausalFilter):
     Uses Sevcik's algorithm over a rolling window.
     """
 
-    def __init__(self, dynamic_lookback=None, ema_span=200, reversion_multiplier=1.0):
+    def __init__(self, dynamic_lookback=None, ema_span=50, reversion_multiplier=1.0):
         """
         Args:
             dynamic_lookback (pd.Series or callable or int, optional):

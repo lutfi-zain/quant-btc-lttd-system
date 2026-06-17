@@ -2,15 +2,15 @@ import pandas as pd
 import numpy as np
 
 class RollingNormalizer:
-    def __init__(self, window: int = 800):
+    def __init__(self, window: int = 200):
         """
         Causal normalizer that scales unbounded metrics into [0.0, 1.0].
         Uses a rolling window to ensure no lookahead bias.
         
         Args:
-            window: Number of past periods to use for min/max.
+            window: Number of past periods to use for min/max. Capped at 200 days.
         """
-        self.window = window
+        self.window = min(200, window)
         
     def transform(self, series: pd.Series) -> pd.Series:
         """
