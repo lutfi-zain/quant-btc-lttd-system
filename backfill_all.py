@@ -91,7 +91,11 @@ def process_single_day(t, df_merged, feature_matrix, log_returns, y):
         
         # Sizing target exposure
         from src.execution.sizing import calculate_target_exposure
-        target_exposure = calculate_target_exposure(final_score, final_regime)
+        target_exposure = calculate_target_exposure(
+            final_score,
+            realized_vol,
+            final_regime
+        )
         
         # Get indicator scores and PCA components
         indicator_scores = feature_matrix_t.loc[t, processor.tech_indicators_list].to_dict()

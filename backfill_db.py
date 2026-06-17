@@ -25,9 +25,9 @@ def run():
     
     for date_str, r in unique_records.items():
         c.execute("""
-            INSERT INTO daily_lttd (date, regime, final_score, target_exposure, posterior_prob)
-            VALUES (?, ?, ?, ?, ?)
-        """, (date_str, r['regime'], float(r['final_score']), float(r['target_exposure']), float(r['posteriors'].get(r['regime'], 1.0))))
+            INSERT INTO daily_lttd (data_as_of, date, regime, final_score, target_exposure, posterior_prob)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (date_str, date_str, r['regime'], float(r['final_score']), float(r['target_exposure']), float(r['posteriors'].get(r['regime'], 1.0))))
         
         for ind, score in r['indicator_scores'].items():
             c.execute("INSERT INTO indicator_scores (date, indicator_name, score) VALUES (?, ?, ?)",
