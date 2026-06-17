@@ -20,8 +20,17 @@ def run():
     c = conn.cursor()
     
     c.execute("DELETE FROM daily_lttd")
-    c.execute("DELETE FROM indicator_scores")
+    c.execute("DROP TABLE IF EXISTS indicator_scores")
     c.execute("DELETE FROM pca_components")
+    conn.commit()
+    conn.close()
+    
+    # Recreate the table with the corrected constraint
+    from src.execution.database import init_db
+    init_db("database/lttd.db")
+    
+    conn = sqlite3.connect("database/lttd.db")
+    c = conn.cursor()
     
     for date_str, r in unique_records.items():
         c.execute("""

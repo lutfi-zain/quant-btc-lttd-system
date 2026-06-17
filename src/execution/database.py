@@ -45,7 +45,7 @@ def init_db(db_path=DEFAULT_DB_PATH):
             CREATE TABLE IF NOT EXISTS indicator_scores (
                 date TEXT,
                 indicator_name TEXT,
-                score REAL CHECK(score >= 0.0 AND score <= 1.0) NOT NULL,
+                score REAL CHECK(score >= -1.0 AND score <= 1.0) NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (date, indicator_name)
             )
