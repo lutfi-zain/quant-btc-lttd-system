@@ -30,5 +30,8 @@ def test_all_signals_output_0_1():
     
     for ind in indicators:
         res = ind.compute(data)
-        assert res.min() >= 0.0, f"{ind.__class__.__name__} has values < 0.0"
+        if isinstance(ind, KalmanRSI):
+            assert res.min() >= -1.0, f"{ind.__class__.__name__} has values < -1.0"
+        else:
+            assert res.min() >= 0.0, f"{ind.__class__.__name__} has values < 0.0"
         assert res.max() <= 1.0, f"{ind.__class__.__name__} has values > 1.0"

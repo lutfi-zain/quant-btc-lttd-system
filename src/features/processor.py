@@ -19,10 +19,9 @@ class FeatureProcessor:
         self.tech_indicators_list = [
             "FDI",
             "AdvancedStochastic",
-            "KalmanRSI",
+            "RSI-50",
             "FourierSupertrend",
             "TrendStrengthIndex",
-            "QuantileDEMA",
         ]
 
     def fit(self, X_train: pd.DataFrame, y_train: pd.Series = None):

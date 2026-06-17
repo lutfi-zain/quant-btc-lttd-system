@@ -6,11 +6,11 @@ from src.features.processor import FeatureProcessor
 
 def test_feature_processor_orchestration():
     np.random.seed(42)
-    # Generate 6 core technical indicators (some collinear)
+    # Generate core technical indicators (some collinear)
     fdi = np.random.randn(100)
-    qdema = fdi + np.random.normal(0, 0.01, 100) # highly collinear
+    fdi_collinear = fdi + np.random.normal(0, 0.01, 100) # highly collinear
     stoch = np.random.randn(100)
-    krsi = np.random.randn(100)
+    rsi50 = np.random.randn(100)
     fourier = np.random.randn(100)
     tsi = np.random.randn(100)
 
@@ -20,9 +20,9 @@ def test_feature_processor_orchestration():
 
     df = pd.DataFrame({
         "FDI": fdi,
-        "QuantileDEMA": qdema,
+        "FDI_collinear": fdi_collinear,
         "AdvancedStochastic": stoch,
-        "KalmanRSI": krsi,
+        "RSI-50": rsi50,
         "FourierSupertrend": fourier,
         "TrendStrengthIndex": tsi,
         "sth_mvrv_roc_7": mvrv,
@@ -30,11 +30,12 @@ def test_feature_processor_orchestration():
     })
 
     processor = FeatureProcessor(vif_threshold=10.0)
+    processor.tech_indicators_list.append("FDI_collinear")
     processor.fit(df)
 
     # 1. Verify kept columns
-    # FDI and QuantileDEMA are collinear, so one of them should be pruned
-    assert not ("FDI" in processor.kept_tech_cols and "QuantileDEMA" in processor.kept_tech_cols)
+    # FDI and FDI_collinear are collinear, so one of them should be pruned
+    assert not ("FDI" in processor.kept_tech_cols and "FDI_collinear" in processor.kept_tech_cols)
     assert len(processor.kept_tech_cols) < 6
 
     # 2. Verify transform output
@@ -56,9 +57,8 @@ def test_feature_processor_no_lookahead():
     np.random.seed(42)
     df = pd.DataFrame({
         "FDI": np.random.randn(200),
-        "QuantileDEMA": np.random.randn(200),
         "AdvancedStochastic": np.random.randn(200),
-        "KalmanRSI": np.random.randn(200),
+        "RSI-50": np.random.randn(200),
         "FourierSupertrend": np.random.randn(200),
         "TrendStrengthIndex": np.random.randn(200),
         "sth_mvrv_roc_7": np.random.randn(200)
@@ -88,11 +88,11 @@ def test_feature_processor_no_lookahead():
 
 def test_feature_processor_segregated_vif():
     np.random.seed(42)
-    # FDI and QuantileDEMA are collinear
+    # FDI and FDI_collinear are collinear
     fdi = np.random.randn(100)
-    qdema = fdi + np.random.normal(0, 0.01, 100)
+    fdi_collinear = fdi + np.random.normal(0, 0.01, 100)
     stoch = np.random.randn(100)
-    krsi = np.random.randn(100)
+    rsi50 = np.random.randn(100)
     fourier = np.random.randn(100)
     tsi = np.random.randn(100)
 
@@ -101,15 +101,16 @@ def test_feature_processor_segregated_vif():
 
     df = pd.DataFrame({
         "FDI": fdi,
-        "QuantileDEMA": qdema,
+        "FDI_collinear": fdi_collinear,
         "AdvancedStochastic": stoch,
-        "KalmanRSI": krsi,
+        "RSI-50": rsi50,
         "FourierSupertrend": fourier,
         "TrendStrengthIndex": tsi,
         "sth_mvrv_roc_7": mvrv
     })
 
     processor = FeatureProcessor(vif_threshold=5.0) # low threshold to trigger pruning
+    processor.tech_indicators_list.append("FDI_collinear")
     processor.fit(df)
 
     # Verify that the on-chain feature is NOT pruned (meaning it's not in kept_tech_cols,

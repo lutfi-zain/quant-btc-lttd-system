@@ -15,7 +15,7 @@ class KalmanRSI(CausalFilter):
     def __init__(
         self,
         dynamic_lookback=None,
-        rsi_period=250,
+        rsi_period=50,
         process_noise=0.75,
         measurement_noise=205.0,
         smooth=False,
@@ -100,13 +100,13 @@ class KalmanRSI(CausalFilter):
 
     def compute(self, data: pd.DataFrame) -> pd.Series:
         """
-        Compute the KalmanRSI indicator score based on OHLCV data.
+        Compute the RSI-50 indicator score based on OHLCV data.
 
         Args:
             data (pd.DataFrame): The input OHLCV data.
 
         Returns:
-            pd.Series: Indicator intensities bounded in [0.0, 1.0] at the bar level.
+            pd.Series: Indicator intensities bounded in [-1.0, 1.0] at the bar level.
         """
         # Resolve price source
         if all(col in data.columns for col in ["open", "high", "low", "close"]):
@@ -118,25 +118,11 @@ class KalmanRSI(CausalFilter):
         else:
             raise ValueError("Input DataFrame must contain 'close' column.")
 
-        # 1. Apply Kalman filter to pricesource
-        kalman_price = self._apply_kalman(pricesource)
+        # Compute RSI directly on pricesource (no Kalman filter)
+        rsi = self._pandas_rsi(pricesource, self.rsi_period)
 
-        # 2. Compute RSI on Kalman filtered price
-        rsi = self._pandas_rsi(kalman_price, self.rsi_period)
-
-        # 3. Optional smoothing
-        if self.smooth:
-            if self.smooth_type.upper() == "EMA":
-                rsi = rsi.ewm(span=self.smooth_period, adjust=False).mean()
-            else:
-                rsi = rsi.rolling(window=self.smooth_period, min_periods=1).mean()
-
-        # 4. Normalization to [0, 1]
-        from src.features.normalizer import RollingNormalizer
-        lookbacks = self._resolve_lookback(data, default_lookback=200)
-        # Use RollingNormalizer with the default lookback or max of dynamic lookbacks
-        max_lookback = int(lookbacks.max()) if len(lookbacks) > 0 else 200
-        normalizer = RollingNormalizer(window=max_lookback)
-        score = normalizer.transform(rsi)
+        # Convert to binary signal: +1 if RSI > 50, else -1
+        score = pd.Series(np.where(rsi > 50.0, 1.0, -1.0), index=pricesource.index)
+        score[pricesource.isna()] = np.nan
         
         return score

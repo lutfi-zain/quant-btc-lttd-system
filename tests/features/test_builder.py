@@ -27,9 +27,8 @@ def test_feature_matrix_builder_shape(sample_data):
     assert sorted(list(matrix.columns)) == sorted(
         [
             "FDI",
-            "QuantileDEMA",
             "AdvancedStochastic",
-            "KalmanRSI",
+            "RSI-50",
             "FourierSupertrend",
             "TrendStrengthIndex",
         ]
