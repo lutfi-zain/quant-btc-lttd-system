@@ -27,15 +27,14 @@ class XGBoostEnsemble:
 
         scale_pos_weight = num_neg / max(1, num_pos)
         
-        # reg:logistic is PERFECT for continuous targets in [0, 1]
+        # reg:squarederror for continuous target in [-1, +1]
         self.xgb = xgb.XGBRegressor(
-            n_estimators=300,         
+            n_estimators=50,         
             learning_rate=0.03,
             max_depth=4,              
             subsample=0.7,            
             colsample_bytree=0.7,     
-            scale_pos_weight=scale_pos_weight,
-            objective="reg:logistic",
+            objective="reg:squarederror",
             random_state=self.random_state,
             n_jobs=1,
             reg_alpha=0.01,            

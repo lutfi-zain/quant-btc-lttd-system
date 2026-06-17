@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression, Lasso
 
+from sklearn.preprocessing import StandardScaler
 from src.features.importance import calculate_pratt_importance
 
 
@@ -143,6 +144,7 @@ class PCAConsensusEnsemble:
     def __init__(self):
         self.weights = None
         self.kept_tech_cols = None
+        self.scaler = StandardScaler()
         self.fitted = False
 
     def fit(self, X: pd.DataFrame, y: pd.Series = None, pca_components_matrix: np.ndarray = None, kept_cols: list = None):
@@ -159,12 +161,18 @@ class PCAConsensusEnsemble:
             else:
                 self.weights = np.abs(pc1_loadings) / sum_loadings
             self.kept_tech_cols = kept_cols
+            
+            # Fit scaler on X[kept_cols]
+            self.scaler.fit(X[self.kept_tech_cols])
             self.fitted = True
         else:
             # Fallback equal weights if no PCA components supplied
             cols = X.columns.tolist()
             self.kept_tech_cols = cols
             self.weights = np.ones(len(cols)) / len(cols)
+            
+            # Fit scaler on X[cols]
+            self.scaler.fit(X[cols])
             self.fitted = True
 
     def predict_score(self, X: pd.DataFrame) -> pd.Series:
@@ -176,9 +184,12 @@ class PCAConsensusEnsemble:
             
         score = pd.Series(0.0, index=X.index)
         if self.kept_tech_cols:
+            X_subset = X[self.kept_tech_cols]
+            X_scaled_arr = self.scaler.transform(X_subset)
+            X_scaled = pd.DataFrame(X_scaled_arr, columns=self.kept_tech_cols, index=X.index)
+            
             for i, col in enumerate(self.kept_tech_cols):
-                if col in X.columns:
-                    score += self.weights[i] * X[col]
+                score += self.weights[i] * X_scaled[col]
         return score.clip(-1.0, 1.0)
 
     def predict(self, X: pd.DataFrame) -> pd.Series:

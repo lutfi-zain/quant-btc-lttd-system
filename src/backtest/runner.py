@@ -108,7 +108,27 @@ def _run_fold(
         test_regimes.append(res["regime"])
         test_posteriors.append(res["posteriors"])
         
-    # 3. Fit FeatureProcessor on train_idx, transform both train_idx and test_idx
+    # 3. Add HMM posteriors to feature_matrix (locally within the fold to avoid lookahead leak)
+    feature_matrix_fold = feature_matrix.copy()
+    
+    # Train posteriors
+    from src.regime.hmm import infer_regime_history
+    df_train_hmm = infer_regime_history(hmm_model, state_to_regime, close_train, window=21)
+    
+    # Test posteriors
+    df_test_hmm = pd.DataFrame(test_posteriors, index=test_idx)
+    df_test_hmm = df_test_hmm.rename(columns={"BULL": "p_bull", "BEAR": "p_bear", "SIDEWAYS": "p_sideways"})
+    
+    for col in ["p_bull", "p_bear", "p_sideways"]:
+        feature_matrix_fold[col] = 0.0
+        if not df_train_hmm.empty and col in df_train_hmm.columns:
+            train_vals = df_train_hmm[col].reindex(train_idx)
+            feature_matrix_fold.loc[train_idx, col] = train_vals.fillna(0.0)
+        if not df_test_hmm.empty and col in df_test_hmm.columns:
+            test_vals = df_test_hmm[col].reindex(test_idx)
+            feature_matrix_fold.loc[test_idx, col] = test_vals.fillna(0.0)
+
+    # 4. Fit FeatureProcessor on train_idx, transform both train_idx and test_idx
     from src.features.processor import FeatureProcessor
     processor = FeatureProcessor()
     
@@ -116,9 +136,9 @@ def _run_fold(
     effective_train_idx = train_idx[:-1] if len(train_idx) > 0 else train_idx
 
     valid_train_idx = effective_train_idx[~y.loc[effective_train_idx].isna()]
-    X_train = feature_matrix.loc[valid_train_idx]
+    X_train = feature_matrix_fold.loc[valid_train_idx]
     y_train = y.loc[valid_train_idx]
-    X_test = feature_matrix.loc[test_idx]
+    X_test = feature_matrix_fold.loc[test_idx]
     
     processor.fit(X_train, y_train)
     X_train_proc = processor.transform(X_train)

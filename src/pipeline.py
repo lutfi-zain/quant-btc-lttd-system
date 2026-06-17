@@ -29,7 +29,7 @@ class LTTDPipeline:
     - Layer 4: Ensemble model fitting (L1-Lasso Logistic Regression)
     - Layer 5: Execution Engine Sizing & Persistence (SQLite WAL mode)
     """
-    def __init__(self, db_path: Optional[str] = None, base_url: str = "https://bitview.space", ensemble_mode: str = "xgboost"):
+    def __init__(self, db_path: Optional[str] = None, base_url: str = "https://bitview.space", ensemble_mode: str = "pca_consensus"):
         self.db_path = db_path
         self.brk_ingestion = BRKIngestionService(base_url=base_url)
         self.execution_engine = ExecutionEngine()
@@ -137,6 +137,15 @@ class LTTDPipeline:
         
         # Note: We determine the final_regime AFTER the ensemble score is computed below.
         final_regime_hmm = max(overridden_posteriors, key=overridden_posteriors.get)
+
+        # Add HMM posteriors as features in the feature matrix
+        from src.regime.hmm import infer_regime_history
+        df_hmm_hist = infer_regime_history(hmm_model, state_to_regime, df_merged.loc[:t, "close"], window=21)
+        for col in ["p_bull", "p_bear", "p_sideways"]:
+            if not df_hmm_hist.empty and col in df_hmm_hist.columns:
+                feature_matrix[col] = df_hmm_hist[col].reindex(feature_matrix.index).fillna(0.0)
+            else:
+                feature_matrix[col] = 0.0
 
         # 9. Layer 3: Feature Processor (VIF pruning and PCA)
         logger.info("Running VIF/PCA Feature Processor...")
