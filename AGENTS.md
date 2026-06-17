@@ -114,6 +114,22 @@ LAYER 6: PRESENTATION            (backend/ + frontend/)
 
 ---
 
+## Production Sizing & Ensemble Calibration
+
+### Ensemble Model Defaults
+- The default ensemble model is **`PCAConsensusEnsemble`** (Option A) which orthogonalizes the feature matrix and weights indicators by their explained variance.
+- Alternative models include `Lasso` regression (ElasticNet consensus) and `XGBoost` regression.
+
+### Conviction-Weighted Position Sizing
+Target exposure is calculated dynamically on closed bars using the following sequence:
+1. **Base Exposure**: $E_{\text{base}} = 0.5 + 0.5 \cdot |S_{\text{final}}|$ where $S_{\text{final}} \in [-1.0, 1.0]$ is the momentum-oriented final score.
+2. **Volatility Scalar**: $S_{\text{vol}} = \max\left(0.3, 1.0 - \frac{\sigma_{\text{realized}}}{0.8}\right)$ where $\sigma_{\text{realized}}$ is the 21-day rolling realized daily log returns volatility.
+3. **Raw Exposure**: $E_{\text{raw}} = E_{\text{base}} \cdot S_{\text{vol}}$ bounded within $[0.3, 1.0]$.
+4. **EMA Smoothing**: Smoothed using a 5-day EMA ($\alpha = \frac{1}{3}$): $E_{\text{smoothed}} = \alpha \cdot E_{\text{raw}} + (1 - \alpha) \cdot E_{\text{prev}}$.
+5. **Daily Change Clamping**: The daily exposure change is clamped to a maximum of $\pm 0.2$ to minimize live slippage and execution costs.
+
+---
+
 ## Git & Workflow Conventions
 
 - **Branching Strategy:** `feature/LTTD-{issue-number}-{short-desc}` (e.g., `feature/LTTD-001-regime-hmm`)

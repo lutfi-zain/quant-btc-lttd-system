@@ -76,8 +76,8 @@
 
 ## 9. Validation & Documentation (1 day)
 
-- [ ] 9.1 Run full test suite: `python -m pytest --cov`
-- [ ] 9.2 Generate backtest performance report
-- [ ] 9.3 Update AGENTS.md with new ensemble defaults and sizing formula
-- [ ] 9.4 Create migration guide for existing deployments
-- [ ] 9.5 Commit: `docs: update documentation for system fixes`
+- [x] 9.1 Run full test suite: `python -m pytest --cov`
+- [x] 9.2 Generate backtest performance report
+- [x] 9.3 Update AGENTS.md with new ensemble defaults and sizing formula
+- [x] 9.4 Create migration guide for existing deployments
+- [x] 9.5 Commit: `docs: update documentation for system fixes`
