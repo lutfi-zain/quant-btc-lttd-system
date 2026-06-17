@@ -34,7 +34,11 @@ export const LTTDChart: React.FC<LTTDChartProps> = ({ data }) => {
     // Cleanup previous instances
     [chartRef, scoreChartRef, exposureChartRef, equityChartRef].forEach(ref => {
       if (ref.current) {
-        ref.current.remove();
+        try {
+          ref.current.remove();
+        } catch (e) {
+          // Ignore if already disposed
+        }
         ref.current = null;
       }
     });
@@ -186,8 +190,16 @@ export const LTTDChart: React.FC<LTTDChartProps> = ({ data }) => {
     return () => {
       charts.forEach(({ id, chart }) => {
         unregisterChart(id);
-        chart.remove();
+        try {
+          chart.remove();
+        } catch (e) {
+          // Ignore if already disposed
+        }
       });
+      chartRef.current = null;
+      scoreChartRef.current = null;
+      exposureChartRef.current = null;
+      equityChartRef.current = null;
     };
   }, [data, scaleMode]);
 
