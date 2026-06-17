@@ -33,18 +33,27 @@ def calculate_realized_volatility(
 
 def prepare_features_df(close: pd.Series, window: int = 21) -> pd.DataFrame:
     """
-    Orchestrate log returns and volatility into a aligned DataFrame, dropping NaNs.
+    Orchestrate log returns, volatility, and SMA distance into a aligned DataFrame, dropping NaNs.
 
     Args:
         close (pd.Series): Historical daily close prices.
         window (int): Volatility rolling window size. Default is 21.
 
     Returns:
-        pd.DataFrame: Aligned features DataFrame with columns 'log_returns' and 'realized_volatility'.
+        pd.DataFrame: Aligned features DataFrame with columns 'log_returns', 'realized_volatility', 'sma_dist'.
     """
     log_returns = calculate_log_returns(close)
     vol = calculate_realized_volatility(log_returns, window=window)
-    df = pd.DataFrame({"log_returns": log_returns, "realized_volatility": vol})
+    
+    # Macro trend feature to prevent HMM lag and noise
+    sma200 = close.rolling(window=200).mean()
+    sma_dist = (close - sma200) / sma200
+    
+    df = pd.DataFrame({
+        "log_returns": log_returns, 
+        "realized_volatility": vol,
+        "sma_dist": sma_dist
+    })
     df.dropna(inplace=True)
     return df
 

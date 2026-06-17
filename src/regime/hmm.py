@@ -19,10 +19,10 @@ def train_hmm(
     Returns:
         Tuple[hmm.GaussianHMM, Dict[int, str]]: Fitted model and state-to-regime mapping.
     """
-    if len(close) < 120:
+    if len(close) < 200:
         raise ValueError(
             f"Insufficient data for stable Regime classification. Provided {len(close)} days, "
-            f"minimum 120 days required."
+            f"minimum 200 days required."
         )
 
     # Prepare features
@@ -37,8 +37,8 @@ def train_hmm(
     kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
     labels = kmeans.fit_predict(features)
 
-    means = np.zeros((3, 2))
-    covars = np.zeros((3, 2))
+    means = np.zeros((3, 3))
+    covars = np.zeros((3, 3))
     for i in range(3):
         cluster_data = features[labels == i]
         if len(cluster_data) > 0:

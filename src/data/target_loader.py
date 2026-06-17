@@ -25,6 +25,14 @@ def compute_forward_returns_target(close_series: pd.Series) -> pd.Series:
     # Clip to [-1.0, 1.0]
     target = zscore.clip(-1.0, 1.0)
     
+    # Macro Trend Filter: Suppress dead cat bounces in structural bear markets
+    sma200 = close_series.rolling(window=200).mean()
+    macro_bear_mask = close_series < sma200
+    
+    # If structural bear, clamp positive forward returns to 0
+    # This teaches the model that bounce rallies in a macro bear are not profitable buy signals
+    target.loc[macro_bear_mask & (target > 0)] = 0.0
+    
     # Explicitly ensure target for date t is NaN if t+21 is not in the close_series index
     # (i.e. we don't have price data for t+21)
     if len(target) >= 21:

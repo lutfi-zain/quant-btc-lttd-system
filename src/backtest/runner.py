@@ -44,8 +44,9 @@ class MockExecutionAdapter:
         target_exposure = calculate_target_exposure(
             final_score,
             realized_volatility,
-            regime_upper,
-            prev_exposure=self.previous_exposure
+            regime=regime_upper,
+            prev_exposure=self.previous_exposure,
+            posteriors=posteriors
         )
         self.previous_exposure = target_exposure
         
@@ -107,7 +108,7 @@ def _run_fold(
     
     for date in test_idx:
         close_up_to_date = full_close.loc[:date]
-        if len(close_up_to_date) < 120:
+        if len(close_up_to_date) < 200:
             test_regimes.append("SIDEWAYS")
             test_posteriors.append({"BULL": 0.0, "BEAR": 0.0, "SIDEWAYS": 1.0})
             continue
