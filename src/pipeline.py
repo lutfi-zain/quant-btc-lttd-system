@@ -175,10 +175,16 @@ class LTTDPipeline:
                     pca_components_matrix=processor.pca.pca.components_,
                     kept_cols=processor.kept_tech_cols
                 )
-                final_score = float(model.predict_score(X_test).iloc[0])
             else:
                 model.fit(X=X_train)
-                final_score = float(model.predict_score(X_test).iloc[0])
+            
+            idx_all = feature_matrix.index[feature_matrix.index <= t]
+            all_scores = model.predict_score(feature_matrix.loc[idx_all])
+            
+            # Smooth PCA scores to reduce noise (3-day EMA based on opt)
+            smoothed = all_scores.ewm(span=9, adjust=False).mean()
+            final_score = float(smoothed.iloc[-1])
+
         elif self.ensemble_mode == "xgboost":
             logger.info("Fitting XGBoost+ElasticNet Consensus model...")
             from src.ensemble.xgboost_model import XGBoostEnsemble
@@ -200,12 +206,8 @@ class LTTDPipeline:
         final_score = max(-1.0, min(1.0, final_score))
 
         # Map final score to strictly BULL, BEAR, or SIDEWAYS
-        if final_score >= 0.2:
-            final_regime = "BULL"
-        elif final_score <= -0.2:
-            final_regime = "BEAR"
-        else:
-            final_regime = "SIDEWAYS"
+        # BUGFIX: Use the actual HMM regime, not the XGBoost raw score!
+        final_regime = final_regime_hmm
 
 
         # 11. Layer 5: Sizing exposure and persisting daily records to SQLite WAL DB

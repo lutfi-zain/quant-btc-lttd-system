@@ -13,7 +13,7 @@ class AdaptiveFourierSupertrend(CausalFilter):
     """
 
     def __init__(
-        self, fft_window=256, min_period=10, multiplier=3.0, dynamic_lookback=None
+        self, fft_window=256, min_period=10, multiplier=4.82, dynamic_lookback=None
     ):
         """
         Args:

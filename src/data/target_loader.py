@@ -12,14 +12,13 @@ def compute_forward_returns_target(close_series: pd.Series) -> pd.Series:
     log_close = np.log(close_series)
     fwd_ret = log_close.shift(-21) - log_close
     
-    # Rolling 252-day window z-score normalization
-    rolling_mean = fwd_ret.rolling(window=252, min_periods=120).mean()
+    # Rolling 252-day window volatility normalization (NO mean subtraction!)
     rolling_std = fwd_ret.rolling(window=252, min_periods=120).std()
     
     # Prevent division by zero/NaN in rolling std
     rolling_std_clean = rolling_std.replace(0.0, np.nan)
     
-    zscore = (fwd_ret - rolling_mean) / rolling_std_clean
+    zscore = fwd_ret / rolling_std_clean
     zscore = zscore.fillna(0.0)
     
     # Clip to [-1.0, 1.0]

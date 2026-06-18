@@ -33,7 +33,7 @@ def sim_equity(signals: pd.DataFrame) -> pd.DataFrame:
     """
     df = signals.copy().sort_values("date")
     df["position"] = np.sign(df["final_score"]) * df["target_exposure"].abs()
-    df["strat_return"] = df["position"].shift(1) * df["log_return"]
+    df["strat_return"] = df["position"].shift(1) * df["simple_return"]
     df["strat_return"] = df["strat_return"].fillna(0.0)
     df["equity"] = (1 + df["strat_return"]).cumprod()
     return df
@@ -57,37 +57,44 @@ def cagr(equity: pd.Series, years: float) -> float:
         return 0.0
     return float((equity.iloc[-1] / equity.iloc[0]) ** (1 / years) - 1)
 
+def annual_sortino(r: pd.Series, rf: float = 0.0) -> float:
+    excess = r - rf / 252
+    downside = excess[excess < 0]
+    if len(downside) < 5 or downside.std() == 0:
+        return 0.0
+    return float(np.sqrt(252) * excess.mean() / downside.std())
+
 
 def trade_stats(df: pd.DataFrame) -> dict:
-    """Extract trade-level stats from position changes."""
-    pos_diff = df["position"].diff().fillna(0)
+    """Extract trade-level stats from contiguous non-zero position periods."""
+    df_temp = df.copy()
+    df_temp["in_pos"] = df_temp["position"] > 0
+    # True where trade starts
+    starts = df_temp.index[(df_temp["in_pos"]) & (~df_temp["in_pos"].shift(1).fillna(False))].tolist()
+    # True where trade ends (first day of 0 position after a trade)
+    ends = df_temp.index[(~df_temp["in_pos"]) & (df_temp["in_pos"].shift(1).fillna(False))].tolist()
+    
+    if len(starts) > len(ends):
+        ends.append(df_temp.index[-1])
+        
     trades = []
-    entry_idx = None
-    for i in range(len(df)):
-        if pos_diff.iloc[i] != 0 and entry_idx is not None:
-            trades.append(
-                {
-                    "entry": df["date"].iloc[entry_idx],
-                    "exit": df["date"].iloc[i],
-                    "return": df["strat_return"].iloc[entry_idx + 1 : i + 1].sum(),
-                }
-            )
-            entry_idx = None
-        if pos_diff.iloc[i] != 0:
-            entry_idx = i
-    # if still in position at end
-    if entry_idx is not None and entry_idx < len(df) - 1:
-        trades.append(
-            {
-                "entry": df["date"].iloc[entry_idx],
-                "exit": df["date"].iloc[-1],
-                "return": df["strat_return"].iloc[entry_idx + 1 :].sum(),
-            }
-        )
+    for s, e in zip(starts, ends):
+        s_idx = df_temp.index.get_loc(s)
+        e_idx = df_temp.index.get_loc(e)
+        # The return of the trade is the sum of strat_return during the days we held the position.
+        # Since strat_return at i is position[i-1] * log_return[i], 
+        # the first return is at s+1, and the last return is at e.
+        # But if the trade hasn't ended (e is the last index and in_pos is still True),
+        # we include up to e.
+        
+        tr = df_temp["strat_return"].iloc[s_idx+1 : e_idx+1].sum()
+        trades.append(tr)
+        
     if not trades:
-        return {"trades": 0, "win_rate": 0, "profit_factor": 0}
-    wins = [t["return"] for t in trades if t["return"] > 0]
-    losses = [t["return"] for t in trades if t["return"] <= 0]
+        return {"trades": 0, "win_rate": 0, "profit_factor": 0, "avg_win_pct": 0, "avg_loss_pct": 0}
+        
+    wins = [tr for tr in trades if tr > 0]
+    losses = [tr for tr in trades if tr <= 0]
     w_rate = len(wins) / len(trades) if trades else 0
     p_factor = (
         sum(wins) / abs(sum(losses)) if losses and sum(losses) != 0 else float("inf")
@@ -169,8 +176,8 @@ def main():
         conn.close()
         return
 
-    df["log_return"] = np.log(df["close"] / df["close"].shift(1))
-    df = df.dropna(subset=["log_return"]).reset_index(drop=True)
+    df["simple_return"] = df["close"].pct_change()
+    df = df.dropna(subset=["simple_return"]).reset_index(drop=True)
 
     # ── Simulate ────────────────────────────────────────────────
     eq_df = sim_equity(df)
@@ -180,6 +187,7 @@ def main():
     strat_r = cast(pd.Series, eq_df["strat_return"])
     equity_s = cast(pd.Series, eq_df["equity"])
     sharpe = annual_sharpe(strat_r)
+    sortino = annual_sortino(strat_r)
     dd_pct = max_dd(equity_s) * 100
     cagr_val = cagr(equity_s, years) * 100
     calmar = cagr_val / abs(dd_pct) if dd_pct != 0 else float("inf")
@@ -191,6 +199,7 @@ def main():
     print("\n  ╔═════════════════════════════════════╗")
     print(f"  ║  RETURN      {cagr_val:>8.2f}%  CAGR         ║")
     print(f"  ║  SHARPE      {sharpe:>8.2f}               ║")
+    print(f"  ║  SORTINO     {sortino:>8.2f}               ║")
     print(f"  ║  MAX DD      {dd_pct:>8.2f}%               ║")
     print(f"  ║  CALMAR      {calmar:>8.2f}               ║")
     print("  ╚═════════════════════════════════════╝")

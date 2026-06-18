@@ -8,8 +8,9 @@ def test_mock_execution_adapter():
     adapter = MockExecutionAdapter()
     
     # 1. First record (no transition should be logged since previous_regime is None)
-    res1 = adapter.run("2026-01-01", 0.5, "BULL", {"BULL": 0.8, "BEAR": 0.1, "SIDEWAYS": 0.1})
-    assert res1["target_exposure"] == pytest.approx(2.125)
+    # Score 0.70 > 0.65 (enter_thresh) => exposure = 1.0
+    res1 = adapter.run("2026-01-01", 0.7, "BULL", {"BULL": 0.8, "BEAR": 0.1, "SIDEWAYS": 0.1})
+    assert res1["target_exposure"] == 1.0
     assert res1["regime"] == "BULL"
     assert res1["transition_occurred"] is False
     assert len(adapter.transitions) == 0
@@ -81,7 +82,7 @@ def test_backtest_runner_e2e():
     
     # Validate value constraints
     assert (results_df["target_exposure"] >= 0.0).all()
-    assert (results_df["target_exposure"] <= 2.5).all()
+    assert (results_df["target_exposure"] <= 1.0).all()
     
     # Run legacy fixed window runner
     runner_legacy = BacktestRunner(legacy_fixed_window=True)

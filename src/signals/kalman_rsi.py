@@ -15,7 +15,7 @@ class KalmanRSI(CausalFilter):
     def __init__(
         self,
         dynamic_lookback=None,
-        rsi_period=250,
+        rsi_period=140,
         process_noise=0.75,
         measurement_noise=205.0,
         smooth=False,
@@ -137,8 +137,9 @@ class KalmanRSI(CausalFilter):
         
         normalized_rsi = (rsi - lowest_100) / denom - 0.5
 
-        # 4. Convert to binary signal: +1.0 if normalized_rsi >= 0, else -1.0
-        score = pd.Series(np.where(normalized_rsi >= 0.0, 1.0, -1.0), index=pricesource.index)
+        # 4. Convert to continuous signal in [-1.0, 1.0]
+        # normalized_rsi is currently in [-0.5, 0.5]
+        score = normalized_rsi * 2.0
         score[pricesource.isna()] = np.nan
         
         return score

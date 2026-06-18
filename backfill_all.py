@@ -78,11 +78,15 @@ def process_single_day(t, df_merged, feature_matrix, log_returns, y):
         X_train_proc = processor.transform(X_train)
         X_test_proc = processor.transform(X_test)
         
-        # Fit model and predict (XGBoost+ElasticNet)
-        from src.ensemble.xgboost_model import XGBoostEnsemble
-        model = XGBoostEnsemble()
-        model.fit(X_train_proc, y_train)
-        final_score = float(model.predict(X_test_proc).iloc[0])
+        # Model fitting
+        from src.ensemble.model import PCAConsensusEnsemble
+        model = PCAConsensusEnsemble()
+        if processor.pca is not None:
+            model.fit(X_train, y=None, pca_components_matrix=processor.pca.pca.components_, kept_cols=processor.tech_indicators_list)
+        else:
+            model.fit(X_train, y=None)
+            
+        final_score = float(model.predict(X_test).iloc[0])
             
         # Ensure final_score is strictly within SQLite constraints [-1.0, 1.0]
         final_score = max(-1.0, min(1.0, final_score))
@@ -93,15 +97,8 @@ def process_single_day(t, df_merged, feature_matrix, log_returns, y):
         log_ret = float(log_returns.loc[t])
         realized_vol = float(log_returns.rolling(21).std().fillna(0.0).loc[t])
         
-        # Sizing target exposure
-        from src.execution.sizing import calculate_target_exposure
-        target_exposure = calculate_target_exposure(
-            final_score,
-            realized_vol,
-            regime=final_regime,
-            onchain_metrics=onchain_metrics
-        )
-        
+        # Return record dict without target_exposure, so we can calculate it sequentially later
+        # Return onchain_metrics for later use
         # Get indicator scores and PCA components
         indicator_scores = feature_matrix_t.loc[t, processor.tech_indicators_list].to_dict()
         indicator_scores = {k: float(v) if not pd.isna(v) else 0.0 for k, v in indicator_scores.items()}
@@ -129,15 +126,17 @@ def process_single_day(t, df_merged, feature_matrix, log_returns, y):
             "date": date_str,
             "regime": final_regime,
             "final_score": final_score,
-            "target_exposure": target_exposure,
             "posterior_prob": overridden_posteriors.get(final_regime, 0.0),
             "indicator_scores": indicator_scores,
             "pca_components": pca_components,
             "log_return": log_ret,
             "realized_volatility": realized_vol,
-            "posteriors": overridden_posteriors
+            "posteriors": overridden_posteriors,
+            "onchain_metrics": onchain_metrics
         }
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return None
 
 def main():
@@ -244,6 +243,29 @@ def main():
     results = sorted(results, key=lambda x: x["date"])
     print(f"✓ Parallel computation finished. Successfully calculated {len(results)} days.")
     
+    # Apply EMA smoothing and sequential exposure sizing
+    print("Applying EMA smoothing and sequential exposure sizing...")
+    raw_scores = [r["final_score"] for r in results]
+    scores_series = pd.Series(raw_scores)
+    smoothed_scores = scores_series.ewm(span=9, adjust=False).mean().tolist()
+    
+    from src.execution.sizing import calculate_target_exposure
+    prev_exposure = 0.0
+    for i, r in enumerate(results):
+        r["smoothed_score"] = float(smoothed_scores[i])
+        
+        exposure = calculate_target_exposure(
+            final_score=r["smoothed_score"],
+            vol=r["realized_volatility"],
+            regime=r["regime"],
+            prev_exposure=prev_exposure,
+            onchain_metrics=r["onchain_metrics"]
+        )
+        r["target_exposure"] = exposure
+        prev_exposure = exposure
+        
+    print("✓ Sequential sizing completed.")
+    
     # 6. Insert results into the database in bulk transactions
     print("Saving records to SQLite database in bulk...")
     conn = sqlite3.connect(db_path)
@@ -266,7 +288,8 @@ def main():
     for r in results:
         date_str = r["date"]
         regime = r["regime"]
-        final_score = r["final_score"]
+        # Save smoothed score instead of raw score
+        final_score = r["smoothed_score"]
         target_exposure = r["target_exposure"]
         posterior_prob = r["posterior_prob"]
         

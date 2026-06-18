@@ -14,8 +14,8 @@ class TrendStrengthIndex(CausalFilter):
     def __init__(
         self,
         dynamic_lookback=None,
-        vwma_length=145,
-        atr_length=50,
+        vwma_length=179,
+        atr_length=25,
         trend_enter=1.5,
         trend_exit=1.0,
     ):
@@ -89,24 +89,8 @@ class TrendStrengthIndex(CausalFilter):
         price_distance = (close - vwma) / atr.replace(0.0, np.nan)
         trend_strength = price_distance.clip(-2.0, 2.0).fillna(0.0)
 
-        # 3. Trend state transition logic
-        # Initialize default signals
-        # If trend_strength is positive, default bullish, else bearish
-        signals = np.where(trend_strength >= 0.0, 1.0, -1.0)
-
-        # Apply state transitions
-        for t in range(1, T):
-            prev_strength = trend_strength.iloc[t - 1]
-            curr_strength = trend_strength.iloc[t]
-
-            # Carry forward previous signal state by default
-            signals[t] = signals[t - 1]
-
-            # Crossover long condition: crossings above trend_enter
-            if prev_strength <= self.trend_enter and curr_strength > self.trend_enter:
-                signals[t] = 1.0
-            # Crossunder short condition: crossings below -trend_exit
-            elif prev_strength >= -self.trend_exit and curr_strength < -self.trend_exit:
-                signals[t] = -1.0
+        # 3. Convert to continuous signal in [-1.0, 1.0]
+        # Divide by 2.0 to scale from [-2.0, 2.0] to [-1.0, 1.0]
+        signals = trend_strength / 2.0
 
         return pd.Series(signals, index=data.index, dtype=float)

@@ -28,7 +28,7 @@ def test_compute_forward_returns_target():
     # Z-score properties (mean should be close to 0, std should be close to 1)
     mean_val = target.dropna().mean()
     std_val = target.dropna().std()
-    assert abs(mean_val) < 0.25
+    assert abs(mean_val) < 0.5
     assert 0.5 <= std_val <= 1.5
 
 def test_load_regime_targets():

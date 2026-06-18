@@ -13,7 +13,7 @@ class AdvancedStochastic(CausalFilter):
     def __init__(
         self,
         dynamic_lookback=None,
-        default_lookback=200,
+        default_lookback=238,
     ):
         """
         Args:
@@ -64,7 +64,8 @@ class AdvancedStochastic(CausalFilter):
                 stoch_raw = np.where(denom > 0, 100.0 * (closes - ll) / denom, 50.0)
                 stoch_raw_series = pd.Series(stoch_raw, index=data.index)
                 k = stoch_raw_series.rolling(window=5, min_periods=1).mean()
-                trend = np.where(k > 50.0, 1.0, -1.0)
+                # Continuous intensity in [-1.0, 1.0] instead of step function
+                trend = (k.fillna(50.0).values - 50.0) / 50.0
                 trends_matrix[x] = trend
                 
             start_len = int(max(1, round(1 * (N / self.default_lookback))))
@@ -87,7 +88,8 @@ class AdvancedStochastic(CausalFilter):
                 stoch_raw = np.where(denom > 0, 100.0 * (closes - ll) / denom, 50.0)
                 stoch_raw_series = pd.Series(stoch_raw, index=data.index)
                 k = stoch_raw_series.rolling(window=5, min_periods=1).mean()
-                trend = np.where(k > 50.0, 1.0, -1.0)
+                # Continuous intensity in [-1.0, 1.0] instead of step function
+                trend = (k.fillna(50.0).values - 50.0) / 50.0
                 trends_matrix[x] = trend
 
             signals = np.zeros(T)
