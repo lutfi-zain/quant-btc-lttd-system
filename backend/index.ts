@@ -215,14 +215,14 @@ app.get("/api/diagnostics", (c) => {
     const history = getLTTDHistory(start, end);
     const diagnosticsData = history.map((h) => {
       // Read VIF and variance from pca_components if available, otherwise fallback to defaults
-      const vif: Record<string, number> = {
-        FDI: h.pca_components?.["VIF_FDI"] ?? 1.45,
-        QuantileDEMA: h.pca_components?.["VIF_QuantileDEMA"] ?? 2.12,
-        AdvancedStochastic: h.pca_components?.["VIF_AdvancedStochastic"] ?? 11.24,
-        KalmanRSI: h.pca_components?.["VIF_KalmanRSI"] ?? 1.89,
-        FourierSupertrend: h.pca_components?.["VIF_FourierSupertrend"] ?? 3.42,
-        TrendStrengthIndex: h.pca_components?.["VIF_TrendStrengthIndex"] ?? 1.76,
-      };
+      const vif: Record<string, number> = {};
+      if (h.pca_components) {
+        for (const [key, value] of Object.entries(h.pca_components)) {
+          if (key.startsWith("VIF_")) {
+            vif[key.replace("VIF_", "")] = value;
+          }
+        }
+      }
 
       const pca_variance_explained = h.pca_components?.["pca_variance_explained"] ?? 87.6;
 
