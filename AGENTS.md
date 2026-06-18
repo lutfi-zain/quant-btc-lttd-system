@@ -21,6 +21,9 @@ python -m pip install -r requirements.txt
 
 # Backtest run (when implemented)
 python -m src.backtest.runner --walk-forward --start 2017-01-01 --end 2025-01-01
+
+# Performance report (DB-only, no backend/frontend)
+python scripts/performance_report.py
 ```
 
 Run all tests and confirm they pass before finalizing any change.
@@ -76,6 +79,7 @@ LAYER 6: PRESENTATION            (backend/ + frontend/)
 ```
 
 **Layer rules:**
+
 - Layer N may ONLY import from Layer N-1 or lower. No circular imports.
 - `src/regime/` has ZERO dependency on price indicators. HMM only sees returns + volatility.
 - `src/signals/` MUST implement a `CausalFilter` base class. No symmetric windows.
@@ -96,7 +100,7 @@ LAYER 6: PRESENTATION            (backend/ + frontend/)
 
 ## Security & Compliance Guardrails
 
-### HARD PROHIBITIONS (will cause invalid backtests or live losses):
+### HARD PROHIBITIONS (will cause invalid backtests or live losses)
 
 - ❌ **Never hardcode on-chain data as static arrays.** The Pine Script pattern (`F1_data = array.from("2024-01-01|1", ...)`) bypasses real-time latency and API revisions. All on-chain metrics MUST be fetched live via Glassnode API (or equivalent).
 - ❌ **Never use symmetric/centered filters in real-time execution.** Savitzky-Golay with a centered window references future bars. Any filter using `source[i]` for negative `i` (or future offsets in Python: `series[t+k]`) introduces lookahead bias. Use `CausalFilter` base class only.
@@ -105,7 +109,8 @@ LAYER 6: PRESENTATION            (backend/ + frontend/)
 - ❌ **Never assume on-chain data timestamp = event timestamp.** BRK data is derived from on-chain settled state; always use the `stamp` field from the API response as the `data_as_of` value, not `datetime.now()`.
 - ❌ **Never use Pine Script `calc_on_every_tick = true` patterns in Python.** All indicator computations run on closed/confirmed bars (`barstate.isconfirmed` equivalent = using `shift(1)` in pandas to avoid leakage).
 
-### REQUIRED PRACTICES:
+### REQUIRED PRACTICES
+
 - ✅ Always run `pytest --cov` before marking any task complete
 - ✅ All new indicators must pass a `test_no_lookahead()` unit test that verifies the indicator value at time `t` does not change when future bars `t+1..t+N` are appended
 - ✅ All on-chain metrics must be fetched via the BRK API (`https://bitview.space/api/series/{name}/day`) or `brk-client`. Use a typed `BRKFeed` interface (not raw `requests` dict access)
@@ -117,11 +122,14 @@ LAYER 6: PRESENTATION            (backend/ + frontend/)
 ## Production Sizing & Ensemble Calibration
 
 ### Ensemble Model Defaults
+
 - The default ensemble model is **`PCAConsensusEnsemble`** (Option A) which orthogonalizes the feature matrix and weights indicators by their explained variance.
 - Alternative models include `Lasso` regression (ElasticNet consensus) and `XGBoost` regression.
 
 ### Conviction-Weighted Position Sizing
+
 Target exposure is calculated dynamically on closed bars using the following sequence:
+
 1. **Base Exposure**: $E_{\text{base}} = 0.5 + 0.5 \cdot |S_{\text{final}}|$ where $S_{\text{final}} \in [-1.0, 1.0]$ is the momentum-oriented final score.
 2. **Volatility Scalar**: $S_{\text{vol}} = \max\left(0.3, 1.0 - \frac{\sigma_{\text{realized}}}{0.8}\right)$ where $\sigma_{\text{realized}}$ is the 21-day rolling realized daily log returns volatility.
 3. **Raw Exposure**: $E_{\text{raw}} = E_{\text{base}} \cdot S_{\text{vol}}$ bounded within $[0.3, 1.0]$.
@@ -163,11 +171,13 @@ Target exposure is calculated dynamically on closed bars using the following seq
 - **Testing (TS):** Bun test runner (`bun test`)
 - **Config secrets:** Load exchange API keys from env vars. NEVER hardcode. NEVER commit `.env`.
 - **Environment Variables Required:**
+
   ```
   EXCHANGE_API_KEY=...         # Optional: live execution
   BTC_DATA_SOURCE=...          # e.g., "binance", "coinbase"
   DB_PATH=...                  # Optional: override default database/lttd.db path
   ```
+
   > BRK/bitview.space requires NO authentication — do not add env vars for it.
 
 ---
@@ -192,6 +202,7 @@ openspec list
 ```
 
 **Artifact rules:**
+
 - Proposals MUST state the mathematical/statistical motivation for the change
 - Specs MUST include concrete Given/When/Then scenarios with measurable acceptance criteria
 - Design MUST reference layer boundaries from the architecture above
@@ -225,7 +236,8 @@ openspec list
 Follow these steps to generate data, run the API, and start the frontend dashboard in Chrome.
 
 **1. Populate the Database**
-Ensure that `lttd.db` is populated with historical data. 
+Ensure that `lttd.db` is populated with historical data.
+
 - **Full Backfill (First Time):** Jika database masih kosong, jalankan `backfill_all.py` untuk mengunduh data sejak 2016. Proses ini memakan waktu beberapa menit.
 - **Gap Fill (Update):** Jika database sudah ada namun tertinggal beberapa hari terakhir, gunakan `backfill.py` untuk sinkronisasi 10 hari ke belakang tanpa menghapus data lama.
 - **Live Run:** Gunakan `run_pipeline.py` untuk mengkalkulasi skor LTTD hari ini saja.
@@ -240,6 +252,7 @@ python backfill.py
 
 **2. Start the Backend API**
 The Hono backend connects to the SQLite database and serves the data:
+
 ```bash
 cd backend
 bun install
@@ -249,6 +262,7 @@ bun run index.ts
 
 **3. Start the Frontend Application**
 Open a new terminal session for the React SPA:
+
 ```bash
 cd frontend
 bun install
@@ -256,8 +270,18 @@ bun install
 bun run dev
 ```
 
-**4. View in Chrome**
+**4. Performance Report (Optional)**  
+Lihat performa sistem langsung dari database tanpa backend/frontend:
+
+```bash
+python scripts/performance_report.py
+```
+
+Output: Sharpe, CAGR, max DD, trade stats, regime breakdown, yearly/monthly returns.
+
+**5. View in Chrome**
 Finally, open Google Chrome to view the dashboard:
+
 ```bash
 google-chrome http://localhost:5173
 ```
