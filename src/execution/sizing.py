@@ -29,7 +29,5 @@ def calculate_target_exposure(
         
         if sth_nupl > 0.75 or sth_mvrv > 2.0:
             raw_exposure = 0.0
-        elif sth_nupl > 0.60 or sth_mvrv > 1.5:
-            raw_exposure = min(raw_exposure, 0.50)
 
     return raw_exposure

@@ -70,7 +70,7 @@ const ON_CHAIN_DETAILS = [
   {
     name: "STH-NUPL (Short-Term Holder NUPL)",
     threshold: "> 0.75 (Extreme Greed)",
-    action: "Exposure Reduced / Risk-Off Override Active",
+    action: "Forced Exit (0% Exposure)",
     formula: "STH-NUPL = (STH Market Cap - STH Realized Cap) / STH Market Cap",
     description: "Mengukur total keuntungan/kerugian bersih yang belum direalisasikan oleh pemegang koin jangka pendek. Nilai > 0.75 merepresentasikan euforia psikologis ekstrem di mana risiko koreksi tajam sangat tinggi.",
   },
