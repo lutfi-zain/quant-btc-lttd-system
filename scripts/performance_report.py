@@ -34,6 +34,7 @@ def sim_equity(signals: pd.DataFrame) -> pd.DataFrame:
     df = signals.copy().sort_values("date")
     df["position"] = np.sign(df["final_score"]) * df["target_exposure"].abs()
     df["strat_return"] = df["position"].shift(1) * df["log_return"]
+    df["strat_return"] = df["strat_return"].fillna(0.0)
     df["equity"] = (1 + df["strat_return"]).cumprod()
     return df
 
@@ -156,7 +157,7 @@ def main():
             d.posterior_prob,
             o.close
         FROM daily_lttd d
-        JOIN ohlcv o ON o.timestamp = d.date
+        JOIN ohlcv o ON DATE(o.timestamp) = d.date
         ORDER BY d.date
     """,
         conn,
@@ -226,11 +227,11 @@ def main():
 
     # ── Yearly breakdown ───────────────────────────────────────
     eq_df["year"] = eq_df["date"].dt.year
-    yearly = eq_df.groupby("year")["strat_return"].apply(
+    yearly = eq_df.groupby("year").apply(
         lambda g: pd.Series(
             {
-                "return_pct": (1 + g).prod() - 1,
-                "sharpe": annual_sharpe(g),
+                "return_pct": (1 + cast(pd.Series, g["strat_return"])).prod() - 1,
+                "sharpe": annual_sharpe(cast(pd.Series, g["strat_return"])),
                 "days": len(g),
             }
         ),

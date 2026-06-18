@@ -64,10 +64,14 @@ def process_single_day(t, df_merged, feature_matrix, log_returns, y):
                 
         # Feature processor
         processor = FeatureProcessor()
-        # Purge training set adjacent to execution date t to prevent target leakage
-        train_idx_purged = train_idx[train_idx < t - pd.Timedelta(days=7)]
-        X_train = feature_matrix_t.loc[train_idx_purged]
-        y_train = y.loc[train_idx_purged]
+        # Purge training set adjacent to execution date t to prevent target leakage (14 days purge)
+        train_idx_purged = train_idx[train_idx < t - pd.Timedelta(days=14)]
+        
+        # Drop NaN values from training targets (due to 21-day forward return horizon)
+        valid_train_idx = train_idx_purged[~y.loc[train_idx_purged].isna()]
+        
+        X_train = feature_matrix_t.loc[valid_train_idx]
+        y_train = y.loc[valid_train_idx]
         X_test = feature_matrix_t.loc[[t]]
         
         processor.fit(X_train, y_train)
@@ -80,8 +84,8 @@ def process_single_day(t, df_merged, feature_matrix, log_returns, y):
         model.fit(X_train_proc, y_train)
         final_score = float(model.predict(X_test_proc).iloc[0])
             
-        # Map final score from [0.0, 1.0] to [-1.0, 1.0] domain
-        final_score = 2.0 * final_score - 1.0
+        # Ensure final_score is strictly within SQLite constraints [-1.0, 1.0]
+        final_score = max(-1.0, min(1.0, final_score))
 
         # Use the true HMM regime for the final regime
         final_regime = final_regime_hmm
@@ -191,8 +195,8 @@ def main():
     print(f"Total dates to backfill: {len(backfill_idx)} days (from {backfill_idx[0].strftime('%Y-%m-%d')} to {backfill_idx[-1].strftime('%Y-%m-%d')}).")
     
     log_returns = np.log(df_merged["close"] / df_merged["close"].shift(1)).fillna(0.0)
-    price_diff = df_merged["close"].shift(-1) - df_merged["close"]
-    y = np.sign(price_diff).fillna(1.0).map({-1.0: 0, 0.0: 0, 1.0: 1})
+    from src.data.target_loader import load_regime_targets
+    y = load_regime_targets(df_merged.index, close_series=df_merged["close"])
     
     # 4. Pre-calculate lookbacks (OU calibration)
     print("Pre-calculating dynamic lookbacks (OU calibration)...")
