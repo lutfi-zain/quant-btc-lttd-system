@@ -3,27 +3,48 @@
 
 PROJECT_ROOT="/run/media/lutfizain/Work/Projects/1.WORKING/quant-btc-lttd-system"
 
+BACKEND_PORT=8765
+FRONTEND_PORT=8766
+
+echo "Freeing ports $BACKEND_PORT (backend) and $FRONTEND_PORT (frontend)..."
+for port in $BACKEND_PORT $FRONTEND_PORT; do
+	pid=$(lsof -ti :$port 2>/dev/null)
+	if [ -n "$pid" ]; then
+		echo "  Port $port in use by PID $pid — killing..."
+		kill -9 "$pid" 2>/dev/null
+		sleep 1
+	fi
+done
+
+echo "Installing backend dependencies..."
+cd "$PROJECT_ROOT/backend" || exit 1
+bun install 2>&1 | tail -2
+
+echo "Installing frontend dependencies..."
+cd "$PROJECT_ROOT/frontend" || exit 1
+bun install 2>&1 | tail -2
+
 echo "Starting Backend..."
 cd "$PROJECT_ROOT/backend" || exit 1
-PORT=4000 bun index.ts &
+PORT=$BACKEND_PORT bun index.ts &
 BACKEND_PID=$!
 
 echo "Building & Starting Frontend..."
 cd "$PROJECT_ROOT/frontend" || exit 1
-VITE_API_URL="http://localhost:4000" bun run build
-VITE_API_URL="http://localhost:4000" bun run preview --port 4001 &
+VITE_API_URL="http://localhost:$BACKEND_PORT" bun run build
+VITE_API_URL="http://localhost:$BACKEND_PORT" bun run preview --port $FRONTEND_PORT &
 FRONTEND_PID=$!
 
 echo "Waiting for services to start..."
 sleep 2
 
 echo "Opening browser..."
-if command -v xdg-open &> /dev/null; then
-    xdg-open "http://localhost:4001"
-elif command -v open &> /dev/null; then
-    open "http://localhost:4001"
+if command -v xdg-open &>/dev/null; then
+	xdg-open "http://localhost:$FRONTEND_PORT"
+elif command -v open &>/dev/null; then
+	open "http://localhost:$FRONTEND_PORT"
 else
-    echo "Could not detect web browser to open http://localhost:4001"
+	echo "Could not detect web browser to open http://localhost:$FRONTEND_PORT"
 fi
 
 echo "Both servers are running."
