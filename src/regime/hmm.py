@@ -59,16 +59,16 @@ def train_hmm(
     # Fit the HMM model
     model.fit(features)
 
-    # Deterministic State Labeling:
-    # - Highest mean return -> BULL
-    # - Lowest mean return -> BEAR
-    # - Intermediate mean return -> SIDEWAYS
+    # Deterministic State Labeling based on Macro Trend (sma_dist is feature index 2):
+    # - Highest sma_dist -> BULL (Price far above 200 SMA)
+    # - Lowest sma_dist -> BEAR (Price far below 200 SMA)
+    # - Intermediate sma_dist -> SIDEWAYS
     means_ = model.means_
 
-    bull_idx = int(np.argmax(means_[:, 0]))
+    bull_idx = int(np.argmax(means_[:, 2]))
     remaining = [i for i in [0, 1, 2] if i != bull_idx]
 
-    if means_[remaining[0], 0] < means_[remaining[1], 0]:
+    if means_[remaining[0], 2] < means_[remaining[1], 2]:
         bear_idx = remaining[0]
         sideways_idx = remaining[1]
     else:

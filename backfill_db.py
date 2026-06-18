@@ -6,9 +6,10 @@ import sqlite3
 def run():
     print("Loading data...")
     df = ohlcv_pipeline()
+    df = df[df.index >= '2013-01-01']
     
     print("Running WFO Backtest...")
-    runner = BacktestRunner(legacy_fixed_window=False)
+    runner = BacktestRunner(legacy_fixed_window=False, ensemble_mode="pca_consensus")
     res = runner.run(df)
     records = res["raw_records"]
     

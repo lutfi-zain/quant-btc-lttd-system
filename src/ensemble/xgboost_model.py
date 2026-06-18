@@ -29,16 +29,16 @@ class XGBoostEnsemble:
         
         # reg:squarederror for continuous target in [-1, +1]
         self.xgb = xgb.XGBRegressor(
-            n_estimators=50,         
-            learning_rate=0.03,
-            max_depth=4,              
-            subsample=0.7,            
-            colsample_bytree=0.7,     
+            n_estimators=200,         
+            learning_rate=0.05,
+            max_depth=5,              
+            subsample=0.8,            
+            colsample_bytree=0.8,     
             objective="reg:squarederror",
             random_state=self.random_state,
             n_jobs=1,
-            reg_alpha=0.01,            
-            reg_lambda=0.01            
+            reg_alpha=0.1,            
+            reg_lambda=0.1            
         )
         
         X_scaled = self.scaler.fit_transform(X)

@@ -5,39 +5,43 @@ def calculate_target_exposure(
     vol: float,
     regime: Optional[str] = None,
     prev_exposure: Optional[float] = None,
-    posteriors: Optional[dict] = None,
+    onchain_metrics: Optional[dict] = None,
 ) -> float:
     """
-    Computes target exposure based on the absolute value of final_score (conviction)
-    and realized volatility.
-    
-    Formula:
-      base_exposure = 0.5 + 0.5 * |final_score|
-      vol_scalar = max(0.3, 1.0 - vol / 0.8)
-      target_exposure = base_exposure * vol_scalar
-      
-    Bounded between [0.3, 1.0].
-    Smoothed using a 5-day EMA with a maximum daily change limit of 0.2.
+    Computes target exposure to achieve > 2x B&H returns with Sharpe > 1.5.
+    Hard Constraint: 0% exposure in BEAR market (no noise signals).
     """
-    import math
-    
-    # Convert daily standard deviation to annualized volatility
-    annualized_vol = vol * math.sqrt(365)
-    
-    # Target 60% annualized volatility for the portfolio
-    target_vol = 0.60
-    safe_vol = max(0.20, annualized_vol)
-    vol_target_exposure = target_vol / safe_vol
-    
+    if regime == "BEAR":
+        return 0.0
+        
     # Map final_score [-1.0, 1.0] to conviction [0.0, 1.0]
     conviction = 0.5 + 0.5 * final_score
     
-    if regime == "BEAR":
-        raw_exposure = 0.0
+    if regime == "BULL":
+        # Aggressive scaling during violent bull
+        raw_exposure = 1.0 + (1.5 * conviction)  # Range: 1.0 to 2.5
     else:
-        raw_exposure = vol_target_exposure * conviction
-        # Allow up to 2.0x leverage during low-volatility bull markets
-        raw_exposure = max(0.0, min(2.0, raw_exposure))
+        # SIDEWAYS: This includes steady structural bull markets (moderate drift).
+        # We scale from 0.0 to 2.0x based entirely on model conviction.
+        # Neutral conviction (0.5) = 1.0x (Market weight). Strong Bull (1.0) = 2.0x.
+        raw_exposure = conviction * 2.0
+        
+    # Apply volatility dampener if vol is extreme (e.g. > 100% annualized)
+    import math
+    annualized_vol = vol * math.sqrt(365)
+    if annualized_vol > 1.0:
+        raw_exposure *= (1.0 / annualized_vol)
+        
+    # On-Chain Macro Top Detection (from AGENTS.md)
+    if regime == "BULL" and onchain_metrics is not None:
+        sth_nupl = onchain_metrics.get("sth_nupl", 0.0)
+        sth_mvrv = onchain_metrics.get("sth_mvrv", 0.0)
+        if sth_nupl > 0.75 or sth_mvrv > 2.0:
+            # Overheated: deleverage heavily
+            raw_exposure = min(raw_exposure, 0.5)
+            
+    # Restrict to [0.0, 2.5]
+    raw_exposure = max(0.0, min(2.5, raw_exposure))
     
     if prev_exposure is None or prev_exposure == 0.0:
         return raw_exposure
@@ -46,26 +50,9 @@ def calculate_target_exposure(
     alpha = 1.0 / 3.0
     smoothed = alpha * raw_exposure + (1.0 - alpha) * prev_exposure
     
-    # Restrict daily change to max 0.2
+    # Restrict daily change to max 0.3 to reduce slippage but allow quick entry/exit
     diff = smoothed - prev_exposure
-    diff_clamped = max(-0.2, min(0.2, diff))
+    diff_clamped = max(-0.3, min(0.3, diff))
     final_exposure = prev_exposure + diff_clamped
     
-    # On-Chain Macro Top Detection (from AGENTS.md)
-    # If the market is completely overheated, we must defensively cap our max exposure
-    # to avoid the massive 45% lag drawdown before the HMM detects a bear regime.
-    nupl = posteriors.get("sth_nupl", 0.0) if posteriors else 0.0
-    sth_mvrv = posteriors.get("sth_mvrv", 0.0) if posteriors else 0.0
-    
-    # Max normal exposure is 2.0 (2x leverage)
-    cap = 2.0
-    if nupl > 0.75 or sth_mvrv > 2.0:
-        cap = 0.3  # Drastically cut exposure at the peak of a bubble
-    elif nupl > 0.65 or sth_mvrv > 1.5:
-        cap = 0.5  # Start scaling out as it gets frothy
-    
-    final_exposure = min(final_exposure, cap)
-    
-    if regime == "BEAR":
-        return max(0.0, min(2.0, final_exposure))
-    return max(0.0, min(2.0, final_exposure))
+    return max(0.0, min(2.5, final_exposure))

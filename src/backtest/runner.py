@@ -37,6 +37,7 @@ class MockExecutionAdapter:
         final_score: float,
         regime: str,
         posteriors: Optional[Dict[str, float]] = None,
+        onchain_metrics: Optional[Dict[str, float]] = None,
         log_return: float = 0.0,
         realized_volatility: float = 0.0,
     ) -> Dict[str, Any]:
@@ -46,7 +47,7 @@ class MockExecutionAdapter:
             realized_volatility,
             regime=regime_upper,
             prev_exposure=self.previous_exposure,
-            posteriors=posteriors
+            onchain_metrics=onchain_metrics
         )
         self.previous_exposure = target_exposure
         
@@ -225,6 +226,7 @@ def _run_fold(
             final_score=score,
             regime=final_regime,
             posteriors=overridden_posteriors,
+            onchain_metrics=onchain_metrics,
             log_return=log_ret,
             realized_volatility=realized_vol
         )
@@ -431,21 +433,17 @@ def main():
     )
     
     bh_return = (close_series.iloc[-1] / close_series.iloc[0]) - 1.0
-    bh_daily_returns = close_series.pct_change().dropna()
-    bh_sharpe = (bh_daily_returns.mean() / bh_daily_returns.std() * np.sqrt(365)) if bh_daily_returns.std() > 0 else 0.0
-    
-    # Calculate Buy and Hold max drawdown manually
-    roll_max = close_series.cummax()
-    drawdown = close_series / roll_max - 1.0
-    bh_max_dd = drawdown.min()
+    # Calculate Buy and Hold portfolio
+    bh_portfolio = vbt.Portfolio.from_holding(close_series, init_cash=10000.0, fees=0.001)
     
     metrics = {
         "total_return": portfolio.total_return(),
         "annualized_sharpe": (portfolio.returns().mean() / portfolio.returns().std() * np.sqrt(365)) if portfolio.returns().std() > 0 else 0.0,
+        "annualized_sortino": (portfolio.returns().mean() / portfolio.returns()[portfolio.returns() < 0].std() * np.sqrt(365)) if portfolio.returns()[portfolio.returns() < 0].std() > 0 else 0.0,
         "max_drawdown": portfolio.max_drawdown(),
-        "bh_return": bh_return,
-        "bh_sharpe": bh_sharpe,
-        "bh_max_dd": bh_max_dd,
+        "bh_return": bh_portfolio.total_return(),
+        "bh_sharpe": (bh_portfolio.returns().mean() / bh_portfolio.returns().std() * np.sqrt(365)) if bh_portfolio.returns().std() > 0 else 0.0,
+        "bh_max_dd": bh_portfolio.max_drawdown(),
         "regime_metrics": {}
     }
     daily_returns = portfolio.returns()
@@ -464,6 +462,7 @@ def main():
     print("==========================================================================")
     print(f"Total Return             : {metrics['total_return']*100:.2f}% (B&H: {metrics['bh_return']*100:.2f}%)")
     print(f"Annualized Sharpe Ratio  : {metrics['annualized_sharpe']:.4f} (B&H: {metrics['bh_sharpe']:.4f})")
+    print(f"Annualized Sortino Ratio : {metrics['annualized_sortino']:.4f}")
     print(f"Max Drawdown             : {metrics['max_drawdown']*100:.2f}% (B&H: {metrics['bh_max_dd']*100:.2f}%)")
     print("\nRegime Partitioned Metrics:")
     for regime, r_met in metrics["regime_metrics"].items():
