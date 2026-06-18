@@ -95,6 +95,7 @@ export const OnChainPanel: React.FC<OnChainPanelProps> = ({ data }) => {
     registerChart(mvrvChartId, mvrvChart);
 
     const mvrvSeries = mvrvChart.addSeries(LineSeries, {
+      title: "STH-MVRV",
       color: themeColors.mvrv,
       lineWidth: 2,
       priceScaleId: "right",
@@ -119,6 +120,7 @@ export const OnChainPanel: React.FC<OnChainPanelProps> = ({ data }) => {
     registerChart(nuplChartId, nuplChart);
 
     const nuplSeries = nuplChart.addSeries(LineSeries, {
+      title: "STH-NUPL",
       color: themeColors.nupl,
       lineWidth: 2,
       priceScaleId: "right",

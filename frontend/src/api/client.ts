@@ -21,7 +21,7 @@ export interface HealthStatus {
   status: boolean;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
 /**
  * Custom Error class for API call failures

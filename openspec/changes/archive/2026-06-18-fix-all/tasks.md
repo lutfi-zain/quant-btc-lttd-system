@@ -17,5 +17,5 @@
 
 ## 4. Backtesting & Validation
 
-- [ ] 4.1 Run the walk-forward backtest (`python -m src.backtest.runner --start 2017-01-01 --end 2026-06-01`) to confirm improvements in Sharpe Ratio (>1.0) and Max Drawdown.
-- [ ] 4.2 Run full test suite (`python -m pytest --cov`) to ensure no regressions and >90% coverage.
+- [x] 4.1 Run the walk-forward backtest (`python -m src.backtest.runner --start 2017-01-01 --end 2026-06-01`) to confirm improvements in Sharpe Ratio (>1.0) and Max Drawdown.
+- [x] 4.2 Run full test suite (`python -m pytest --cov`) to ensure no regressions and >90% coverage.

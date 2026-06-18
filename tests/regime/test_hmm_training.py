@@ -5,9 +5,9 @@ from src.regime.hmm import train_hmm
 
 
 def test_hmm_training_insufficient_data():
-    # Less than 120 days of data
+    # Less than 200 days of data
     close = pd.Series([10.0] * 100)
-    with pytest.raises(ValueError, match="minimum 120 days required"):
+    with pytest.raises(ValueError, match="minimum 200 days required"):
         train_hmm(close)
 
 
@@ -18,9 +18,9 @@ def test_hmm_training_success_and_state_labeling():
     # 50 days BEAR: negative returns, high volatility
     # 50 days SIDEWAYS: near-zero returns, low volatility
 
-    r_bull = np.random.normal(0.005, 0.002, 50)
-    r_bear = np.random.normal(-0.01, 0.015, 50)
-    r_side = np.random.normal(0.0, 0.001, 50)
+    r_bull = np.random.normal(0.005, 0.002, 85)
+    r_bear = np.random.normal(-0.01, 0.015, 85)
+    r_side = np.random.normal(0.0, 0.001, 80)
 
     returns = np.concatenate([r_bull, r_bear, r_side])
 
@@ -29,7 +29,7 @@ def test_hmm_training_success_and_state_labeling():
     for r in returns:
         prices.append(prices[-1] * np.exp(r))
 
-    dates = pd.date_range("2024-01-01", periods=151, freq="D")
+    dates = pd.date_range("2024-01-01", periods=251, freq="D")
     close = pd.Series(prices, index=dates)
 
     model, state_to_regime = train_hmm(close, window=21)

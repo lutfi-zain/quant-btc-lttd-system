@@ -284,7 +284,7 @@ class BacktestRunner:
         df_merged = data.loc[common_idx]
         feature_matrix = feature_matrix.loc[common_idx]
         
-        # Define target y using isp-regimes-btcusd.csv (continuous intensity)
+        # Define continuous target y computed dynamically via forward returns (no CSV dependencies)
         from src.data.target_loader import load_regime_targets
         y = load_regime_targets(df_merged.index, close_series=df_merged["close"])
         y = y.loc[common_idx]

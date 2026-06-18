@@ -94,7 +94,8 @@ def process_single_day(t, df_merged, feature_matrix, log_returns, y):
         target_exposure = calculate_target_exposure(
             final_score,
             realized_vol,
-            final_regime
+            regime=final_regime,
+            onchain_metrics=onchain_metrics
         )
         
         # Get indicator scores and PCA components

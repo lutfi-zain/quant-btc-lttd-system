@@ -74,7 +74,7 @@ def test_pipeline_run_daily_success(tmp_path, mock_ohlcv_data, mock_onchain_data
         assert res["date"] == "2023-07-24"
         assert -1.0 <= res["final_score"] <= 1.0
         assert res["regime"] in ["BULL", "BEAR", "SIDEWAYS"]
-        assert 0.0 <= res["target_exposure"] <= 1.0
+        assert 0.0 <= res["target_exposure"] <= 2.5
         assert "posteriors" in res
         assert "indicator_scores" in res
         assert "pca_components" in res

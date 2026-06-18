@@ -34,7 +34,7 @@ def init_db(db_path=DEFAULT_DB_PATH):
                 date TEXT,
                 regime TEXT CHECK(regime IN ('Strong Bull', 'Weak Bull', 'Neutral', 'Weak Bear', 'Strong Bear', 'BULL', 'BEAR', 'SIDEWAYS')) NOT NULL,
                 final_score REAL CHECK(final_score >= -1.0 AND final_score <= 1.0) NOT NULL,
-                target_exposure REAL CHECK(target_exposure >= 0.0 AND target_exposure <= 1.0) NOT NULL,
+                target_exposure REAL CHECK(target_exposure >= 0.0 AND target_exposure <= 2.5) NOT NULL,
                 posterior_prob REAL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )

@@ -217,3 +217,47 @@ openspec list
 - **[2026-06-07] On-Chain Lead-Lag Asymmetry:** MVRV and NUPL **lead** price at cycle tops by 3–14 days but **lag** or coincide at capitulation bottoms. Do not use on-chain metrics as execution triggers. Use as **regime filters** only (scale down max exposure when NUPL > 0.75 or STH-MVRV > 2.0).
 
 - **[2026-06-07] Multicollinearity in 12 Technical Indicators:** The legacy script stacks 12 indicators all measuring the same underlying signal (momentum/trend direction via different MA variants). VIF analysis would reveal 9 of 12 have VIF > 10. Simple averaging inflates model confidence and causes synchronized failure during regime shifts. After PCA orthogonalization, the first 3 components capture >85% of variance — the remaining 9 indicators add noise, not signal.
+
+---
+
+## How to Run the Project Locally
+
+Follow these steps to generate data, run the API, and start the frontend dashboard in Chrome.
+
+**1. Populate the Database**
+Ensure that `lttd.db` is populated with historical data. 
+- **Full Backfill (First Time):** Jika database masih kosong, jalankan `backfill_all.py` untuk mengunduh data sejak 2016. Proses ini memakan waktu beberapa menit.
+- **Gap Fill (Update):** Jika database sudah ada namun tertinggal beberapa hari terakhir, gunakan `backfill.py` untuk sinkronisasi 10 hari ke belakang tanpa menghapus data lama.
+- **Live Run:** Gunakan `run_pipeline.py` untuk mengkalkulasi skor LTTD hari ini saja.
+
+```bash
+# Untuk full run (hapus semua data lama dan proses ulang dari awal)
+python backfill_all.py
+
+# Untuk mengisi gap hari-hari terakhir
+python backfill.py
+```
+
+**2. Start the Backend API**
+The Hono backend connects to the SQLite database and serves the data:
+```bash
+cd backend
+bun install
+# Runs on http://localhost:4000 by default
+bun run index.ts
+```
+
+**3. Start the Frontend Application**
+Open a new terminal session for the React SPA:
+```bash
+cd frontend
+bun install
+# Runs on Vite default port (usually http://localhost:5173)
+bun run dev
+```
+
+**4. View in Chrome**
+Finally, open Google Chrome to view the dashboard:
+```bash
+google-chrome http://localhost:5173
+```

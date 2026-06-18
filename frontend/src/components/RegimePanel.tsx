@@ -111,6 +111,7 @@ export const RegimePanel: React.FC<RegimePanelProps> = ({ data }) => {
     // Area series for stacked representation:
     // 1. Top Area (representing Bull) = p_sideways + p_bear + p_bull = 1.0
     const bullSeries = chart.addSeries(AreaSeries, {
+      title: "Bull",
       topColor: "rgba(16, 185, 129, 0.3)",
       bottomColor: "rgba(16, 185, 129, 0.05)",
       lineColor: themeColors.bull,
@@ -120,6 +121,7 @@ export const RegimePanel: React.FC<RegimePanelProps> = ({ data }) => {
 
     // 2. Middle Area (representing Bear) = p_sideways + p_bear
     const bearSeries = chart.addSeries(AreaSeries, {
+      title: "Bear",
       topColor: "rgba(239, 68, 68, 0.3)",
       bottomColor: "rgba(239, 68, 68, 0.05)",
       lineColor: themeColors.bear,
@@ -129,6 +131,7 @@ export const RegimePanel: React.FC<RegimePanelProps> = ({ data }) => {
 
     // 3. Bottom Area (representing Sideways) = p_sideways
     const sidewaysSeries = chart.addSeries(AreaSeries, {
+      title: "Sideways",
       topColor: "rgba(245, 158, 11, 0.3)",
       bottomColor: "rgba(245, 158, 11, 0.05)",
       lineColor: themeColors.sideways,
@@ -239,6 +242,7 @@ export const RegimePanel: React.FC<RegimePanelProps> = ({ data }) => {
       )}
 
       <div className="relative flex-1 w-full rounded border border-[var(--color-border)] bg-transparent overflow-hidden min-h-[220px]">
+        <div className="absolute top-2 left-3 z-10 text-xs font-semibold text-[var(--color-text-muted)] pointer-events-none">HMM Posterior Probabilities</div>
         <div ref={containerRef} className="absolute inset-0" />
       </div>
     </div>

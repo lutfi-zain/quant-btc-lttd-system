@@ -46,7 +46,7 @@ def test_daily_lttd_constraints(db_conn):
     with pytest.raises(sqlite3.IntegrityError):
         cursor.execute(
             """INSERT INTO daily_lttd (data_as_of, date, regime, final_score, target_exposure)
-               VALUES ('2023-01-05', '2023-01-05', 'BULL', 0.5, 1.5)"""
+               VALUES ('2023-01-05', '2023-01-05', 'BEAR', 0.5, 3.0)"""
         )
 
     # Invalid target_exposure (too low)

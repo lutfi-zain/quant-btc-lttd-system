@@ -44,8 +44,4 @@ def apply_onchain_overrides(posteriors: dict, onchain_metrics: dict) -> dict:
                 new_posteriors["BEAR"] += diff / 2.0
                 new_posteriors["SIDEWAYS"] += diff / 2.0
 
-    # Inject the raw values so downstream sizing.py can apply hard caps
-    new_posteriors["sth_nupl"] = onchain_metrics.get("sth_nupl", 0.0)
-    new_posteriors["sth_mvrv"] = onchain_metrics.get("sth_mvrv", 0.0)
-
     return new_posteriors

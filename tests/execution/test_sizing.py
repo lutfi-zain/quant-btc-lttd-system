@@ -2,49 +2,42 @@ import pytest
 import numpy as np
 from src.execution.sizing import calculate_target_exposure
 
-
 def test_formula_validation():
-    # final_score = 0.5, vol = 0.4
-    # base_exposure = 0.5 + 0.5 * 0.5 = 0.75
-    # vol_scalar = max(0.3, 1.0 - 0.4/0.8) = 0.5
-    # target_exposure = 0.75 * 0.5 = 0.375
-    assert calculate_target_exposure(0.5, 0.4) == pytest.approx(0.375)
-
+    # SIDEWAYS
+    # score=0.5 -> conviction = 0.75
+    # raw_exposure = 0.75 * 2.0 = 1.5
+    # no vol dampener since 0.02*19.1 < 1.0
+    # prev_exposure=0.0 -> returns raw_exposure
+    assert calculate_target_exposure(0.5, 0.02, regime="SIDEWAYS") == pytest.approx(1.5)
 
 def test_exposure_bounds():
-    # Min exposure should be 0.3 even with high volatility / zero conviction
-    assert calculate_target_exposure(0.0, 1.5) == pytest.approx(0.3)
-    
-    # Max exposure should be 1.0 even with maximum conviction and zero volatility
-    assert calculate_target_exposure(1.0, 0.0) == pytest.approx(1.0)
-    
-    # Check that high conviction with moderate volatility does not exceed 1.0
-    assert calculate_target_exposure(1.0, 0.1) <= 1.0
+    # BEAR = 0.0
+    assert calculate_target_exposure(1.0, 0.02, regime="BEAR") == pytest.approx(0.0)
 
+    # SIDEWAYS high conviction (score=1.0 -> conv=1.0 -> raw=2.0)
+    # prev_exposure=2.0 -> returns 2.0
+    assert calculate_target_exposure(1.0, 0.02, regime="SIDEWAYS", prev_exposure=2.0) == pytest.approx(2.0)
+
+    # BULL high conviction (score=1.0 -> conv=1.0 -> raw=1.0+1.5 = 2.5)
+    assert calculate_target_exposure(1.0, 0.02, regime="BULL", prev_exposure=2.5) == pytest.approx(2.5)
 
 def test_exposure_smoothing_ema():
-    # Check 5-day EMA smoothing: alpha = 1/3
-    # raw_exposure = 0.9, prev_exposure = 0.6
-    # smoothed = (1/3) * 0.9 + (2/3) * 0.6 = 0.3 + 0.4 = 0.7
-    # diff = 0.7 - 0.6 = 0.1 (which is <= 0.2, so no clamping)
-    # expected = 0.7
-    # Let final_score=0.8, vol=0.0 (raw_exposure = 0.5 + 0.4 = 0.9)
-    assert calculate_target_exposure(0.8, 0.0, prev_exposure=0.6) == pytest.approx(0.7)
-
+    # SIDEWAYS:
+    # score=0.8 -> conviction=0.5 + 0.4 = 0.9
+    # raw = 0.9 * 2.0 = 1.8
+    # smoothed = 1/3 * 1.8 + 2/3 * 0.6 = 0.6 + 0.4 = 1.0
+    assert calculate_target_exposure(0.8, 0.02, prev_exposure=0.6, regime="SIDEWAYS") == pytest.approx(0.9)
 
 def test_exposure_smoothing_change_limit():
-    # Check that change is clamped to max 0.2
-    # Let raw_exposure = 1.0, prev_exposure = 0.3
-    # smoothed = (1/3) * 1.0 + (2/3) * 0.3 = 0.33333333333 + 0.2 = 0.53333333333
-    # diff = 0.53333333333 - 0.3 = 0.23333333333
-    # since diff > 0.2, clamped to 0.2
-    # expected = 0.3 + 0.2 = 0.5
-    # Let final_score=1.0, vol=0.0 (raw_exposure = 1.0)
-    assert calculate_target_exposure(1.0, 0.0, prev_exposure=0.3) == pytest.approx(0.5)
-
+    # Change max is 0.3
+    # BULL: score=1.0 -> conviction=1.0 -> raw=2.5
+    # prev=0.3
+    # smoothed = 1/3 * 2.5 + 2/3 * 0.3 = 0.8333 + 0.2 = 1.0333
+    # diff = 1.0333 - 0.3 = 0.7333 (exceeds 0.3 clamp)
+    # final = 0.3 + 0.3 = 0.6
+    assert calculate_target_exposure(1.0, 0.02, prev_exposure=0.3, regime="BULL") == pytest.approx(0.6)
 
 def test_no_lookahead():
-    # Causal behavior: verify calculations behave the same in isolation
-    out1 = calculate_target_exposure(0.5, 0.3)
-    out1_with_future = calculate_target_exposure(0.5, 0.3)
+    out1 = calculate_target_exposure(0.5, 0.02, regime="BULL")
+    out1_with_future = calculate_target_exposure(0.5, 0.02, regime="BULL")
     assert out1 == out1_with_future

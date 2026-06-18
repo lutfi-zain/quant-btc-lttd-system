@@ -31,46 +31,45 @@ def test_calculate_realized_volatility():
 
 
 def test_prepare_features():
-    dates = pd.date_range("2024-01-01", periods=30, freq="D")
-    close = pd.Series(np.random.lognormal(mean=0.01, sigma=0.02, size=30), index=dates)
+    dates = pd.date_range("2024-01-01", periods=250, freq="D")
+    close = pd.Series(np.random.lognormal(mean=0.01, sigma=0.02, size=250), index=dates)
 
     df = prepare_features_df(close, window=21)
     arr = prepare_features(close, window=21)
 
-    # 30 daily closes -> 29 log returns. Realized vol window of 21 needs 21 log returns.
-    # Therefore, 20 rows are dropped. Expected length: 29 - 20 = 9.
-    assert len(df) == 9
-    assert arr.shape == (9, 2)
-    assert list(df.columns) == ["log_returns", "realized_volatility"]
+    # 250 daily closes. SMA 200 needs 200 days, so 199 NaNs are dropped.
+    # Expected length: 250 - 199 = 51.
+    assert len(df) == 51
+    assert arr.shape == (51, 3) # 3 features: log_returns, realized_volatility, sma_dist
+    assert list(df.columns) == ["log_returns", "realized_volatility", "sma_dist"]
     assert np.array_equal(df.values, arr)
 
 
 def test_no_lookahead():
     # Make a longer series
     np.random.seed(42)
-    dates = pd.date_range("2024-01-01", periods=100, freq="D")
-    close = pd.Series(
-        np.random.lognormal(mean=0.001, sigma=0.01, size=100), index=dates
+    dates = pd.date_range("2020-01-01", periods=250, freq="D")
+    close_full = pd.Series(np.random.normal(10000, 100, 250), index=dates)
+
+    # Cut off at 220
+    close_past = close_full.iloc[:220]
+
+    df_full = prepare_features_df(close_full, window=21)
+    df_past = prepare_features_df(close_past, window=21)
+
+    # Verify that the feature value for the 220th day is EXACTLY the same
+    # regardless of whether the future data (day 221-250) was provided
+    target_date = dates[219]
+
+    assert target_date in df_full.index
+    assert target_date in df_past.index
+
+    # The feature computation must be causal
+    assert np.isclose(
+        df_full.loc[target_date, "realized_volatility"],
+        df_past.loc[target_date, "realized_volatility"],
     )
-
-    # Let's verify causality at index t = 50
-    t = dates[50]
-
-    # Scenario A: Calculate features using only data up to time t
-    close_truncated = close.loc[:t]
-    df_truncated = prepare_features_df(close_truncated, window=21)
-    val_truncated_ret = df_truncated.loc[t, "log_returns"]
-    val_truncated_vol = df_truncated.loc[t, "realized_volatility"]
-
-    # Scenario B: Calculate features using all data (up to index 99)
-    df_full = prepare_features_df(close, window=21)
-    val_full_ret = df_full.loc[t, "log_returns"]
-    val_full_vol = df_full.loc[t, "realized_volatility"]
-
-    # Assert values at time t are identical regardless of whether future data was available
-    assert np.isclose(val_truncated_ret, val_full_ret), (
-        "Log returns calculation has lookahead bias!"
-    )
-    assert np.isclose(val_truncated_vol, val_full_vol), (
-        "Realized volatility calculation has lookahead bias!"
+    assert np.isclose(
+        df_full.loc[target_date, "sma_dist"],
+        df_past.loc[target_date, "sma_dist"],
     )

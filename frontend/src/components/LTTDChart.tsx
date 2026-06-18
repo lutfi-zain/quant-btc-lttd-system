@@ -100,6 +100,7 @@ export const LTTDChart: React.FC<LTTDChartProps> = ({ data }) => {
     chartRef.current = chart;
     registerChart(chartId, chart);
     const candlestickSeries = chart.addSeries(CandlestickSeries, {
+      title: "BTC/USD",
       upColor: themeColors.bull, downColor: themeColors.bear,
       borderUpColor: themeColors.bull, borderDownColor: themeColors.bear,
       wickUpColor: themeColors.bull, wickDownColor: themeColors.bear,
@@ -111,6 +112,7 @@ export const LTTDChart: React.FC<LTTDChartProps> = ({ data }) => {
     scoreChartRef.current = scoreChart;
     registerChart(scoreChartId, scoreChart);
     const scoreSeries = scoreChart.addSeries(AreaSeries, {
+      title: "LTTD Score",
       topColor: themeColors.score,
       bottomColor: "rgba(14, 165, 233, 0.0)",
       lineColor: themeColors.score,
@@ -123,6 +125,7 @@ export const LTTDChart: React.FC<LTTDChartProps> = ({ data }) => {
     exposureChartRef.current = exposureChart;
     registerChart(exposureChartId, exposureChart);
     const exposureSeries = exposureChart.addSeries(HistogramSeries, {
+      title: "Exposure %",
       color: themeColors.exposure,
       priceScaleId: "right",
     });
@@ -132,6 +135,7 @@ export const LTTDChart: React.FC<LTTDChartProps> = ({ data }) => {
     equityChartRef.current = equityChart;
     registerChart(equityChartId, equityChart);
     const equitySeries = equityChart.addSeries(LineSeries, {
+      title: "Equity Curve",
       color: themeColors.equity,
       lineWidth: 2,
       priceScaleId: "right",
@@ -216,15 +220,19 @@ export const LTTDChart: React.FC<LTTDChartProps> = ({ data }) => {
 
       <div className="w-full h-full flex flex-col group gap-0">
         <div className="relative w-full flex-[2] bg-transparent overflow-hidden min-h-[300px]">
+          <div className="absolute top-2 left-3 z-10 text-xs font-semibold text-[var(--color-text-muted)] pointer-events-none">Price Action (BTC/USD)</div>
           <div ref={containerRef} className="absolute inset-0" />
         </div>
-        <div className="relative w-full flex-1 bg-transparent overflow-hidden min-h-[120px] mt-1">
+        <div className="relative w-full flex-1 bg-transparent overflow-hidden min-h-[120px] mt-1 border-t border-[var(--color-border)]">
+          <div className="absolute top-2 left-3 z-10 text-xs font-semibold text-[var(--color-text-muted)] pointer-events-none">Final Ensemble Score</div>
           <div ref={scoreContainerRef} className="absolute inset-0" />
         </div>
-        <div className="relative w-full flex-1 bg-transparent overflow-hidden min-h-[120px] mt-1">
+        <div className="relative w-full flex-1 bg-transparent overflow-hidden min-h-[120px] mt-1 border-t border-[var(--color-border)]">
+          <div className="absolute top-2 left-3 z-10 text-xs font-semibold text-[var(--color-text-muted)] pointer-events-none">Target Exposure (Conviction)</div>
           <div ref={exposureContainerRef} className="absolute inset-0" />
         </div>
-        <div className="relative w-full flex-1 bg-transparent overflow-hidden min-h-[150px] mt-1">
+        <div className="relative w-full flex-1 bg-transparent overflow-hidden min-h-[150px] mt-1 border-t border-[var(--color-border)]">
+          <div className="absolute top-2 left-3 z-10 text-xs font-semibold text-[var(--color-text-muted)] pointer-events-none">Strategy Equity Curve</div>
           <div ref={equityContainerRef} className="absolute inset-0" />
         </div>
       </div>

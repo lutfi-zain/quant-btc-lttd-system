@@ -393,6 +393,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({ data }) => {
 
       {/* Primary Pane (Price Candlestick) */}
       <div className="relative w-full h-[350px] rounded-none border border-[#202025]/30 bg-[#050505] overflow-hidden">
+        <div className="absolute top-3 left-3 z-10 text-xs font-semibold text-gray-400 pointer-events-none">Price Action (BTC/USD)</div>
         <div ref={priceChartContainerRef} className="w-full h-full" />
         <div className="absolute top-3 right-3 z-10 flex gap-2">
           <button
@@ -410,6 +411,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({ data }) => {
 
       {/* Secondary Pane (LTTD Score) */}
       <div className="relative w-full h-[150px] rounded-none border border-[#202025]/30 bg-[#050505] overflow-hidden">
+        <div className="absolute top-3 left-3 z-10 text-xs font-semibold text-gray-400 pointer-events-none">LTTD Ensemble Score & PCA Components</div>
         <div ref={scoreChartContainerRef} className="w-full h-full" />
         <div className="absolute top-3 right-3 z-10 flex gap-2">
           <button

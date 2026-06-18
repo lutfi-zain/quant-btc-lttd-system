@@ -72,8 +72,16 @@ export const PerformancePanel: React.FC<PerformancePanelProps> = ({ data }) => {
     const stdDev = Math.sqrt(variance);
     const annualizedStdDev = stdDev * Math.sqrt(365);
     
+    // Downside deviation
+    const negativeReturns = dailyReturns.filter((r) => r < 0);
+    const downsideVariance = negativeReturns.length > 0 
+      ? negativeReturns.reduce((a, b) => a + Math.pow(b, 2), 0) / (days || 1)
+      : 0;
+    const annualizedDownsideDev = Math.sqrt(downsideVariance) * Math.sqrt(365);
+    
     // Risk-free rate assumed 0 for simplicity
     const sharpe = annualizedStdDev > 0 ? (meanDailyReturn * 365) / annualizedStdDev : 0;
+    const sortino = annualizedDownsideDev > 0 ? (meanDailyReturn * 365) / annualizedDownsideDev : 0;
 
     return {
       totalReturnPct,
@@ -82,6 +90,7 @@ export const PerformancePanel: React.FC<PerformancePanelProps> = ({ data }) => {
       btcCagr,
       maxDrawdown: maxDrawdown * 100,
       sharpe,
+      sortino,
       winRate: totalTrades > 0 ? (winTrades / totalTrades) * 100 : 0,
       totalTrades,
     };
@@ -98,7 +107,7 @@ export const PerformancePanel: React.FC<PerformancePanelProps> = ({ data }) => {
   const outperforming = metrics.totalReturnPct > metrics.btcReturnPct;
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-6 p-2 h-full content-center">
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-6 p-2 h-full content-center">
       <MetricBox label="Strategy Return" value={`+${metrics.totalReturnPct.toFixed(2)}%`} color={outperforming ? "var(--color-bull)" : "var(--color-text-primary)"} />
       <MetricBox label="Buy & Hold Return" value={`+${metrics.btcReturnPct.toFixed(2)}%`} color="var(--color-text-muted)" />
       
@@ -107,6 +116,7 @@ export const PerformancePanel: React.FC<PerformancePanelProps> = ({ data }) => {
       
       <MetricBox label="Max Drawdown" value={`-${metrics.maxDrawdown.toFixed(2)}%`} color="var(--color-bear)" />
       <MetricBox label="Sharpe Ratio" value={metrics.sharpe.toFixed(2)} />
+      <MetricBox label="Sortino Ratio" value={metrics.sortino.toFixed(2)} />
       
       <MetricBox label="Win Rate" value={`${metrics.winRate.toFixed(1)}%`} />
       <MetricBox label="Total Trades" value={metrics.totalTrades.toString()} />

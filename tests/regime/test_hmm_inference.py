@@ -8,16 +8,16 @@ from src.regime.hmm import train_hmm, infer_regime, infer_regime_history
 def trained_hmm_setup():
     np.random.seed(42)
     # Generate 150 days of data to fit HMM
-    r_bull = np.random.normal(0.005, 0.002, 50)
-    r_bear = np.random.normal(-0.01, 0.015, 50)
-    r_side = np.random.normal(0.0, 0.001, 50)
+    r_bull = np.random.normal(0.005, 0.002, 85)
+    r_bear = np.random.normal(-0.01, 0.015, 85)
+    r_side = np.random.normal(0.0, 0.001, 80)
     returns = np.concatenate([r_bull, r_bear, r_side])
 
     prices = [10000.0]
     for r in returns:
         prices.append(prices[-1] * np.exp(r))
 
-    dates = pd.date_range("2024-01-01", periods=151, freq="D")
+    dates = pd.date_range("2024-01-01", periods=251, freq="D")
     close = pd.Series(prices, index=dates)
 
     model, state_to_regime = train_hmm(close, window=21)

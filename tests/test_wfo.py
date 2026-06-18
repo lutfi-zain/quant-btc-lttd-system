@@ -67,11 +67,11 @@ def test_wfo_fit_predict_l1lasso_and_hmm():
     
     # 2. Test HMM training and inference on separate splits
     # HMM requires close prices
-    returns_train = np.random.normal(0.0005, 0.01, 150)
+    returns_train = np.random.normal(0.0005, 0.01, 250)
     prices_train = [10000.0]
     for r in returns_train:
         prices_train.append(prices_train[-1] * np.exp(r))
-    close_train = pd.Series(prices_train, index=pd.date_range("2020-01-01", periods=151, freq="D"))
+    close_train = pd.Series(prices_train, index=pd.date_range("2020-01-01", periods=251, freq="D"))
     
     # Train model on training window
     hmm_model, state_to_regime = train_hmm(close_train, window=21)
