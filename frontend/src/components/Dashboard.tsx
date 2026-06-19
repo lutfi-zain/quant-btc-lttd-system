@@ -249,14 +249,14 @@ export const Dashboard: React.FC = () => {
 
               {/* Main Chart Row - Stable Height */}
               <div className="col-span-12 minimalist-card flex flex-col animate-fade-up" style={{ animationDelay: '250ms' }}>
-                 <div className="mb-6 flex justify-between items-center">
-                   <h2 className="text-lg font-[var(--font-display)]">Price Action, LTTD Score, Exposure & Equity</h2>
+                  <div className="mb-6 flex justify-between items-center">
+                   <h2 className="text-lg font-[var(--font-display)]">Price Action, LTTD Score, Exposure, Regime & Equity</h2>
                    <span className="text-xs text-[var(--color-text-muted)] font-[var(--font-mono)]">BTC/USD (Daily)</span>
-                 </div>
-                 {/* Fixed/Stable Height Container */}
-                 <div className="w-full h-[750px]">
-                    <LTTDChart data={chartData || []} />
-                 </div>
+                  </div>
+                  {/* Fixed/Stable Height Container */}
+                  <div className="w-full h-[900px]">
+                     <LTTDChart data={chartData || []} regimeData={regimeData || []} />
+                  </div>
               </div>
 
               {/* Diagnostics Row */}

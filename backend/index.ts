@@ -31,6 +31,21 @@ function getMockOnChainData(): any[] {
   return list;
 }
 
+// Helper to fetch with timeout
+async function fetchWithTimeout(url: string, timeoutMs: number = 3000): Promise<any> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(id);
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    return await response.json();
+  } catch (err) {
+    clearTimeout(id);
+    throw err;
+  }
+}
+
 // Fetch on-chain data with cache and fallback
 async function fetchOnChainData(): Promise<any[]> {
   const cacheDuration = 1000 * 60 * 60 * 4; // 4 hours
@@ -42,9 +57,9 @@ async function fetchOnChainData(): Promise<any[]> {
 
   try {
     const [mvrvRes, nuplRes, soprRes] = await Promise.all([
-      fetch("https://bitview.space/api/series/sth_mvrv/day").then((r) => r.json()),
-      fetch("https://bitview.space/api/series/sth_nupl/day").then((r) => r.json()),
-      fetch("https://bitview.space/api/series/sth_sopr_24h/day").then((r) => r.json()),
+      fetchWithTimeout("https://bitview.space/api/series/sth_mvrv/day"),
+      fetchWithTimeout("https://bitview.space/api/series/sth_nupl/day"),
+      fetchWithTimeout("https://bitview.space/api/series/sth_sopr_24h/day"),
     ]);
 
     const mvrv = mvrvRes as { start: number; data: (number | null)[] };

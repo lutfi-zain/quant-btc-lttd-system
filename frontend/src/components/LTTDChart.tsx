@@ -1,23 +1,26 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
 import React, { useEffect, useRef, useState } from "react";
-import { createChart, CandlestickSeries, AreaSeries, LineSeries, HistogramSeries, ColorType, PriceScaleMode } from "lightweight-charts";
+import { createChart, CandlestickSeries, AreaSeries, LineSeries, HistogramSeries, ColorType, PriceScaleMode, LineType } from "lightweight-charts";
 import type { IChartApi } from "lightweight-charts";
 import { useSynchronizedCharts } from "./SynchronizedChartContext";
-import type { ChartRecord } from "../api/client";
+import type { ChartRecord, RegimeRecord } from "../api/client";
 
 interface LTTDChartProps {
   data: ChartRecord[];
+  regimeData?: RegimeRecord[];
 }
 
-export const LTTDChart: React.FC<LTTDChartProps> = ({ data }) => {
+export const LTTDChart: React.FC<LTTDChartProps> = ({ data, regimeData }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const scoreContainerRef = useRef<HTMLDivElement>(null);
   const exposureContainerRef = useRef<HTMLDivElement>(null);
+  const regimeContainerRef = useRef<HTMLDivElement>(null);
   const equityContainerRef = useRef<HTMLDivElement>(null);
   
   const chartRef = useRef<IChartApi | null>(null);
   const scoreChartRef = useRef<IChartApi | null>(null);
   const exposureChartRef = useRef<IChartApi | null>(null);
+  const regimeChartRef = useRef<IChartApi | null>(null);
   const equityChartRef = useRef<IChartApi | null>(null);
   
   const [scaleMode, setScaleMode] = useState<"linear" | "log">("log");
@@ -26,13 +29,14 @@ export const LTTDChart: React.FC<LTTDChartProps> = ({ data }) => {
   const chartId = "lttd-chart";
   const scoreChartId = "score-chart";
   const exposureChartId = "exposure-chart";
+  const regimeChartId = "lttd-regime-chart";
   const equityChartId = "equity-chart";
 
   useEffect(() => {
-    if (!containerRef.current || !scoreContainerRef.current || !exposureContainerRef.current || !equityContainerRef.current || data.length === 0) return;
+    if (!containerRef.current || !scoreContainerRef.current || !exposureContainerRef.current || !regimeContainerRef.current || !equityContainerRef.current || data.length === 0) return;
 
     // Cleanup previous instances
-    [chartRef, scoreChartRef, exposureChartRef, equityChartRef].forEach(ref => {
+    [chartRef, scoreChartRef, exposureChartRef, regimeChartRef, equityChartRef].forEach(ref => {
       if (ref.current) {
         try {
           ref.current.remove();
@@ -58,6 +62,7 @@ export const LTTDChart: React.FC<LTTDChartProps> = ({ data }) => {
       border: defaultBorder,
       bull: getVar('--color-bull', '#10b981'),
       bear: getVar('--color-bear', '#ef4444'),
+      sideways: getVar('--color-sideways', '#f59e0b'),
       score: getVar('--color-accent', '#0ea5e9'),
       equity: '#f59e0b',
       exposure: '#8b5cf6',
@@ -130,7 +135,20 @@ export const LTTDChart: React.FC<LTTDChartProps> = ({ data }) => {
       priceScaleId: "right",
     });
 
-    // 4. EQUITY CHART
+    // 4. REGIME CHART
+    const regimeChart = createCommonChart(regimeContainerRef.current, false);
+    regimeChartRef.current = regimeChart;
+    registerChart(regimeChartId, regimeChart);
+
+    const regimeSeries = regimeChart.addSeries(LineSeries, {
+      title: "Regime (-1 Bear, 0 Sideways, +1 Bull)",
+      color: themeColors.score,
+      lineWidth: 2,
+      lineType: LineType.WithSteps,
+      priceScaleId: "right",
+    });
+
+    // 5. EQUITY CHART
     const equityChart = createCommonChart(equityContainerRef.current, true, scaleMode === "log");
     equityChartRef.current = equityChart;
     registerChart(equityChartId, equityChart);
@@ -168,20 +186,43 @@ export const LTTDChart: React.FC<LTTDChartProps> = ({ data }) => {
       prevExposure = r.target_exposure ?? 0;
     });
 
+    // Map discrete regime state values: -1 Bear, 0 Sideways, +1 Bull
+    const regimeDataPoints: any[] = [];
+    const rData = regimeData || [];
+    const sortedRegime = [...rData].sort((a, b) => a.date.localeCompare(b.date));
+    const seenRegimeDates = new Set<string>();
+
+    sortedRegime.forEach((r) => {
+      if (seenRegimeDates.has(r.date)) return;
+      seenRegimeDates.add(r.date);
+
+      let val = 0;
+      if (r.regime === "BULL" || r.regime === "Strong Bull" || r.regime === "Weak Bull") {
+        val = 1;
+      } else if (r.regime === "BEAR" || r.regime === "Strong Bear" || r.regime === "Weak Bear") {
+        val = -1;
+      }
+
+      regimeDataPoints.push({ time: r.date, value: val });
+    });
+
     candlestickSeries.setData(priceData);
     scoreSeries.setData(scoreData);
     exposureSeries.setData(exposureData);
+    regimeSeries.setData(regimeDataPoints);
     equitySeries.setData(equityData);
 
     registerSeries(chartId, "price", candlestickSeries, priceData.map((p) => ({ time: p.time, value: p.close })));
     registerSeries(scoreChartId, "score", scoreSeries, scoreData);
     registerSeries(exposureChartId, "exposure", exposureSeries, exposureData);
+    registerSeries(regimeChartId, "regime", regimeSeries, regimeDataPoints);
     registerSeries(equityChartId, "equity", equitySeries, equityData);
 
     const charts = [
       { id: chartId, chart },
       { id: scoreChartId, chart: scoreChart },
       { id: exposureChartId, chart: exposureChart },
+      { id: regimeChartId, chart: regimeChart },
       { id: equityChartId, chart: equityChart },
     ];
 
@@ -203,9 +244,10 @@ export const LTTDChart: React.FC<LTTDChartProps> = ({ data }) => {
       chartRef.current = null;
       scoreChartRef.current = null;
       exposureChartRef.current = null;
+      regimeChartRef.current = null;
       equityChartRef.current = null;
     };
-  }, [data, scaleMode]);
+  }, [data, regimeData, scaleMode]);
 
   return (
     <div className="flex flex-col gap-0 h-full relative">
@@ -230,6 +272,10 @@ export const LTTDChart: React.FC<LTTDChartProps> = ({ data }) => {
         <div className="relative w-full flex-1 bg-transparent overflow-hidden min-h-[120px] mt-1 border-t border-[var(--color-border)]">
           <div className="absolute top-2 left-3 z-10 text-xs font-semibold text-[var(--color-text-muted)] pointer-events-none">Target Exposure (Conviction)</div>
           <div ref={exposureContainerRef} className="absolute inset-0" />
+        </div>
+        <div className="relative w-full flex-1 bg-transparent overflow-hidden min-h-[120px] mt-1 border-t border-[var(--color-border)]">
+          <div className="absolute top-2 left-3 z-10 text-xs font-semibold text-[var(--color-text-muted)] pointer-events-none">HMM Regime State (-1 Bear, 0 Sideways, +1 Bull)</div>
+          <div ref={regimeContainerRef} className="absolute inset-0" />
         </div>
         <div className="relative w-full flex-1 bg-transparent overflow-hidden min-h-[150px] mt-1 border-t border-[var(--color-border)]">
           <div className="absolute top-2 left-3 z-10 text-xs font-semibold text-[var(--color-text-muted)] pointer-events-none">Strategy Equity Curve</div>

@@ -11,7 +11,7 @@ for port in $BACKEND_PORT $FRONTEND_PORT; do
 	pid=$(lsof -ti :$port 2>/dev/null)
 	if [ -n "$pid" ]; then
 		echo "  Port $port in use by PID $pid — killing..."
-		kill -9 "$pid" 2>/dev/null
+		kill -9 $pid 2>/dev/null
 		sleep 1
 	fi
 done
