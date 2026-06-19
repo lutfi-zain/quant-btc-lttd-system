@@ -1,16 +1,18 @@
 from typing import Optional, Tuple
 
 # Sizing parameters (optimized via scripts/optimize_binary.py)
-EMA_SPAN = 19
-SCORE_ENTRY = 0.378110
-SCORE_EXIT = 0.377157
-CB_ACTIVATE = -2.280818
-CB_COOLOFF = -0.161039
-COMP_ENTRY_BOOST = 2.866722
+EMA_SPAN_ENTRY = 19
+EMA_SPAN_EXIT = 7
+SCORE_ENTRY = 0.543530
+SCORE_EXIT = 0.469470
+CB_ACTIVATE = -2.029922
+CB_COOLOFF = 0.556041
+COMP_ENTRY_BOOST = 1.964654
 USE_BEAR_OVERRIDE = False
 
 def calculate_target_exposure(
-    final_score: float,
+    smoothed_score_entry: float,
+    smoothed_score_exit: float,
     vol: float,
     regime: Optional[str] = None,
     prev_exposure: Optional[float] = None,
@@ -19,7 +21,7 @@ def calculate_target_exposure(
     prev_circuit_breaker_active: bool = False
 ) -> Tuple[float, bool]:
     """
-    Computes target exposure based on tiered state machine.
+    Computes target exposure based on tiered state machine using asymmetric spans.
     Returns (target_exposure, is_circuit_breaker_active).
     """
     prev = prev_exposure if prev_exposure is not None else 0.0
@@ -38,12 +40,12 @@ def calculate_target_exposure(
         if comp <= CB_ACTIVATE:
             return 0.0, True
 
-    # 2. Score-based entry/exit (Hysteresis)
+    # 2. Score-based entry/exit (Hysteresis with asymmetric spans)
     if prev >= 0.9:
-        if final_score <= SCORE_EXIT:
+        if smoothed_score_exit <= SCORE_EXIT:
             exposure = 0.0
     else:
-        if final_score >= SCORE_ENTRY:
+        if smoothed_score_entry >= SCORE_ENTRY:
             exposure = 1.0
 
     # 3. BEAR regime override

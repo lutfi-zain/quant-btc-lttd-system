@@ -248,8 +248,9 @@ def main():
     raw_scores = [r["final_score"] for r in results]
     scores_series = pd.Series(raw_scores)
     
-    from src.execution.sizing import calculate_target_exposure, EMA_SPAN
-    smoothed_scores = scores_series.ewm(span=EMA_SPAN, adjust=False).mean().tolist()
+    from src.execution.sizing import calculate_target_exposure, EMA_SPAN_ENTRY, EMA_SPAN_EXIT
+    smoothed_entry_list = scores_series.ewm(span=EMA_SPAN_ENTRY, adjust=False).mean().tolist()
+    smoothed_exit_list = scores_series.ewm(span=EMA_SPAN_EXIT, adjust=False).mean().tolist()
     
     from src.data.valuation_api_client import ValuationApiClient
     valuation_client = ValuationApiClient()
@@ -257,14 +258,16 @@ def main():
     prev_exposure = 0.0
     prev_cb = False
     for i, r in enumerate(results):
-        r["smoothed_score"] = float(smoothed_scores[i])
+        r["smoothed_score_entry"] = float(smoothed_entry_list[i])
+        r["smoothed_score_exit"] = float(smoothed_exit_list[i])
         
         # Get historical composite value for this date
         t_date = pd.Timestamp(r["date"], tz="UTC")
         composite_value = valuation_client.get_composite_value_for_date(t_date)
         
         exposure, cb_active = calculate_target_exposure(
-            final_score=r["smoothed_score"],
+            smoothed_score_entry=r["smoothed_score_entry"],
+            smoothed_score_exit=r["smoothed_score_exit"],
             vol=r["realized_volatility"],
             regime=r["regime"],
             prev_exposure=prev_exposure,

@@ -16,7 +16,7 @@ def test_mock_execution_adapter():
     assert len(adapter.transitions) == 0
     
     # 2. Second record (transition from BULL to BEAR score-wise, but EMA smoothing keeps us in)
-    res2 = adapter.run("2026-01-02", -1.0, "BEAR", {"BULL": 0.0, "BEAR": 0.9, "SIDEWAYS": 0.1})
+    res2 = adapter.run("2026-01-02", 0.2, "BEAR", {"BULL": 0.0, "BEAR": 0.9, "SIDEWAYS": 0.1})
     assert res2["target_exposure"] == 1.0
     assert res2["regime"] == "BEAR"
     assert res2["transition_occurred"] is True

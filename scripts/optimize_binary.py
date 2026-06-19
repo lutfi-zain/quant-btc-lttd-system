@@ -57,7 +57,8 @@ def simulate_binary(df, params, return_series=False):
     Simulate strict binary (0/100%) strategy.
     
     params dict keys:
-      - ema_span: EMA smoothing span for final_score
+      - ema_span_entry: EMA smoothing span for entry trigger
+      - ema_span_exit: EMA smoothing span for exit trigger
       - score_entry: score threshold to enter (go to 100%)
       - score_exit: score threshold to exit (go to 0%)
       - use_bear_override: if True, BEAR regime forces 0%
@@ -65,23 +66,26 @@ def simulate_binary(df, params, return_series=False):
       - cb_cooloff: composite_value > this deactivates circuit breaker
       - comp_entry_boost: composite_value >= this forces entry even if score is below threshold
     """
-    ema_span = params["ema_span"]
+    ema_entry = params["ema_span_entry"]
+    ema_exit = params["ema_span_exit"]
     score_entry = params["score_entry"]
     score_exit = params["score_exit"]
     use_bear = params["use_bear_override"]
     cb_activate = params["cb_activate"]
     cb_cooloff = params["cb_cooloff"]
-    comp_entry_boost = params.get("comp_entry_boost", 99.0)  # disabled by default
+    comp_entry_boost = params.get("comp_entry_boost", 99.0)
     
-    # Apply EMA smoothing to final_score
-    smoothed = df["final_score"].ewm(span=ema_span, adjust=False).mean()
+    # Apply asymmetric EMA smoothing
+    smoothed_entry = df["final_score"].ewm(span=ema_entry, adjust=False).mean()
+    smoothed_exit = df["final_score"].ewm(span=ema_exit, adjust=False).mean()
     
     exposures = np.zeros(len(df))
     cb_active = False
     prev_exp = 0.0
     
     for i in range(len(df)):
-        score = smoothed.iloc[i]
+        score_ent = smoothed_entry.iloc[i]
+        score_ex = smoothed_exit.iloc[i]
         regime = df["regime"].iloc[i]
         comp = df["composite_value"].iloc[i]
         
@@ -103,11 +107,11 @@ def simulate_binary(df, params, return_series=False):
                 continue
         
         # Score-based entry/exit with hysteresis
-        if prev_exp >= 0.9:  # currently IN
-            if score <= score_exit:
+        if prev_exp >= 0.9:  # currently IN (use exit score)
+            if score_ex <= score_exit:
                 exp = 0.0
-        else:  # currently OUT
-            if score >= score_entry:
+        else:  # currently OUT (use entry score)
+            if score_ent >= score_entry:
                 exp = 1.0
         
         # BEAR regime override
@@ -122,7 +126,7 @@ def simulate_binary(df, params, return_series=False):
         prev_exp = exp
     
     # Calculate returns
-    positions = np.sign(smoothed.values) * np.abs(exposures)
+    positions = exposures
     strat_returns = np.zeros(len(df))
     strat_returns[1:] = positions[:-1] * df["simple_return"].values[1:]
     
@@ -158,10 +162,7 @@ def calc_metrics(equity, strat_returns, df):
         sortino = np.sqrt(252) * np.mean(sr) / np.std(downside)
     
     # Count trades
-    in_pos = (np.abs(np.sign(strat_returns[1:]) * np.ones(len(strat_returns)-1))) > 0
-    # Actually count from exposure transitions
     exp_diff = np.diff(np.concatenate([[0], np.abs(np.sign(strat_returns))]))
-    entries = np.sum(exp_diff > 0)
     
     # Trade-level stats
     in_trade = np.abs(np.sign(strat_returns)) > 0
@@ -209,15 +210,20 @@ def calc_metrics(equity, strat_returns, df):
 def objective(x, df):
     """
     Objective to minimize (negative of reward).
-    x = [ema_span, score_entry, score_exit, cb_activate, cb_cooloff, comp_entry_boost, use_bear_float]
+    x = [ema_span_entry, ema_span_exit, score_entry, score_exit, cb_activate, cb_cooloff, comp_entry_boost, use_bear_float]
     """
-    ema_span = max(2, int(round(x[0])))
-    score_entry = x[1]
-    score_exit = x[2]
-    cb_activate = x[3]
-    cb_cooloff = x[4]
-    comp_entry_boost = x[5]
-    use_bear = x[6] > 0.5
+    ema_span_entry = max(2, int(round(x[0])))
+    ema_span_exit = max(2, int(round(x[1])))
+    score_entry = x[2]
+    score_exit = x[3]
+    cb_activate = x[4]
+    cb_cooloff = x[5]
+    comp_entry_boost = x[6]
+    use_bear = x[7] > 0.5
+    
+    # Ensure entry span is slower or equal to exit span
+    if ema_span_entry < ema_span_exit:
+        return 1e6
     
     # Ensure hysteresis: entry > exit
     if score_entry <= score_exit:
@@ -228,7 +234,8 @@ def objective(x, df):
         return 1e6
     
     params = {
-        "ema_span": ema_span,
+        "ema_span_entry": ema_span_entry,
+        "ema_span_exit": ema_span_exit,
         "score_entry": score_entry,
         "score_exit": score_exit,
         "use_bear_override": use_bear,
@@ -251,14 +258,13 @@ def objective(x, df):
         n_trades = metrics["n_trades"]
         
         # Penalty for too few trades (overfitting) or too many (whipsaw)
-        if n_trades < 10 or n_trades > 80:
+        if n_trades < 10 or n_trades > 85:
             return 1e6
         
-        # Penalty for drawdown > 50%
-        dd_penalty = max(0, max_dd - 45) * 3.0
+        # Stricter penalty for drawdown > 40% to force faster exits
+        dd_penalty = max(0, max_dd - 40.0) * 10.0
         
-        # Composite objective: maximize CAGR with Sharpe and DD constraints
-        # Weight CAGR heavily but penalize excessive drawdown
+        # Composite objective
         reward = cagr * 0.6 + sharpe * 10.0 + sortino * 5.0 - dd_penalty
         
         return -reward
@@ -274,25 +280,26 @@ def main():
     print(f"Loaded {len(df)} days from {df.index[0]} to {df.index[-1]}")
     
     # Parameter bounds:
-    # [ema_span, score_entry, score_exit, cb_activate, cb_cooloff, comp_entry_boost, use_bear]
+    # [ema_span_entry, ema_span_exit, score_entry, score_exit, cb_activate, cb_cooloff, comp_entry_boost, use_bear]
     bounds = [
-        (3, 21),         # ema_span
+        (5, 30),         # ema_span_entry
+        (2, 8),          # ema_span_exit (force fast exit response)
         (0.05, 0.80),    # score_entry (go to 100%)
         (-0.30, 0.50),   # score_exit (go to 0%)
         (-3.0, -0.5),    # cb_activate (composite <= this → force 0%)
         (-1.0, 1.0),     # cb_cooloff (composite > this → allow re-entry)
-        (0.5, 3.0),      # comp_entry_boost (composite >= this → force entry)
+        (1.9, 3.2),      # comp_entry_boost (restrict to prevent mid-trend whipsaws)
         (0.0, 1.0),      # use_bear (>0.5 = True)
     ]
     
-    print(f"\nRunning Differential Evolution (7 parameters)...")
+    print(f"\nRunning Differential Evolution (8 parameters)...")
     print(f"  Bounds: {bounds}\n")
     
     result = differential_evolution(
         objective,
         bounds,
         args=(df,),
-        maxiter=60,
+        maxiter=75,
         popsize=25,
         tol=1e-6,
         seed=42,
@@ -306,13 +313,14 @@ def main():
     # Extract best params
     x = result.x
     best_params = {
-        "ema_span": max(2, int(round(x[0]))),
-        "score_entry": x[1],
-        "score_exit": x[2],
-        "use_bear_override": bool(x[6] > 0.5),
-        "cb_activate": x[3],
-        "cb_cooloff": x[4],
-        "comp_entry_boost": x[5],
+        "ema_span_entry": max(2, int(round(x[0]))),
+        "ema_span_exit": max(2, int(round(x[1]))),
+        "score_entry": x[2],
+        "score_exit": x[3],
+        "use_bear_override": bool(x[7] > 0.5),
+        "cb_activate": x[4],
+        "cb_cooloff": x[5],
+        "comp_entry_boost": x[6],
     }
     
     print(f"\n{'='*60}")

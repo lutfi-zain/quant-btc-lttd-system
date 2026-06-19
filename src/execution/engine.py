@@ -150,7 +150,7 @@ class ExecutionEngine:
         Coordinated Layer 5 pipeline run.
         Computes target exposure, logs regime transitions, and persists state to SQLite.
         """
-        from src.execution.sizing import calculate_target_exposure, EMA_SPAN
+        from src.execution.sizing import calculate_target_exposure, EMA_SPAN_ENTRY, EMA_SPAN_EXIT
         from src.execution.logger import RegimeTransitionLogger
         from src.execution.persistence import upsert_daily_lttd, log_regime_transition
         import json
@@ -163,15 +163,18 @@ class ExecutionEngine:
         prev_exposure = self.get_previous_exposure_from_db(date_str, db_path=db_path)
         prev_cb = self.get_previous_circuit_breaker_from_db(date_str, db_path=db_path)
 
-        # Compute EMA smoothed score
+        # Compute EMA smoothed scores for entry and exit using asymmetric spans
         past_scores = self.get_previous_scores_from_db(date_str, db_path=db_path)
         all_scores = past_scores + [final_score]
         scores_series = pd.Series(all_scores)
-        smoothed_score = float(scores_series.ewm(span=EMA_SPAN, adjust=False).mean().iloc[-1])
+        
+        smoothed_entry = float(scores_series.ewm(span=EMA_SPAN_ENTRY, adjust=False).mean().iloc[-1])
+        smoothed_exit = float(scores_series.ewm(span=EMA_SPAN_EXIT, adjust=False).mean().iloc[-1])
 
-        # 1. Calculate target exposure using the smoothed score
+        # 1. Calculate target exposure using the smoothed scores
         target_exposure, circuit_breaker_active = calculate_target_exposure(
-            smoothed_score,
+            smoothed_entry,
+            smoothed_exit,
             realized_volatility,
             regime_upper,
             prev_exposure=prev_exposure,

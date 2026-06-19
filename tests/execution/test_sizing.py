@@ -11,7 +11,8 @@ from src.execution.sizing import (
 def test_normal_sizing():
     # Should stay out until >= SCORE_ENTRY
     exposure, cb_active = calculate_target_exposure(
-        final_score=SCORE_ENTRY - 0.01,
+        smoothed_score_entry=SCORE_ENTRY - 0.01,
+        smoothed_score_exit=0.0,
         vol=0.5,
         prev_exposure=0.0
     )
@@ -19,7 +20,8 @@ def test_normal_sizing():
 
     # Should enter
     exposure, cb_active = calculate_target_exposure(
-        final_score=SCORE_ENTRY + 0.01,
+        smoothed_score_entry=SCORE_ENTRY + 0.01,
+        smoothed_score_exit=0.0,
         vol=0.5,
         prev_exposure=0.0
     )
@@ -28,7 +30,8 @@ def test_normal_sizing():
 def test_hysteresis():
     # Should stay in since > SCORE_EXIT
     exposure, cb_active = calculate_target_exposure(
-        final_score=SCORE_EXIT + 0.01,
+        smoothed_score_entry=0.0,
+        smoothed_score_exit=SCORE_EXIT + 0.01,
         vol=0.5,
         prev_exposure=1.0
     )
@@ -36,7 +39,8 @@ def test_hysteresis():
 
     # Should exit
     exposure, cb_active = calculate_target_exposure(
-        final_score=SCORE_EXIT - 0.01,
+        smoothed_score_entry=0.0,
+        smoothed_score_exit=SCORE_EXIT - 0.01,
         vol=0.5,
         prev_exposure=1.0
     )
@@ -44,7 +48,8 @@ def test_hysteresis():
 
 def test_circuit_breaker():
     exposure, cb_active = calculate_target_exposure(
-        final_score=0.9,
+        smoothed_score_entry=0.9,
+        smoothed_score_exit=0.9,
         vol=0.5,
         prev_exposure=1.0,
         composite_value=CB_ACTIVATE - 0.1
@@ -55,7 +60,8 @@ def test_circuit_breaker():
 def test_circuit_breaker_cooloff():
     # Still cooling off
     exposure, cb_active = calculate_target_exposure(
-        final_score=0.9,
+        smoothed_score_entry=0.9,
+        smoothed_score_exit=0.9,
         vol=0.5,
         prev_exposure=0.0,
         composite_value=CB_COOLOFF - 0.1,
@@ -66,7 +72,8 @@ def test_circuit_breaker_cooloff():
 
     # Cooled off, should re-enter because comp_entry_boost is not met but score > SCORE_ENTRY
     exposure, cb_active = calculate_target_exposure(
-        final_score=SCORE_ENTRY + 0.01,
+        smoothed_score_entry=SCORE_ENTRY + 0.01,
+        smoothed_score_exit=SCORE_ENTRY + 0.01,
         vol=0.5,
         prev_exposure=0.0,
         composite_value=CB_COOLOFF + 0.1,
@@ -78,7 +85,8 @@ def test_circuit_breaker_cooloff():
 def test_comp_entry_boost():
     # Enters purely due to undervaluation
     exposure, cb_active = calculate_target_exposure(
-        final_score=0.0,
+        smoothed_score_entry=0.0,
+        smoothed_score_exit=0.0,
         vol=0.5,
         prev_exposure=0.0,
         composite_value=COMP_ENTRY_BOOST + 0.1
@@ -86,7 +94,7 @@ def test_comp_entry_boost():
     assert exposure == 1.0
 
 def test_no_lookahead():
-    out1, cb1 = calculate_target_exposure(0.5, 0.02, regime="BULL")
-    out1_with_future, cb1_with_future = calculate_target_exposure(0.5, 0.02, regime="BULL")
+    out1, cb1 = calculate_target_exposure(0.5, 0.5, 0.02, regime="BULL")
+    out1_with_future, cb1_with_future = calculate_target_exposure(0.5, 0.5, 0.02, regime="BULL")
     assert out1 == out1_with_future
     assert cb1 == cb1_with_future
