@@ -253,9 +253,14 @@ def main():
         super_smoother,
         SUPERSMOOTHER_PERIOD_ENTRY,
         SUPERSMOOTHER_PERIOD_EXIT,
+        MA_PERIOD,
+        USE_MA_FILTER,
     )
     smoothed_entry_list = super_smoother(scores_series, period=SUPERSMOOTHER_PERIOD_ENTRY).tolist()
     smoothed_exit_list = super_smoother(scores_series, period=SUPERSMOOTHER_PERIOD_EXIT).tolist()
+    
+    # Pre-calculate MA on df_merged
+    ma_series = df_merged["close"].rolling(MA_PERIOD).mean() if USE_MA_FILTER else None
     
     from src.data.valuation_api_client import ValuationApiClient
     valuation_client = ValuationApiClient()
@@ -280,6 +285,10 @@ def main():
         t_date = pd.Timestamp(r["date"], tz="UTC")
         composite_value = valuation_client.get_composite_value_for_date(t_date)
         
+        # Get price and ma_val for the MA trend filter
+        price = float(df_merged.loc[t_date, "close"])
+        ma_val = float(ma_series.loc[t_date]) if (USE_MA_FILTER and not pd.isna(ma_series.loc[t_date])) else None
+        
         exposure, cb_active = calculate_target_exposure(
             smoothed_score_entry=r["smoothed_score_entry"],
             smoothed_score_exit=r["smoothed_score_exit"],
@@ -289,7 +298,9 @@ def main():
             composite_value=composite_value,
             prev_circuit_breaker_active=prev_cb,
             days_since_exit=days_since_exit,
-            days_in_position=days_in_position
+            days_in_position=days_in_position,
+            price=price,
+            ma_val=ma_val
         )
         r["target_exposure"] = exposure
         r["circuit_breaker_active"] = cb_active

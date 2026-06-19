@@ -44,6 +44,8 @@ class MockExecutionAdapter:
         log_return: float = 0.0,
         realized_volatility: float = 0.0,
         composite_value: float = 0.0,
+        price: Optional[float] = None,
+        ma_val: Optional[float] = None,
     ) -> Dict[str, Any]:
         from src.execution.sizing import (
             calculate_target_exposure,
@@ -79,7 +81,9 @@ class MockExecutionAdapter:
             composite_value=composite_value,
             prev_circuit_breaker_active=self.previous_circuit_breaker_active,
             days_since_exit=self.days_since_exit,
-            days_in_position=self.days_in_position
+            days_in_position=self.days_in_position,
+            price=price,
+            ma_val=ma_val
         )
         self.previous_exposure = target_exposure
         self.previous_circuit_breaker_active = is_cb_active
@@ -219,6 +223,9 @@ def _run_fold(
     log_returns_series = np.log(df_merged["close"] / df_merged["close"].shift(1)).fillna(0.0)
     realized_vol_series = log_returns_series.rolling(21).std().fillna(0.0)
     
+    from src.execution.sizing import MA_PERIOD, USE_MA_FILTER
+    ma_series = df_merged["close"].rolling(MA_PERIOD).mean() if USE_MA_FILTER else None
+    
     for i, date in enumerate(test_idx):
         date_str = date.strftime("%Y-%m-%d")
         score = float(test_scores.loc[date])
@@ -256,6 +263,9 @@ def _run_fold(
         
         comp_val = float(df_merged.loc[date, "composite_value"]) if "composite_value" in df_merged.columns else 0.0
 
+        price = float(df_merged.loc[date, "close"])
+        ma_val = float(ma_series.loc[date]) if (USE_MA_FILTER and not pd.isna(ma_series.loc[date])) else None
+
         res_record = adapter.run(
             date_str=date_str,
             final_score=score,
@@ -264,7 +274,9 @@ def _run_fold(
             onchain_metrics=onchain_metrics,
             log_return=log_ret,
             realized_volatility=realized_vol,
-            composite_value=comp_val
+            composite_value=comp_val,
+            price=price,
+            ma_val=ma_val
         )
         
         # Extract features for telemetry

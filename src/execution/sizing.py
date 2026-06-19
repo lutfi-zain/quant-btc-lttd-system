@@ -2,17 +2,19 @@ import numpy as np
 import pandas as pd
 from typing import Optional, Tuple
 
-# Sizing parameters (optimized via tmp/optimize_sizing_improved.py)
+# Sizing parameters (optimized via tmp/optimize_with_ma.py)
 SUPERSMOOTHER_PERIOD_ENTRY = 8
-SUPERSMOOTHER_PERIOD_EXIT = 4
-SCORE_ENTRY = 0.435160
-SCORE_EXIT = 0.294856
-CB_ACTIVATE = -3.386067
-CB_COOLOFF = 0.789564
+SUPERSMOOTHER_PERIOD_EXIT = 5
+SCORE_ENTRY = 0.3591637228998046
+SCORE_EXIT = 0.32448227800286483
+CB_ACTIVATE = -2.8290154952614124
+CB_COOLOFF = 0.7123354436183149
 COMP_ENTRY_BOOST = 2.000613
 USE_BEAR_OVERRIDE = False
-RCO_DAYS = 3
+RCO_DAYS = 4
 MHP_DAYS = 12
+USE_MA_FILTER = True
+MA_PERIOD = 229
 
 def super_smoother(series: pd.Series, period: int) -> pd.Series:
     """
@@ -48,7 +50,9 @@ def calculate_target_exposure(
     composite_value: Optional[float] = None,
     prev_circuit_breaker_active: bool = False,
     days_since_exit: Optional[int] = None,
-    days_in_position: Optional[int] = None
+    days_in_position: Optional[int] = None,
+    price: Optional[float] = None,
+    ma_val: Optional[float] = None
 ) -> Tuple[float, bool]:
     """
     Computes target exposure based on tiered state machine using asymmetric spans, RCO, and MHP.
@@ -81,7 +85,11 @@ def calculate_target_exposure(
         # Check Re-entry cool-off: default to RCO_DAYS to allow entry if not tracked
         effective_days_since_exit = days_since_exit if days_since_exit is not None else RCO_DAYS
         if effective_days_since_exit >= RCO_DAYS:
-            if smoothed_score_entry >= SCORE_ENTRY:
+            ma_condition = True
+            if USE_MA_FILTER and price is not None and ma_val is not None:
+                ma_condition = (price > ma_val)
+                
+            if smoothed_score_entry >= SCORE_ENTRY and ma_condition:
                 exposure = 1.0
 
     # 3. BEAR regime override

@@ -209,6 +209,8 @@ class ExecutionEngine:
         realized_volatility: float = 0.0,
         composite_value: Optional[float] = None,
         db_path=None,
+        price: Optional[float] = None,
+        ma_val: Optional[float] = None,
     ) -> Dict[str, Any]:
         """
         Coordinated Layer 5 pipeline run.
@@ -252,7 +254,9 @@ class ExecutionEngine:
             composite_value=composite_value,
             prev_circuit_breaker_active=prev_cb,
             days_since_exit=days_since_exit,
-            days_in_position=days_in_position
+            days_in_position=days_in_position,
+            price=price,
+            ma_val=ma_val
         )
 
         # 2. Extract posteriors

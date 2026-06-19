@@ -223,6 +223,14 @@ class LTTDPipeline:
         logger.info(f"Fetching valuation composite for {date_str}...")
         composite_value = self.valuation_client.get_composite_value_for_date(t)
 
+        # Compute price and moving average for MA trend filter
+        from src.execution.sizing import MA_PERIOD, USE_MA_FILTER
+        price = float(df_merged.loc[t, "close"])
+        ma_val = None
+        if USE_MA_FILTER:
+            ma_series = df_merged["close"].rolling(MA_PERIOD).mean()
+            ma_val = float(ma_series.loc[t]) if not pd.isna(ma_series.loc[t]) else None
+
         # Run execution engine coordinator
         exec_res = self.execution_engine.run(
             date_str=date_str,
@@ -232,7 +240,9 @@ class LTTDPipeline:
             log_return=log_ret,
             realized_volatility=realized_vol,
             composite_value=composite_value,
-            db_path=self.db_path
+            db_path=self.db_path,
+            price=price,
+            ma_val=ma_val
         )
 
         # Retrieve raw indicator scores and transformed PCA component values for telemetry
