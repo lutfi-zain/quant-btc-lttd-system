@@ -179,14 +179,14 @@ def test_wfo_pipeline_integration():
         "FDI": np.random.randn(len(dates)),
         "QuantileDEMA": np.random.randn(len(dates)),
         "AdvancedStochastic": np.random.randn(len(dates)),
-        "KalmanRSI": np.random.randn(len(dates)),
+        "RSI-50": np.random.randn(len(dates)),
         "FourierSupertrend": np.random.randn(len(dates)),
         "TrendStrengthIndex": np.random.randn(len(dates)),
         "sth_mvrv_roc_7": np.random.randn(len(dates))
     }, index=dates)
     
     # Target is binary direction
-    y = (df_features["FDI"] + df_features["KalmanRSI"] > 0).astype(int)
+    y = (df_features["FDI"] + df_features["RSI-50"] > 0).astype(int)
     
     out_of_sample_scores = ensemble.run_wfo_pipeline(df_features, y)
     

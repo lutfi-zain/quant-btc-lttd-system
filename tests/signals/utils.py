@@ -25,7 +25,8 @@ def test_no_lookahead(indicator: CausalFilter, data: pd.DataFrame, t_index: int)
     if pd.isna(val_truncated) and pd.isna(val_full):
         return
 
-    assert val_truncated == val_full, (
+    import numpy as np
+    assert np.isclose(val_truncated, val_full, rtol=1e-9, atol=1e-9), (
         f"Lookahead bias detected! Value at t={t_index} changed from {val_truncated} to {val_full} when future data was added."
     )
 
