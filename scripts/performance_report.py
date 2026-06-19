@@ -40,10 +40,10 @@ def sim_equity(signals: pd.DataFrame) -> pd.DataFrame:
 
 
 def annual_sharpe(r: pd.Series, rf: float = 0.0) -> float:
-    excess = r - rf / 252
+    excess = r - rf / 365
     if excess.std() == 0 or excess.count() < 10:
         return 0.0
-    return float(np.sqrt(252) * excess.mean() / excess.std())
+    return float(np.sqrt(365) * excess.mean() / excess.std())
 
 
 def max_dd(equity: pd.Series) -> float:
@@ -58,11 +58,11 @@ def cagr(equity: pd.Series, years: float) -> float:
     return float((equity.iloc[-1] / equity.iloc[0]) ** (1 / years) - 1)
 
 def annual_sortino(r: pd.Series, rf: float = 0.0) -> float:
-    excess = r - rf / 252
+    excess = r - rf / 365
     downside = excess[excess < 0]
     if len(downside) < 5 or downside.std() == 0:
         return 0.0
-    return float(np.sqrt(252) * excess.mean() / downside.std())
+    return float(np.sqrt(365) * excess.mean() / downside.std())
 
 
 def trade_stats(df: pd.DataFrame) -> dict:
@@ -81,13 +81,8 @@ def trade_stats(df: pd.DataFrame) -> dict:
     for s, e in zip(starts, ends):
         s_idx = df_temp.index.get_loc(s)
         e_idx = df_temp.index.get_loc(e)
-        # The return of the trade is the sum of strat_return during the days we held the position.
-        # Since strat_return at i is position[i-1] * log_return[i], 
-        # the first return is at s+1, and the last return is at e.
-        # But if the trade hasn't ended (e is the last index and in_pos is still True),
-        # we include up to e.
-        
-        tr = df_temp["strat_return"].iloc[s_idx+1 : e_idx+1].sum()
+        # Compounding daily returns: (1 + strat_return).prod() - 1
+        tr = (1 + df_temp["strat_return"].iloc[s_idx+1 : e_idx+1]).prod() - 1
         trades.append(tr)
         
     if not trades:

@@ -5,6 +5,7 @@ from src.signals.advanced_stochastic import AdvancedStochastic
 from src.signals.kalman_rsi import KalmanRSI
 from src.signals.fourier_supertrend import AdaptiveFourierSupertrend
 from src.signals.trend_strength import TrendStrengthIndex
+from src.signals.ichimoku import IchimokuCausalFilter
 
 
 class FeatureMatrixBuilder:
@@ -21,6 +22,7 @@ class FeatureMatrixBuilder:
             dynamic_lookback=dynamic_lookback
         )
         self.trend_strength = TrendStrengthIndex(dynamic_lookback=dynamic_lookback)
+        self.ichimoku = IchimokuCausalFilter(dynamic_lookback=dynamic_lookback)
 
     def build_matrix(self, data: pd.DataFrame, onchain_df: pd.DataFrame = None) -> pd.DataFrame:
         """
@@ -38,6 +40,7 @@ class FeatureMatrixBuilder:
         rsi50_scores = self.rsi50.compute(data)
         fourier_scores = self.fourier_supertrend.compute(data)
         ts_scores = self.trend_strength.compute(data)
+        ichimoku_scores = self.ichimoku.compute(data)
 
         matrix = pd.DataFrame(
             {
@@ -46,6 +49,7 @@ class FeatureMatrixBuilder:
                 "RSI-50": rsi50_scores,
                 "FourierSupertrend": fourier_scores,
                 "TrendStrengthIndex": ts_scores,
+                "Ichimoku": ichimoku_scores,
             },
             index=data.index,
         )

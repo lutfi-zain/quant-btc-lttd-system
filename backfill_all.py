@@ -82,7 +82,7 @@ def process_single_day(t, df_merged, feature_matrix, log_returns, y):
         from src.ensemble.model import PCAConsensusEnsemble
         model = PCAConsensusEnsemble()
         if processor.pca is not None:
-            model.fit(X_train, y=None, pca_components_matrix=processor.pca.pca.components_, kept_cols=processor.tech_indicators_list)
+            model.fit(X_train, y=None, pca_components_matrix=processor.pca.pca.components_, kept_cols=processor.kept_tech_cols)
         else:
             model.fit(X_train, y=None)
             
@@ -243,24 +243,39 @@ def main():
     results = sorted(results, key=lambda x: x["date"])
     print(f"✓ Parallel computation finished. Successfully calculated {len(results)} days.")
     
-    # Apply EMA smoothing and sequential exposure sizing
-    print("Applying EMA smoothing and sequential exposure sizing...")
+    # Apply SuperSmoother smoothing and sequential exposure sizing
+    print("Applying SuperSmoother smoothing and sequential exposure sizing...")
     raw_scores = [r["final_score"] for r in results]
     scores_series = pd.Series(raw_scores)
     
-    from src.execution.sizing import calculate_target_exposure, EMA_SPAN_ENTRY, EMA_SPAN_EXIT
-    smoothed_entry_list = scores_series.ewm(span=EMA_SPAN_ENTRY, adjust=False).mean().tolist()
-    smoothed_exit_list = scores_series.ewm(span=EMA_SPAN_EXIT, adjust=False).mean().tolist()
+    from src.execution.sizing import (
+        calculate_target_exposure,
+        super_smoother,
+        SUPERSMOOTHER_PERIOD_ENTRY,
+        SUPERSMOOTHER_PERIOD_EXIT,
+    )
+    smoothed_entry_list = super_smoother(scores_series, period=SUPERSMOOTHER_PERIOD_ENTRY).tolist()
+    smoothed_exit_list = super_smoother(scores_series, period=SUPERSMOOTHER_PERIOD_EXIT).tolist()
     
     from src.data.valuation_api_client import ValuationApiClient
     valuation_client = ValuationApiClient()
     
     prev_exposure = 0.0
     prev_cb = False
+    days_since_exit = 999
+    days_in_position = 0
     for i, r in enumerate(results):
         r["smoothed_score_entry"] = float(smoothed_entry_list[i])
         r["smoothed_score_exit"] = float(smoothed_exit_list[i])
         
+        # Track timers
+        if prev_exposure >= 0.9:
+            days_in_position += 1
+            days_since_exit = 0
+        else:
+            days_in_position = 0
+            days_since_exit += 1
+            
         # Get historical composite value for this date
         t_date = pd.Timestamp(r["date"], tz="UTC")
         composite_value = valuation_client.get_composite_value_for_date(t_date)
@@ -272,7 +287,9 @@ def main():
             regime=r["regime"],
             prev_exposure=prev_exposure,
             composite_value=composite_value,
-            prev_circuit_breaker_active=prev_cb
+            prev_circuit_breaker_active=prev_cb,
+            days_since_exit=days_since_exit,
+            days_in_position=days_in_position
         )
         r["target_exposure"] = exposure
         r["circuit_breaker_active"] = cb_active

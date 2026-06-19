@@ -229,7 +229,7 @@ class WFOEnsemble:
             # Use PCA consensus
             model = PCAConsensusEnsemble()
             if processor.pca is not None:
-                model.fit(X, y=None, pca_components_matrix=processor.pca.pca.components_, kept_cols=processor.tech_indicators_list)
+                model.fit(X, y=None, pca_components_matrix=processor.pca.pca.components_, kept_cols=processor.kept_tech_cols)
             else:
                 model.fit(X, y=None)
                 
@@ -256,7 +256,7 @@ class WFOEnsemble:
             if processor.pca is not None:
                 # We pass X_test (original features before PCA) to model.predict_score if we fitted with kept_cols.
                 # Wait, PCAConsensusEnsemble expects original features in predict_score!
-                model.fit(X_train, y=None, pca_components_matrix=processor.pca.pca.components_, kept_cols=processor.tech_indicators_list)
+                model.fit(X_train, y=None, pca_components_matrix=processor.pca.pca.components_, kept_cols=processor.kept_tech_cols)
                 test_scores = model.predict_score(X_test)
             else:
                 model.fit(X_train, y=None)

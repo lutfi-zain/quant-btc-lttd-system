@@ -110,6 +110,70 @@ class ExecutionEngine:
             
         return False
 
+    def get_days_since_exit_from_db(self, date_str: str, db_path=None) -> int:
+        """
+        Calculates the number of consecutive days the exposure has been < 0.9 prior to date_str.
+        If the last exposure was >= 0.9, returns 0.
+        """
+        from src.execution.database import get_connection
+        
+        db_args = {}
+        if db_path is not None:
+            db_args["db_path"] = db_path
+
+        try:
+            with get_connection(**db_args) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT target_exposure FROM daily_lttd WHERE date < ? ORDER BY date DESC LIMIT 100",
+                    (date_str,),
+                )
+                rows = cursor.fetchall()
+                if not rows:
+                    return 999  # Safe default if no history
+                
+                count = 0
+                for row in rows:
+                    if row["target_exposure"] >= 0.9:
+                        break
+                    count += 1
+                return count
+        except Exception as e:
+            logger.warning(f"Could not calculate days_since_exit from DB: {e}")
+            return 999
+
+    def get_days_in_position_from_db(self, date_str: str, db_path=None) -> int:
+        """
+        Calculates the number of consecutive days the exposure has been >= 0.9 prior to date_str.
+        If the last exposure was < 0.9, returns 0.
+        """
+        from src.execution.database import get_connection
+        
+        db_args = {}
+        if db_path is not None:
+            db_args["db_path"] = db_path
+
+        try:
+            with get_connection(**db_args) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT target_exposure FROM daily_lttd WHERE date < ? ORDER BY date DESC LIMIT 100",
+                    (date_str,),
+                )
+                rows = cursor.fetchall()
+                if not rows:
+                    return 0  # Safe default if no history
+                
+                count = 0
+                for row in rows:
+                    if row["target_exposure"] < 0.9:
+                        break
+                    count += 1
+                return count
+        except Exception as e:
+            logger.warning(f"Could not calculate days_in_position from DB: {e}")
+            return 0
+
     def get_previous_scores_from_db(self, date_str: str, db_path=None) -> list:
         """
         Queries the database to find recent raw final_scores prior to the current date.
@@ -150,7 +214,12 @@ class ExecutionEngine:
         Coordinated Layer 5 pipeline run.
         Computes target exposure, logs regime transitions, and persists state to SQLite.
         """
-        from src.execution.sizing import calculate_target_exposure, EMA_SPAN_ENTRY, EMA_SPAN_EXIT
+        from src.execution.sizing import (
+            calculate_target_exposure,
+            super_smoother,
+            SUPERSMOOTHER_PERIOD_ENTRY,
+            SUPERSMOOTHER_PERIOD_EXIT,
+        )
         from src.execution.logger import RegimeTransitionLogger
         from src.execution.persistence import upsert_daily_lttd, log_regime_transition
         import json
@@ -159,17 +228,19 @@ class ExecutionEngine:
         # Use exact regime case
         regime_upper = regime
 
-        # Retrieve previous exposure and circuit breaker state
+        # Retrieve previous exposure, circuit breaker, days_since_exit, and days_in_position states
         prev_exposure = self.get_previous_exposure_from_db(date_str, db_path=db_path)
         prev_cb = self.get_previous_circuit_breaker_from_db(date_str, db_path=db_path)
+        days_since_exit = self.get_days_since_exit_from_db(date_str, db_path=db_path)
+        days_in_position = self.get_days_in_position_from_db(date_str, db_path=db_path)
 
-        # Compute EMA smoothed scores for entry and exit using asymmetric spans
+        # Compute SuperSmoother smoothed scores for entry and exit using asymmetric periods
         past_scores = self.get_previous_scores_from_db(date_str, db_path=db_path)
         all_scores = past_scores + [final_score]
         scores_series = pd.Series(all_scores)
         
-        smoothed_entry = float(scores_series.ewm(span=EMA_SPAN_ENTRY, adjust=False).mean().iloc[-1])
-        smoothed_exit = float(scores_series.ewm(span=EMA_SPAN_EXIT, adjust=False).mean().iloc[-1])
+        smoothed_entry = float(super_smoother(scores_series, period=SUPERSMOOTHER_PERIOD_ENTRY).iloc[-1])
+        smoothed_exit = float(super_smoother(scores_series, period=SUPERSMOOTHER_PERIOD_EXIT).iloc[-1])
 
         # 1. Calculate target exposure using the smoothed scores
         target_exposure, circuit_breaker_active = calculate_target_exposure(
@@ -179,7 +250,9 @@ class ExecutionEngine:
             regime_upper,
             prev_exposure=prev_exposure,
             composite_value=composite_value,
-            prev_circuit_breaker_active=prev_cb
+            prev_circuit_breaker_active=prev_cb,
+            days_since_exit=days_since_exit,
+            days_in_position=days_in_position
         )
 
         # 2. Extract posteriors

@@ -102,7 +102,7 @@ def test_engine_run_pipeline_multiday(tmp_path):
     # Day 2: Same regime (BULL), score changes
     day2_res = engine.run(
         date_str="2026-06-02",
-        final_score=0.4,
+        final_score=0.8,
         regime="BULL",
         posteriors={"BULL": 0.8, "BEAR": 0.05, "SIDEWAYS": 0.15},
         log_return=0.005,
@@ -120,7 +120,7 @@ def test_engine_run_pipeline_multiday(tmp_path):
         row = cursor.fetchone()
         assert row is not None
         assert row["regime"] == "BULL"
-        assert row["final_score"] == 0.4
+        assert row["final_score"] == 0.8
         assert row["target_exposure"] == 1.0
         assert row["posterior_prob"] == 0.8
 

@@ -21,6 +21,7 @@ class FeatureProcessor:
             "RSI-50",
             "FourierSupertrend",
             "TrendStrengthIndex",
+            "Ichimoku",
         ]
 
     def fit(self, X_train: pd.DataFrame, y_train: pd.Series = None):

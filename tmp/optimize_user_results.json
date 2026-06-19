@@ -1,0 +1,15 @@
+{
+  "params": {
+    "ema_span_entry": 16,
+    "ema_span_exit": 16,
+    "score_entry": 0.8562175977567006,
+    "score_exit": 0.02323668345685062,
+    "use_bear_override": true,
+    "cb_activate": -2.635773278558121,
+    "cb_cooloff": 0.050970315174301506,
+    "comp_entry_boost": 99.0
+  },
+  "mismatch_days": 1053,
+  "accuracy": 0.7250652741514361,
+  "trades": 10
+}

@@ -1,0 +1,245 @@
+Total rows: 3830
+
+=== Period: Jan 2017 (2017-01-01 to 2017-01-25) ===
+  Close range: 787.6 - 1114.8
+  Regimes present: ['BULL' 'SIDEWAYS']
+  Final score range: 0.1310 to 0.9389
+  Composite range: -0.6263 to 0.0407
+  Key Exposure / State timeline:
+    2017-01-01: close=   890.6 | regime=BULL     | score=0.8774 | composite=-0.4635 | exposure=1.0
+    2017-01-19: close=   816.1 | regime=BULL     | score=0.2631 | composite=-0.1994 | exposure=0.0
+    2017-01-20: close=   824.5 | regime=BULL     | score=0.2467 | composite=-0.1623 | exposure=1.0
+    2017-01-21: close=   825.0 | regime=BULL     | score=0.2209 | composite=-0.5086 | exposure=0.0
+    2017-01-25: close=   872.1 | regime=BULL     | score=0.3373 | composite=-0.1710 | exposure=0.0
+
+=== Period: July-Aug 2017 (2017-07-20 to 2017-08-25) ===
+  Close range: 1924.4 - 4316.0
+  Regimes present: ['BULL' 'SIDEWAYS']
+  Final score range: -0.6167 to 0.9285
+  Composite range: -1.8599 to -1.0161
+  Key Exposure / State timeline:
+    2017-07-20: close=  2343.2 | regime=BULL     | score=-0.0128 | composite=-1.2854 | exposure=0.0
+    2017-08-20: close=  4086.3 | regime=BULL     | score=0.9271 | composite=-1.7006 | exposure=1.0
+    2017-08-25: close=  4280.7 | regime=BULL     | score=0.8504 | composite=-1.7587 | exposure=1.0
+
+=== Period: Sept 22, 2017 (2017-09-18 to 2017-09-26) ===
+  Close range: 3595.9 - 4035.0
+  Regimes present: ['BULL']
+  Final score range: -0.0389 to 0.5809
+  Composite range: -1.3438 to -1.1235
+  Key Exposure / State timeline:
+    2017-09-18: close=  4035.0 | regime=BULL     | score=0.5809 | composite=-1.3438 | exposure=1.0
+    2017-09-21: close=  3610.0 | regime=BULL     | score=-0.0110 | composite=-1.1244 | exposure=0.0
+    2017-09-22: close=  3595.9 | regime=BULL     | score=-0.0027 | composite=-1.1291 | exposure=1.0
+    2017-09-23: close=  3780.0 | regime=BULL     | score=-0.0389 | composite=-1.2592 | exposure=0.0
+    2017-09-26: close=  3882.3 | regime=BULL     | score=0.1502 | composite=-1.2270 | exposure=0.0
+
+=== Period: Jan 2018 (2018-01-01 to 2018-01-20) ===
+  Close range: 10900.0 - 17069.8
+  Regimes present: ['BULL']
+  Final score range: 0.0333 to 0.5678
+  Composite range: -2.0000 to -1.5502
+  Key Exposure / State timeline:
+    2018-01-01: close= 13380.0 | regime=BULL     | score=0.5337 | composite=-1.9179 | exposure=1.0
+    2018-01-08: close= 14902.5 | regime=BULL     | score=0.3414 | composite=-1.9583 | exposure=0.0
+    2018-01-09: close= 14400.0 | regime=BULL     | score=0.3721 | composite=-1.9055 | exposure=1.0
+    2018-01-10: close= 14907.1 | regime=BULL     | score=0.3923 | composite=-1.9095 | exposure=0.0
+    2018-01-11: close= 13238.8 | regime=BULL     | score=0.4224 | composite=-1.8068 | exposure=1.0
+    2018-01-12: close= 13740.0 | regime=BULL     | score=0.4673 | composite=-1.8330 | exposure=0.0
+    2018-01-20: close= 12799.9 | regime=BULL     | score=0.0333 | composite=-1.6922 | exposure=0.0
+
+=== Period: Dec 2018 - Mar 2019 (2018-12-15 to 2019-03-05) ===
+  Close range: 3211.7 - 4117.8
+  Regimes present: ['BEAR' 'BULL']
+  Final score range: -0.6381 to 0.8779
+  Composite range: 1.8276 to 2.0000
+  Key Exposure / State timeline:
+    2018-12-15: close=  3211.7 | regime=BEAR     | score=-0.6381 | composite=2.0000 | exposure=1.0
+    2018-12-20: close=  4049.6 | regime=BULL     | score=-0.5931 | composite=1.9201 | exposure=0.0
+    2018-12-21: close=  3838.7 | regime=BULL     | score=-0.6151 | composite=2.0000 | exposure=1.0
+    2018-12-24: close=  4008.0 | regime=BULL     | score=-0.5829 | composite=1.9058 | exposure=0.0
+    2018-12-25: close=  3745.8 | regime=BULL     | score=-0.5315 | composite=2.0000 | exposure=1.0
+    2019-01-06: close=  3987.6 | regime=BEAR     | score=-0.3671 | composite=1.9493 | exposure=0.0
+    2019-01-07: close=  3975.4 | regime=BEAR     | score=-0.3869 | composite=1.9673 | exposure=1.0
+    2019-01-09: close=  3966.7 | regime=BEAR     | score=-0.3413 | composite=1.9622 | exposure=0.0
+    2019-01-10: close=  3585.9 | regime=BEAR     | score=-0.3590 | composite=2.0000 | exposure=1.0
+    2019-01-14: close=  3626.1 | regime=BEAR     | score=-0.2675 | composite=1.9147 | exposure=0.0
+    2019-01-17: close=  3616.2 | regime=BEAR     | score=-0.2635 | composite=2.0000 | exposure=1.0
+    2019-01-21: close=  3526.9 | regime=BEAR     | score=-0.5510 | composite=1.9261 | exposure=0.0
+    2019-01-22: close=  3570.9 | regime=BEAR     | score=-0.5527 | composite=2.0000 | exposure=1.0
+    2019-02-20: close=  3969.7 | regime=BEAR     | score=-0.2463 | composite=1.8612 | exposure=0.0
+    2019-02-21: close=  3937.3 | regime=BEAR     | score=-0.2564 | composite=2.0000 | exposure=1.0
+    2019-02-23: close=  4117.8 | regime=BEAR     | score=-0.1902 | composite=1.8997 | exposure=0.0
+    2019-02-24: close=  3743.6 | regime=BEAR     | score=-0.1258 | composite=2.0000 | exposure=1.0
+    2019-02-28: close=  3813.7 | regime=BEAR     | score=0.7044 | composite=1.9495 | exposure=0.0
+    2019-03-01: close=  3823.0 | regime=BEAR     | score=0.8292 | composite=2.0000 | exposure=1.0
+    2019-03-05: close=  3857.7 | regime=BEAR     | score=0.5646 | composite=2.0000 | exposure=1.0
+
+=== Period: Jan - Mar 2020 (2020-01-05 to 2020-03-10) ===
+  Close range: 7358.8 - 10344.4
+  Regimes present: ['SIDEWAYS' 'BEAR']
+  Final score range: -0.4371 to 0.9319
+  Composite range: -0.0436 to 0.7939
+  Key Exposure / State timeline:
+    2020-01-05: close=  7358.8 | regime=SIDEWAYS | score=-0.2931 | composite=0.7939 | exposure=0.0
+    2020-02-05: close=  9612.0 | regime=SIDEWAYS | score=0.7892 | composite=0.1543 | exposure=1.0
+    2020-03-05: close=  9054.7 | regime=SIDEWAYS | score=0.2978 | composite=0.4864 | exposure=0.0
+    2020-03-10: close=  7894.6 | regime=SIDEWAYS | score=0.1649 | composite=0.6943 | exposure=0.0
+
+=== Period: Mar - Oct 2020 (2020-03-10 to 2020-10-25) ===
+  Close range: 4800.0 - 13111.7
+  Regimes present: ['SIDEWAYS' 'BULL' 'BEAR']
+  Final score range: -0.6874 to 0.9472
+  Composite range: -0.3530 to 1.7446
+  Key Exposure / State timeline:
+    2020-03-10: close=  7894.6 | regime=SIDEWAYS | score=0.1649 | composite=0.6943 | exposure=0.0
+    2020-05-16: close=  9381.3 | regime=SIDEWAYS | score=0.8354 | composite=0.3357 | exposure=1.0
+    2020-07-07: close=  9257.4 | regime=SIDEWAYS | score=0.3072 | composite=0.6519 | exposure=0.0
+    2020-08-09: close= 11681.7 | regime=SIDEWAYS | score=0.8400 | composite=-0.1225 | exposure=1.0
+    2020-09-12: close= 10440.9 | regime=SIDEWAYS | score=0.0117 | composite=-0.1057 | exposure=0.0
+    2020-10-25: close= 13028.8 | regime=SIDEWAYS | score=0.7518 | composite=-0.1616 | exposure=0.0
+
+=== Period: Apr 2021 (2021-04-20 to 2021-05-05) ===
+  Close range: 49066.8 - 57800.4
+  Regimes present: ['BULL']
+  Final score range: -0.5330 to 0.8688
+  Composite range: -1.8882 to -1.6497
+  Key Exposure / State timeline:
+    2021-04-20: close= 56425.0 | regime=BULL     | score=0.8688 | composite=-1.8882 | exposure=1.0
+    2021-04-28: close= 54846.2 | regime=BULL     | score=-0.0789 | composite=-1.7925 | exposure=0.0
+    2021-05-05: close= 57436.1 | regime=BULL     | score=-0.0752 | composite=-1.7629 | exposure=0.0
+
+=== Period: July - Nov 2021 (2021-07-15 to 2021-11-30) ===
+  Close range: 29790.3 - 67525.8
+  Regimes present: ['BEAR' 'SIDEWAYS']
+  Final score range: -0.6195 to 0.9381
+  Composite range: -1.3041 to -0.0887
+  Key Exposure / State timeline:
+    2021-07-15: close= 31880.0 | regime=BEAR     | score=-0.4365 | composite=-0.2246 | exposure=0.0
+    2021-08-19: close= 46760.6 | regime=SIDEWAYS | score=0.8442 | composite=-0.7860 | exposure=1.0
+    2021-09-28: close= 41026.5 | regime=BEAR     | score=0.0046 | composite=-0.2817 | exposure=0.0
+    2021-10-21: close= 62193.2 | regime=SIDEWAYS | score=0.8694 | composite=-1.0830 | exposure=1.0
+    2021-11-28: close= 57274.9 | regime=SIDEWAYS | score=0.3445 | composite=-0.8322 | exposure=0.0
+    2021-11-30: close= 56950.6 | regime=SIDEWAYS | score=0.1724 | composite=-0.7990 | exposure=0.0
+
+=== Period: Nov 2021 - Jan 2023 (2021-11-25 to 2023-01-15) ===
+  Close range: 15781.3 - 58960.4
+  Regimes present: ['SIDEWAYS' 'BEAR']
+  Final score range: -0.7406 to 0.9441
+  Composite range: -0.9571 to 2.0000
+  Key Exposure / State timeline:
+    2021-11-25: close= 58960.4 | regime=SIDEWAYS | score=0.3641 | composite=-0.9571 | exposure=1.0
+    2021-11-28: close= 57274.9 | regime=SIDEWAYS | score=0.3445 | composite=-0.8322 | exposure=0.0
+    2022-04-11: close= 39530.4 | regime=SIDEWAYS | score=0.7820 | composite=0.3407 | exposure=1.0
+    2022-04-18: close= 40801.1 | regime=BEAR     | score=-0.0235 | composite=0.3368 | exposure=0.0
+    2022-09-06: close= 18790.6 | regime=BEAR     | score=-0.6661 | composite=1.9799 | exposure=1.0
+    2022-09-07: close= 19292.8 | regime=BEAR     | score=-0.6494 | composite=1.9286 | exposure=0.0
+    2022-10-01: close= 19311.0 | regime=BEAR     | score=-0.5908 | composite=1.9688 | exposure=1.0
+    2022-10-03: close= 19629.1 | regime=BEAR     | score=-0.5487 | composite=1.9259 | exposure=0.0
+    2022-10-08: close= 19418.0 | regime=BEAR     | score=-0.4898 | composite=1.9819 | exposure=1.0
+    2022-10-09: close= 19439.0 | regime=BEAR     | score=-0.4950 | composite=1.9634 | exposure=0.0
+    2022-10-10: close= 19131.9 | regime=BEAR     | score=-0.4821 | composite=1.9818 | exposure=1.0
+    2022-10-17: close= 19549.9 | regime=BEAR     | score=-0.4829 | composite=1.9607 | exposure=0.0
+    2022-10-19: close= 19124.0 | regime=BEAR     | score=-0.5369 | composite=1.9920 | exposure=1.0
+    2022-10-25: close= 20080.1 | regime=BEAR     | score=-0.4392 | composite=1.8302 | exposure=0.0
+    2022-11-08: close= 18547.2 | regime=BEAR     | score=0.5101 | composite=2.0000 | exposure=1.0
+    2022-11-23: close= 16603.1 | regime=BEAR     | score=-0.5787 | composite=1.9431 | exposure=0.0
+    2022-11-24: close= 16599.0 | regime=BEAR     | score=-0.5723 | composite=2.0000 | exposure=1.0
+    2023-01-13: close= 19930.0 | regime=BEAR     | score=-0.4344 | composite=1.8427 | exposure=0.0
+    2023-01-15: close= 20871.5 | regime=BEAR     | score=-0.2967 | composite=1.6926 | exposure=0.0
+
+=== Period: July 2023 (2023-07-01 to 2023-07-31) ===
+  Close range: 29176.5 - 31454.2
+  Regimes present: ['SIDEWAYS' 'BULL']
+  Final score range: 0.3231 to 0.8514
+  Composite range: -0.0201 to 0.3686
+  Key Exposure / State timeline:
+    2023-07-01: close= 30585.9 | regime=SIDEWAYS | score=0.8514 | composite=-0.0201 | exposure=0.0
+    2023-07-15: close= 30289.5 | regime=SIDEWAYS | score=0.5652 | composite=0.0237 | exposure=1.0
+    2023-07-28: close= 29314.1 | regime=SIDEWAYS | score=0.4050 | composite=0.3686 | exposure=0.0
+    2023-07-31: close= 29232.2 | regime=BULL     | score=0.3231 | composite=0.3294 | exposure=0.0
+
+=== Period: Oct 2023 (2023-10-15 to 2023-11-01) ===
+  Close range: 27154.2 - 35421.4
+  Regimes present: ['SIDEWAYS' 'BULL']
+  Final score range: -0.0451 to 0.8962
+  Composite range: -0.0557 to 0.7667
+  Key Exposure / State timeline:
+    2023-10-15: close= 27154.2 | regime=SIDEWAYS | score=0.4846 | composite=0.7667 | exposure=0.0
+    2023-11-01: close= 35421.4 | regime=BULL     | score=0.8708 | composite=-0.0266 | exposure=1.0
+
+=== Period: Jan - Feb 2024 (2024-01-15 to 2024-02-28) ===
+  Close range: 39568.0 - 62432.1
+  Regimes present: ['BULL']
+  Final score range: -0.3677 to 0.9377
+  Composite range: -0.9436 to -0.2021
+  Key Exposure / State timeline:
+    2024-01-15: close= 42511.1 | regime=BULL     | score=0.7743 | composite=-0.3787 | exposure=1.0
+    2024-01-24: close= 40084.9 | regime=BULL     | score=0.3285 | composite=-0.2394 | exposure=0.0
+    2024-01-25: close= 39961.1 | regime=BULL     | score=0.1632 | composite=-0.2073 | exposure=1.0
+    2024-01-26: close= 41823.5 | regime=BULL     | score=0.2008 | composite=-0.2329 | exposure=0.0
+    2024-02-23: close= 50744.2 | regime=BULL     | score=0.8825 | composite=-0.5405 | exposure=1.0
+    2024-02-28: close= 62432.1 | regime=BULL     | score=0.8119 | composite=-0.9436 | exposure=1.0
+
+=== Period: Apr - Sept 2024 (2024-04-10 to 2024-10-05) ===
+  Close range: 53963.0 - 71446.6
+  Regimes present: ['BULL' 'SIDEWAYS' 'BEAR']
+  Final score range: -0.6698 to 0.8643
+  Composite range: -1.0479 to 0.2713
+  Key Exposure / State timeline:
+    2024-04-10: close= 70631.1 | regime=BULL     | score=0.6773 | composite=-1.0226 | exposure=1.0
+    2024-04-24: close= 64289.6 | regime=BULL     | score=-0.0386 | composite=-0.8050 | exposure=0.0
+    2024-06-15: close= 66228.2 | regime=BULL     | score=0.7829 | composite=-0.8921 | exposure=1.0
+    2024-06-22: close= 64262.0 | regime=SIDEWAYS | score=0.2002 | composite=-0.7928 | exposure=0.0
+    2024-10-05: close= 62058.0 | regime=SIDEWAYS | score=0.6834 | composite=-0.1063 | exposure=0.0
+
+=== Period: Oct 2024 - Feb 2025 (2024-09-25 to 2025-02-20) ===
+  Close range: 60326.4 - 106143.8
+  Regimes present: ['BEAR' 'SIDEWAYS' 'BULL']
+  Final score range: -0.3832 to 0.9290
+  Composite range: -1.1538 to 0.1622
+  Key Exposure / State timeline:
+    2024-09-25: close= 63152.0 | regime=BEAR     | score=0.0433 | composite=0.0378 | exposure=0.0
+    2024-10-25: close= 66698.3 | regime=SIDEWAYS | score=0.8982 | composite=-0.1847 | exposure=1.0
+    2025-01-06: close=102235.6 | regime=BULL     | score=0.2582 | composite=-0.9009 | exposure=0.0
+    2025-02-05: close= 96612.4 | regime=BULL     | score=0.7535 | composite=-0.7713 | exposure=1.0
+    2025-02-12: close= 97870.0 | regime=SIDEWAYS | score=0.0832 | composite=-0.6210 | exposure=0.0
+    2025-02-20: close= 98305.0 | regime=SIDEWAYS | score=-0.3243 | composite=-0.5474 | exposure=0.0
+
+=== Period: Feb - Apr 2025 (2025-02-10 to 2025-04-25) ===
+  Close range: 76322.4 - 98305.0
+  Regimes present: ['BULL' 'SIDEWAYS' 'BEAR']
+  Final score range: -0.6387 to 0.5010
+  Composite range: -0.7590 to 0.3762
+  Key Exposure / State timeline:
+    2025-02-10: close= 97430.8 | regime=BULL     | score=0.5010 | composite=-0.6496 | exposure=1.0
+    2025-02-12: close= 97870.0 | regime=SIDEWAYS | score=0.0832 | composite=-0.6210 | exposure=0.0
+    2025-04-25: close= 94638.7 | regime=BEAR     | score=-0.2239 | composite=-0.0360 | exposure=0.0
+
+=== Period: Apr - Oct 2025 (2025-04-15 to 2025-10-31) ===
+  Close range: 83644.0 - 124658.5
+  Regimes present: ['BEAR' 'SIDEWAYS']
+  Final score range: -0.6373 to 0.9363
+  Composite range: -0.8658 to 0.1875
+  Key Exposure / State timeline:
+    2025-04-15: close= 83644.0 | regime=BEAR     | score=-0.5923 | composite=0.1712 | exposure=0.0
+    2025-05-14: close=103507.8 | regime=SIDEWAYS | score=0.8016 | composite=-0.4070 | exposure=1.0
+    2025-06-30: close=107146.5 | regime=SIDEWAYS | score=0.3229 | composite=-0.4989 | exposure=0.0
+    2025-07-01: close=105681.1 | regime=SIDEWAYS | score=0.3607 | composite=-0.4883 | exposure=1.0
+    2025-07-02: close=108849.6 | regime=SIDEWAYS | score=0.4371 | composite=-0.4776 | exposure=0.0
+    2025-07-05: close=108198.1 | regime=BEAR     | score=0.6507 | composite=-0.6058 | exposure=1.0
+    2025-08-28: close=112566.9 | regime=SIDEWAYS | score=-0.0669 | composite=-0.4021 | exposure=0.0
+    2025-10-31: close=109608.0 | regime=BEAR     | score=-0.4280 | composite=0.0712 | exposure=0.0
+
+=== Period: Nov 2025 to Present (2025-10-25 to 2026-06-26) ===
+  Close range: 60884.6 - 114559.4
+  Regimes present: ['BEAR' 'SIDEWAYS']
+  Final score range: -0.7037 to 0.9114
+  Composite range: -0.1529 to 1.7255
+  Key Exposure / State timeline:
+    2025-10-25: close=111646.3 | regime=BEAR     | score=-0.6370 | composite=-0.1529 | exposure=0.0
+    2026-05-03: close= 78568.6 | regime=BEAR     | score=0.8305 | composite=0.9799 | exposure=1.0
+    2026-05-31: close= 73674.4 | regime=SIDEWAYS | score=0.4465 | composite=1.1666 | exposure=0.0
+    2026-06-01: close= 71408.9 | regime=SIDEWAYS | score=0.4595 | composite=1.2867 | exposure=1.0
+    2026-06-02: close= 66760.8 | regime=SIDEWAYS | score=0.3608 | composite=1.4312 | exposure=0.0
+    2026-06-26: close= 62465.9 | regime=BEAR     | score=-0.4618 | composite=0.0000 | exposure=0.0

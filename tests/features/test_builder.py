@@ -30,6 +30,7 @@ def test_feature_matrix_builder_shape(sample_data):
             "RSI-50",
             "FourierSupertrend",
             "TrendStrengthIndex",
+            "Ichimoku",
         ]
     )
     # Check no NaN values are present at the end of the series

@@ -6,6 +6,8 @@ from src.execution.sizing import (
     CB_ACTIVATE,
     CB_COOLOFF,
     COMP_ENTRY_BOOST,
+    RCO_DAYS,
+    MHP_DAYS,
 )
 
 def test_normal_sizing():
@@ -98,3 +100,45 @@ def test_no_lookahead():
     out1_with_future, cb1_with_future = calculate_target_exposure(0.5, 0.5, 0.02, regime="BULL")
     assert out1 == out1_with_future
     assert cb1 == cb1_with_future
+
+def test_re_entry_cooloff():
+    # If we exited, and it's been less than RCO_DAYS, we should NOT enter even if score >= SCORE_ENTRY
+    exposure, cb_active = calculate_target_exposure(
+        smoothed_score_entry=SCORE_ENTRY + 0.01,
+        smoothed_score_exit=0.0,
+        vol=0.5,
+        prev_exposure=0.0,
+        days_since_exit=RCO_DAYS - 1
+    )
+    assert exposure == 0.0
+
+    # If it has been >= RCO_DAYS, we SHOULD enter
+    exposure, cb_active = calculate_target_exposure(
+        smoothed_score_entry=SCORE_ENTRY + 0.01,
+        smoothed_score_exit=0.0,
+        vol=0.5,
+        prev_exposure=0.0,
+        days_since_exit=RCO_DAYS
+    )
+    assert exposure == 1.0
+
+def test_minimum_holding_period():
+    # If we are in position, and it's been less than MHP_DAYS, we should NOT exit even if exit score <= SCORE_EXIT
+    exposure, cb_active = calculate_target_exposure(
+        smoothed_score_entry=0.0,
+        smoothed_score_exit=SCORE_EXIT - 0.01,
+        vol=0.5,
+        prev_exposure=1.0,
+        days_in_position=MHP_DAYS - 1
+    )
+    assert exposure == 1.0
+
+    # If it has been >= MHP_DAYS, we SHOULD exit
+    exposure, cb_active = calculate_target_exposure(
+        smoothed_score_entry=0.0,
+        smoothed_score_exit=SCORE_EXIT - 0.01,
+        vol=0.5,
+        prev_exposure=1.0,
+        days_in_position=MHP_DAYS
+    )
+    assert exposure == 0.0

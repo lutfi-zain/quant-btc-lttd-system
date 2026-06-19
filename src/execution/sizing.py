@@ -1,14 +1,42 @@
+import numpy as np
+import pandas as pd
 from typing import Optional, Tuple
 
-# Sizing parameters (optimized via scripts/optimize_binary.py)
-EMA_SPAN_ENTRY = 19
-EMA_SPAN_EXIT = 7
-SCORE_ENTRY = 0.543530
-SCORE_EXIT = 0.469470
-CB_ACTIVATE = -2.029922
-CB_COOLOFF = 0.556041
-COMP_ENTRY_BOOST = 1.964654
+# Sizing parameters (optimized via tmp/optimize_sizing_improved.py)
+SUPERSMOOTHER_PERIOD_ENTRY = 8
+SUPERSMOOTHER_PERIOD_EXIT = 4
+SCORE_ENTRY = 0.435160
+SCORE_EXIT = 0.294856
+CB_ACTIVATE = -3.386067
+CB_COOLOFF = 0.789564
+COMP_ENTRY_BOOST = 2.000613
 USE_BEAR_OVERRIDE = False
+RCO_DAYS = 3
+MHP_DAYS = 12
+
+def super_smoother(series: pd.Series, period: int) -> pd.Series:
+    """
+    John Ehlers' 2-pole SuperSmoother filter.
+    Returns a smoothed pandas Series with the same index.
+    """
+    if len(series) < 2:
+        return series
+    
+    a1 = np.exp(-1.414 * np.pi / period)
+    b1 = 2 * a1 * np.cos(1.414 * np.pi / period)
+    c2 = b1
+    c3 = -a1 * a1
+    c1 = 1.0 - c2 - c3
+    
+    values = series.values
+    out = np.zeros_like(values)
+    out[0] = values[0]
+    out[1] = values[1]
+    
+    for t in range(2, len(values)):
+        out[t] = c1 * (values[t] + values[t-1]) / 2.0 + c2 * out[t-1] + c3 * out[t-2]
+        
+    return pd.Series(out, index=series.index)
 
 def calculate_target_exposure(
     smoothed_score_entry: float,
@@ -18,10 +46,12 @@ def calculate_target_exposure(
     prev_exposure: Optional[float] = None,
     onchain_metrics: Optional[dict] = None,
     composite_value: Optional[float] = None,
-    prev_circuit_breaker_active: bool = False
+    prev_circuit_breaker_active: bool = False,
+    days_since_exit: Optional[int] = None,
+    days_in_position: Optional[int] = None
 ) -> Tuple[float, bool]:
     """
-    Computes target exposure based on tiered state machine using asymmetric spans.
+    Computes target exposure based on tiered state machine using asymmetric spans, RCO, and MHP.
     Returns (target_exposure, is_circuit_breaker_active).
     """
     prev = prev_exposure if prev_exposure is not None else 0.0
@@ -40,13 +70,19 @@ def calculate_target_exposure(
         if comp <= CB_ACTIVATE:
             return 0.0, True
 
-    # 2. Score-based entry/exit (Hysteresis with asymmetric spans)
+    # 2. Score-based entry/exit (Hysteresis with asymmetric spans, MHP and RCO constraints)
     if prev >= 0.9:
-        if smoothed_score_exit <= SCORE_EXIT:
-            exposure = 0.0
+        # Check Minimum Holding Period: default to MHP_DAYS to allow exit if not tracked
+        effective_days_in_position = days_in_position if days_in_position is not None else MHP_DAYS
+        if effective_days_in_position >= MHP_DAYS:
+            if smoothed_score_exit <= SCORE_EXIT:
+                exposure = 0.0
     else:
-        if smoothed_score_entry >= SCORE_ENTRY:
-            exposure = 1.0
+        # Check Re-entry cool-off: default to RCO_DAYS to allow entry if not tracked
+        effective_days_since_exit = days_since_exit if days_since_exit is not None else RCO_DAYS
+        if effective_days_since_exit >= RCO_DAYS:
+            if smoothed_score_entry >= SCORE_ENTRY:
+                exposure = 1.0
 
     # 3. BEAR regime override
     if USE_BEAR_OVERRIDE and regime == "BEAR":

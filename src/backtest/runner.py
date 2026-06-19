@@ -31,6 +31,8 @@ class MockExecutionAdapter:
         self.previous_exposure: Optional[float] = None
         self.previous_circuit_breaker_active: bool = False
         self.transitions: List[Dict[str, Any]] = []
+        self.days_since_exit = 999
+        self.days_in_position = 0
 
     def run(
         self,
@@ -43,15 +45,28 @@ class MockExecutionAdapter:
         realized_volatility: float = 0.0,
         composite_value: float = 0.0,
     ) -> Dict[str, Any]:
-        from src.execution.sizing import calculate_target_exposure, EMA_SPAN_ENTRY, EMA_SPAN_EXIT
+        from src.execution.sizing import (
+            calculate_target_exposure,
+            super_smoother,
+            SUPERSMOOTHER_PERIOD_ENTRY,
+            SUPERSMOOTHER_PERIOD_EXIT,
+        )
         
-        # Calculate EMA smoothed scores using historical raw scores in self.records
+        # Track timers
+        if self.previous_exposure is not None and self.previous_exposure >= 0.9:
+            self.days_in_position += 1
+            self.days_since_exit = 0
+        else:
+            self.days_in_position = 0
+            self.days_since_exit += 1
+            
+        # Calculate SuperSmoother smoothed scores using historical raw scores in self.records
         past_scores = [r["final_score"] for r in self.records]
         all_scores = past_scores + [final_score]
         scores_series = pd.Series(all_scores)
         
-        smoothed_entry = float(scores_series.ewm(span=EMA_SPAN_ENTRY, adjust=False).mean().iloc[-1])
-        smoothed_exit = float(scores_series.ewm(span=EMA_SPAN_EXIT, adjust=False).mean().iloc[-1])
+        smoothed_entry = float(super_smoother(scores_series, period=SUPERSMOOTHER_PERIOD_ENTRY).iloc[-1])
+        smoothed_exit = float(super_smoother(scores_series, period=SUPERSMOOTHER_PERIOD_EXIT).iloc[-1])
 
         regime_upper = regime
         target_exposure, is_cb_active = calculate_target_exposure(
@@ -62,7 +77,9 @@ class MockExecutionAdapter:
             prev_exposure=self.previous_exposure,
             onchain_metrics=onchain_metrics,
             composite_value=composite_value,
-            prev_circuit_breaker_active=self.previous_circuit_breaker_active
+            prev_circuit_breaker_active=self.previous_circuit_breaker_active,
+            days_since_exit=self.days_since_exit,
+            days_in_position=self.days_in_position
         )
         self.previous_exposure = target_exposure
         self.previous_circuit_breaker_active = is_cb_active
