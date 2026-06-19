@@ -1,273 +1,4 @@
-import os
-import requests
-import datetime
-import pandas as pd
-import numpy as np
-import sqlite3
-
-# --- PORTED STRATEGIES ---
-def compute_atr(df: pd.DataFrame, window: int = 14) -> pd.Series:
-    tr1 = df['High'] - df['Low']
-    tr2 = (df['High'] - df['Close'].shift(1)).abs()
-    tr3 = (df['Low'] - df['Close'].shift(1)).abs()
-    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-    return tr.rolling(window=window).mean()
-
-def ehler_supersmoother(series: pd.Series, length: int = 7) -> pd.Series:
-    a1 = np.exp(-1.414 * np.pi / length)
-    b1 = 2 * a1 * np.cos(np.radians(1.414 * 180.0 / length))
-    c2 = b1
-    c3 = -a1 * a1
-    c1 = 1 - c2 - c3
-
-    vals = series.ffill().fillna(0).values
-    filt = np.zeros(len(vals))
-    filt[0] = vals[0]
-    if len(vals) > 1:
-        filt[1] = vals[1]
-    for i in range(2, len(vals)):
-        filt[i] = c1 * (vals[i] + vals[i-1]) / 2 + c2 * filt[i-1] + c3 * filt[i-2]
-    return pd.Series(filt, index=series.index)
-
-def shannon_entropy(series: pd.Series, window: int = 15, bins: int = 6) -> pd.Series:
-    def calc_shannon(x):
-        if len(x) < window:
-            return np.nan
-        counts, _ = np.histogram(x, bins=bins)
-        probs = counts / len(x)
-        probs = probs[probs > 0]
-        return -np.sum(probs * np.log2(probs))
-    
-    returns = series.pct_change().fillna(0)
-    return returns.rolling(window=window).apply(calc_shannon, raw=True)
-
-def generate_ichimoku_features(df: pd.DataFrame, p1=20, p2=60, p3=120, er_len=14, std_len=30, entropy_window=15, entropy_bins=6) -> pd.DataFrame:
-    df = df.copy()
-    df['ATR'] = compute_atr(df, p2)
-    df['tenkan_sen'] = (df['High'].rolling(p1).max() + df['Low'].rolling(p1).min()) / 2
-    df['kijun_sen'] = (df['High'].rolling(p2).max() + df['Low'].rolling(p2).min()) / 2
-    df['senkou_span_a_raw'] = (df['tenkan_sen'] + df['kijun_sen']) / 2
-    df['senkou_span_b_raw'] = (df['High'].rolling(p3).max() + df['Low'].rolling(p3).min()) / 2
-    df['senkou_span_a'] = df['senkou_span_a_raw'].shift(p2)
-    df['senkou_span_b'] = df['senkou_span_b_raw'].shift(p2)
-    df['S_TK'] = np.tanh((df['tenkan_sen'] - df['kijun_sen']) / df['ATR'])
-
-    cloud_max = np.maximum(df['senkou_span_a'], df['senkou_span_b'])
-    cloud_min = np.minimum(df['senkou_span_a'], df['senkou_span_b'])
-    dist_cloud = np.zeros(len(df))
-    above = df['Close'] > cloud_max
-    below = df['Close'] < cloud_min
-    dist_cloud[above] = (df['Close'] - cloud_max)[above] / df['ATR'][above]
-    dist_cloud[below] = (df['Close'] - cloud_min)[below] / df['ATR'][below]
-    df['S_Cloud'] = np.tanh(dist_cloud)
-
-    df['S_Future'] = np.tanh((df['senkou_span_a_raw'] - df['senkou_span_b_raw']) / df['ATR'])
-    raw_chikou_dist = (df['Close'] - df['Close'].shift(p2)) / df['ATR']
-    smoothed_chikou_dist = ehler_supersmoother(raw_chikou_dist, length=4)
-    df['S_Chikou'] = np.tanh(smoothed_chikou_dist)
-
-    imo_raw = (df['S_TK'] + df['S_Cloud'] + df['S_Future'] + df['S_Chikou']) / 4.0
-    df['IMO'] = ehler_supersmoother(imo_raw, length=7)
-    df['IMO_Std'] = df['IMO'].rolling(std_len).std()
-
-    change = df['Close'].diff().abs()
-    volatility = change.rolling(er_len).sum()
-    direction = df['Close'].diff(er_len).abs()
-    df['ER'] = direction / volatility
-    df['Entropy'] = shannon_entropy(df['Close'], window=entropy_window, bins=entropy_bins)
-    return df
-
-def generate_signals(df: pd.DataFrame) -> pd.DataFrame:
-    CONFIRM_ENTRY = 2
-    CONFIRM_EXIT = 1
-    MIN_HOLD_DAYS = 10
-    ER_ENTRY = 0.25
-    T_ENTRY = 0.40
-    CHIKOU_THRESH = -0.30
-    IMMUNITY_THRESH = 0.50
-    ENTROPY_THRESH = 2.271
-
-    df = df.copy()
-    pos = 0.0
-    signals = []
-    confirm_count = 0
-    hold_days = 0
-    intent = None
-
-    for _, row in df.iterrows():
-        imo = row['IMO']
-        er = row['ER']
-        std = row['IMO_Std']
-        chikou = row.get('S_Chikou', 0.0)
-        entropy = row.get('Entropy', 0.0)
-        close = row['Close']
-        cloud_a = row['senkou_span_a']
-        cloud_b = row['senkou_span_b']
-
-        if pd.isna(imo) or pd.isna(er) or pd.isna(std) or pd.isna(entropy):
-            signals.append(pos)
-            continue
-
-        threshold = std * T_ENTRY
-        if pos > 0:
-            hold_days += 1
-        else:
-            hold_days = 0
-        can_exit = hold_days >= MIN_HOLD_DAYS
-
-        if pos == 0.0:
-            cloud_min = np.minimum(cloud_a, cloud_b) if (not pd.isna(cloud_a) and not pd.isna(cloud_b)) else (cloud_a if not pd.isna(cloud_a) else (cloud_b if not pd.isna(cloud_b) else np.nan))
-            gate_pass = True
-            if not pd.isna(cloud_min):
-                gate_pass = (close >= cloud_min)
-
-            if imo > threshold and er > ER_ENTRY and entropy < ENTROPY_THRESH and gate_pass:
-                if intent != 1.0:
-                    intent = 1.0
-                    confirm_count = 1
-                else:
-                    confirm_count += 1
-                if confirm_count >= CONFIRM_ENTRY:
-                    pos = 1.0
-                    confirm_count = 0
-                    hold_days = 0
-                    intent = None
-            else:
-                intent = None
-                confirm_count = 0
-        else:
-            exit_signal = False
-            if can_exit:
-                if chikou < CHIKOU_THRESH and imo < IMMUNITY_THRESH:
-                    exit_signal = True
-                elif imo < 0:
-                    exit_signal = True
-            
-            if exit_signal:
-                if intent != 0.0:
-                    intent = 0.0
-                    confirm_count = 1
-                else:
-                    confirm_count += 1
-                if confirm_count >= CONFIRM_EXIT:
-                    pos = 0.0
-                    confirm_count = 0
-                    hold_days = 0
-                    intent = None
-            else:
-                intent = None
-                confirm_count = 0
-        signals.append(pos)
-
-    df['Pos'] = signals
-    return df
-
-def run_sim(df: pd.DataFrame, position_col: str, tc_rate: float) -> pd.Series:
-    pos = df[position_col].astype(float)
-    active_pos = pos.shift(1).fillna(0.0)
-    market_ret = df['Close'].pct_change().fillna(0.0)
-    pos_change = active_pos.diff().abs().fillna(0.0)
-    tc = pos_change * tc_rate
-    return active_pos * market_ret - tc
-
-def calculate_stats(ret_series: pd.Series, pos_series: pd.Series, start_date, end_date) -> dict:
-    years = (end_date - start_date).days / 365.25
-    equity = (1 + ret_series).cumprod()
-    final_equity = equity.iloc[-1]
-    cagr_val = (final_equity ** (1 / years) - 1) if final_equity > 0 else -1.0
-    
-    ann_factor = 365.25
-    mean_ret = ret_series.mean()
-    std_ret = ret_series.std()
-    sharpe = (mean_ret / std_ret * np.sqrt(ann_factor)) if std_ret > 0 else 0.0
-    
-    downside_ret = ret_series[ret_series < 0]
-    downside_std = downside_ret.std()
-    sortino = (mean_ret / downside_std * np.sqrt(ann_factor)) if downside_std > 0 else 0.0
-    
-    peak = equity.cummax()
-    dd = (equity - peak) / peak
-    max_dd = dd.min()
-    calmar = cagr_val / abs(max_dd) if max_dd != 0 else float('inf')
-    
-    in_pos = pos_series > 0
-    starts = pos_series.index[(in_pos) & (~in_pos.shift(1).fillna(False))].tolist()
-    ends = pos_series.index[(~in_pos) & (in_pos.shift(1).fillna(False))].tolist()
-    if len(starts) > len(ends):
-        ends.append(pos_series.index[-1])
-        
-    trades = []
-    for s, e in zip(starts, ends):
-        s_loc = pos_series.index.get_loc(s)
-        e_loc = pos_series.index.get_loc(e)
-        tr_ret = (1 + ret_series.iloc[s_loc + 1: e_loc + 1]).prod() - 1
-        trades.append(tr_ret)
-        
-    num_trades = len(trades)
-    win_rate = 0.0
-    if num_trades > 0:
-        wins = [t for t in trades if t > 0]
-        win_rate = len(wins) / num_trades
-        
-    return {
-        "Total Return": (final_equity - 1) * 100,
-        "CAGR": cagr_val * 100,
-        "Sharpe": sharpe,
-        "Sortino": sortino,
-        "Max DD": max_dd * 100,
-        "Calmar": calmar,
-        "Trades": num_trades,
-        "Win Rate": win_rate * 100
-    }
-
-def main():
-    # Fetch price and load LTTD
-    url = "https://bitview.space/api/series/price_ohlc/day?start=2016-01-01"
-    resp = requests.get(url).json()
-    start_idx = resp["start"]
-    data = resp["data"]
-    base_date = datetime.date(2009, 1, 1)
-    dates = [base_date + datetime.timedelta(days=start_idx + i) for i in range(len(data))]
-    df_api = pd.DataFrame(data, columns=["Open", "High", "Low", "Close"], index=dates)
-    df_api.index = pd.to_datetime(df_api.index)
-    
-    conn = sqlite3.connect("database/lttd.db")
-    df_lttd = pd.read_sql("SELECT date, target_exposure FROM daily_lttd ORDER BY date", conn, parse_dates=["date"], index_col="date")
-    conn.close()
-    
-    df_lttd_corrected = df_lttd.copy()
-    df_lttd_corrected.index = df_lttd_corrected.index - pd.Timedelta(days=2)
-    
-    df_ich = generate_ichimoku_features(df_api)
-    df_ich = generate_signals(df_ich)
-    
-    common_idx = df_lttd_corrected.index.intersection(df_ich.index)
-    df_comp = pd.DataFrame(index=common_idx)
-    df_comp['Close'] = df_api.loc[common_idx, 'Close']
-    df_comp['LTTD_Pos'] = df_lttd_corrected.loc[common_idx, 'target_exposure']
-    df_comp['Ichimoku_Pos'] = df_ich.loc[common_idx, 'Pos']
-    
-    start_date = common_idx.min()
-    end_date = common_idx.max()
-    
-    # Calculate stats (10 bps)
-    tc = 0.001
-    ret_lttd = run_sim(df_comp, 'LTTD_Pos', tc)
-    s_lttd = calculate_stats(ret_lttd, df_comp['LTTD_Pos'], start_date, end_date)
-    
-    ret_ich = run_sim(df_comp, 'Ichimoku_Pos', tc)
-    s_ich = calculate_stats(ret_ich, df_comp['Ichimoku_Pos'], start_date, end_date)
-    
-    bh_ret = df_comp['Close'].pct_change().fillna(0.0)
-    bh_eq = (1 + bh_ret).cumprod()
-    bh_years = (end_date - start_date).days / 365.25
-    bh_cagr = (bh_eq.iloc[-1] ** (1 / bh_years) - 1) * 100
-    bh_max_dd = ((bh_eq - bh_eq.cummax()) / bh_eq.cummax()).min() * 100
-    bh_sharpe = bh_ret.mean() / bh_ret.std() * np.sqrt(365.25)
-    bh_return = (bh_eq.iloc[-1] - 1) * 100
-    
-    # HTML template with premium tailwind dark theme
-    html_content = f"""<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
@@ -275,15 +6,15 @@ def main():
     <title>LTTD vs Ichimoku Performance & Integration Audit</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        tailwind.config = {{
+        tailwind.config = {
             darkMode: 'class',
-            theme: {{
-                extend: {{
-                    fontFamily: {{
+            theme: {
+                extend: {
+                    fontFamily: {
                         sans: ['Outfit', 'Inter', 'sans-serif'],
-                    }},
-                    colors: {{
-                        cyberpunk: {{
+                    },
+                    colors: {
+                        cyberpunk: {
                             bg: '#0B0F19',
                             card: '#111827',
                             border: '#1F2937',
@@ -291,26 +22,26 @@ def main():
                             green: '#10B981',
                             red: '#EF4444',
                             orange: '#F59E0B',
-                        }}
-                    }}
-                }}
-            }}
-        }}
+                        }
+                    }
+                }
+            }
+        }
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body {{
+        body {
             background-color: #080C14;
             color: #E2E8F0;
-        }}
-        .glass {{
+        }
+        .glass {
             background: rgba(17, 24, 39, 0.7);
             backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.05);
-        }}
-        .glow {{
+        }
+        .glow {
             box-shadow: 0 0 20px rgba(59, 130, 246, 0.15);
-        }}
+        }
     </style>
 </head>
 <body class="p-6 md:p-12 max-w-7xl mx-auto font-sans">
@@ -326,7 +57,7 @@ def main():
         </div>
         <div class="mt-6 md:mt-0 text-right">
             <span class="text-xs text-gray-500 block">Date of Audit</span>
-            <span class="text-sm font-semibold text-gray-300">{datetime.date.today().isoformat()}</span>
+            <span class="text-sm font-semibold text-gray-300">2026-06-20</span>
         </div>
     </header>
 
@@ -398,12 +129,12 @@ def main():
                         <td class="py-4 font-medium text-white flex items-center gap-2">
                             <span>Buy & Hold BTC</span>
                         </td>
-                        <td class="py-4 text-right">{bh_return:,.2f}%</td>
-                        <td class="py-4 text-right">{bh_cagr:.2f}%</td>
-                        <td class="py-4 text-right">{bh_sharpe:.2f}</td>
+                        <td class="py-4 text-right">14,456.72%</td>
+                        <td class="py-4 text-right">60.96%</td>
+                        <td class="py-4 text-right">1.05</td>
                         <td class="py-4 text-right">-</td>
-                        <td class="py-4 text-right text-cyberpunk-red">{bh_max_dd:.2f}%</td>
-                        <td class="py-4 text-right">{(bh_cagr / abs(bh_max_dd)):.2f}</td>
+                        <td class="py-4 text-right text-cyberpunk-red">-83.40%</td>
+                        <td class="py-4 text-right">0.73</td>
                         <td class="py-4 text-right">1</td>
                         <td class="py-4 text-right">-</td>
                     </tr>
@@ -412,28 +143,28 @@ def main():
                             <span class="w-2 h-2 bg-blue-500 rounded-full"></span>
                             <span>LTTD System (Corrected)</span>
                         </td>
-                        <td class="py-4 text-right text-blue-400 font-bold">{s_lttd['Total Return']:,.2f}%</td>
-                        <td class="py-4 text-right">{s_lttd['CAGR']:.2f}%</td>
-                        <td class="py-4 text-right font-bold text-cyberpunk-green">{s_lttd['Sharpe']:.2f}</td>
-                        <td class="py-4 text-right font-bold text-cyberpunk-green">{s_lttd['Sortino']:.2f}</td>
-                        <td class="py-4 text-right text-cyberpunk-green font-semibold">{s_lttd['Max DD']:.2f}%</td>
-                        <td class="py-4 text-right font-bold text-cyberpunk-green">{s_lttd['Calmar']:.2f}</td>
-                        <td class="py-4 text-right">{s_lttd['Trades']}</td>
-                        <td class="py-4 text-right">{s_lttd['Win Rate']:.1f}%</td>
+                        <td class="py-4 text-right text-blue-400 font-bold">56,367.04%</td>
+                        <td class="py-4 text-right">83.22%</td>
+                        <td class="py-4 text-right font-bold text-cyberpunk-green">1.61</td>
+                        <td class="py-4 text-right font-bold text-cyberpunk-green">1.59</td>
+                        <td class="py-4 text-right text-cyberpunk-green font-semibold">-37.30%</td>
+                        <td class="py-4 text-right font-bold text-cyberpunk-green">2.23</td>
+                        <td class="py-4 text-right">34</td>
+                        <td class="py-4 text-right">64.7%</td>
                     </tr>
                     <tr class="hover:bg-gray-900/40 transition-colors">
                         <td class="py-4 font-medium text-white flex items-center gap-2">
                             <span class="w-2 h-2 bg-amber-500 rounded-full"></span>
                             <span>Ichimoku System</span>
                         </td>
-                        <td class="py-4 text-right text-amber-400 font-bold">{s_ich['Total Return']:,.2f}%</td>
-                        <td class="py-4 text-right font-bold text-white">{s_ich['CAGR']:.2f}%</td>
-                        <td class="py-4 text-right">{s_ich['Sharpe']:.2f}</td>
-                        <td class="py-4 text-right">{s_ich['Sortino']:.2f}</td>
-                        <td class="py-4 text-right text-cyberpunk-red">{s_ich['Max DD']:.2f}%</td>
-                        <td class="py-4 text-right">{s_ich['Calmar']:.2f}</td>
-                        <td class="py-4 text-right">{s_ich['Trades']}</td>
-                        <td class="py-4 text-right font-bold text-cyberpunk-green">{s_ich['Win Rate']:.1f}%</td>
+                        <td class="py-4 text-right text-amber-400 font-bold">79,426.78%</td>
+                        <td class="py-4 text-right font-bold text-white">89.32%</td>
+                        <td class="py-4 text-right">1.57</td>
+                        <td class="py-4 text-right">1.57</td>
+                        <td class="py-4 text-right text-cyberpunk-red">-48.49%</td>
+                        <td class="py-4 text-right">1.84</td>
+                        <td class="py-4 text-right">18</td>
+                        <td class="py-4 text-right font-bold text-cyberpunk-green">66.7%</td>
                     </tr>
                 </tbody>
             </table>
@@ -513,15 +244,3 @@ def main():
     </footer>
 </body>
 </html>
-"""
-    
-    # Save file
-    os.makedirs("tmp", exist_ok=True)
-    report_path = "tmp/ichimoku_performance_report.html"
-    with open(report_path, "w") as f:
-        f.write(html_content)
-        
-    print(f"Successfully generated HTML report at: {report_path}")
-
-if __name__ == '__main__':
-    main()

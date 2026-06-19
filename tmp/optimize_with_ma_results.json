@@ -1,0 +1,22 @@
+{
+  "params": {
+    "entry_p": 8,
+    "exit_p": 5,
+    "score_entry": 0.3591637228998046,
+    "score_exit": 0.32448227800286483,
+    "cb_activate": -2.8290154952614124,
+    "cb_cooloff": 0.7123354436183149,
+    "rco_days": 4,
+    "mhp_days": 12,
+    "use_bear_override": false,
+    "use_ma_filter": true,
+    "ma_period": 229
+  },
+  "metrics": {
+    "cagr": 85.47435633330602,
+    "sharpe": 1.5911150021757108,
+    "max_dd": -34.878126920544055,
+    "trades": 70,
+    "user_penalty": 0.0
+  }
+}

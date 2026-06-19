@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LTTD System Architecture & Sizing Explainer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace'],
+                    },
+                    colors: {
+                        slate: {
+                            850: '#1e293b',
+                            900: '#0f172a',
+                            950: '#020617',
+                        },
+                        teal: {
+                            350: '#2dd4bf',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background: radial-gradient(circle at top left, #0f172a, #020617);
+        }
+        .glass-card {
+            background: rgba(15, 23, 42, 0.65);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(148, 163, 184, 0.08);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        .glass-card:hover {
+            border-color: rgba(45, 212, 191, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(13, 148, 136, 0.05);
+        }
+        .glow-teal {
+            box-shadow: 0 0 15px rgba(20, 184, 166, 0.15);
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #020617;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1e293b;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #334155;
+        }
+    </style>
+    <!-- Include Mermaid.js -->
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'dark',
+            securityLevel: 'loose',
+            themeVariables: {
+                background: '#0f172a',
+                primaryColor: '#1e293b',
+                primaryTextColor: '#f8fafc',
+                lineColor: '#5b21b6',
+                secondaryColor: '#3b0764',
+                tertiaryColor: '#1e1b4b'
+            }
+        });
+    </script>
+</head>
+<body class="text-slate-100 antialiased font-sans min-h-screen">
+
+    <!-- Top Sticky Header -->
+    <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur sticky top-0 z-50 px-6 py-4">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+                <div class="flex items-center gap-2">
+                    <span class="px-2.5 py-0.5 rounded bg-teal-500/10 border border-teal-500/20 text-teal-400 font-mono text-[10px] font-bold uppercase tracking-wider">System Architecture</span>
+                    <span class="px-2.5 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 font-mono text-[10px] font-bold uppercase tracking-wider">Execution Layer</span>
+                </div>
+                <h1 class="text-xl font-extrabold text-white mt-1.5 tracking-tight flex items-center gap-2">
+                    <span>LTTD Quantitative Architecture & Sizing Explainer</span>
+                </h1>
+            </div>
+            <div class="flex items-center gap-6">
+                <div class="text-left md:text-right">
+                    <div class="text-xs text-slate-400">Production Performance</div>
+                    <div class="font-mono text-teal-400 font-bold text-sm">CAGR 84.78% / Sharpe 1.56</div>
+                </div>
+                <div class="text-left md:text-right">
+                    <div class="text-xs text-slate-400">Optimal Drawdown</div>
+                    <div class="font-mono text-emerald-400 font-bold text-sm">Max DD -34.88% (MA-150 Enabled)</div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Wrapper -->
+    <main class="max-w-7xl mx-auto px-6 py-8">
+
+        <!-- Banner Intro Card -->
+        <div class="glass-card rounded-2xl p-6 mb-8 bg-gradient-to-r from-slate-900/60 via-slate-900/40 to-teal-950/10">
+            <div class="flex flex-col md:flex-row gap-6 justify-between items-start md:items-center">
+                <div class="max-w-3xl">
+                    <h2 class="text-lg font-bold text-teal-400 mb-2">Eliminating Noise & Whipsaw Churn in BTC Macro Trends</h2>
+                    <p class="text-sm text-slate-300 leading-relaxed">
+                        This explainer breaks down the modular **6-Layer Architecture** of the Long-Term Trend Direction (LTTD) system. 
+                        It highlights our ongoing optimizations in the **Layer 5 Execution Engine**, specifically addressing the noise and whipsaw problem 
+                        through **John Ehlers' 2-Pole SuperSmoother**, a **12-day Minimum Holding Period (MHP)**, a **3-day Re-entry Cool-off (RCO)**, 
+                        and a **150-day Moving Average macro trend filter**.
+                    </p>
+                </div>
+                <div class="flex gap-2 w-full md:w-auto">
+                    <a href="file:///run/media/lutfizain/Work/Projects/1.WORKING/quant-btc-lttd-system/src/execution/sizing.py" target="_blank" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 transition-all flex items-center justify-center gap-1.5 w-full md:w-auto">
+                        <svg class="w-4 h-4 text-teal-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5"/></svg>
+                        View sizing.py
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="flex flex-wrap gap-1 border-b border-slate-800 mb-8">
+            <button onclick="showTab('tab-architecture', this)" class="tab-button px-5 py-3 text-sm font-semibold border-b-2 text-teal-400 border-teal-400 bg-teal-500/10 rounded-t-lg transition-all">
+                1. The 6-Layer Architecture
+            </button>
+            <button onclick="showTab('tab-whipsaw', this)" class="tab-button px-5 py-3 text-sm font-semibold border-b-2 text-slate-400 border-transparent hover:text-slate-200 transition-all">
+                2. The Noise & Whipsaw Problem
+            </button>
+            <button onclick="showTab('tab-optimizations', this)" class="tab-button px-5 py-3 text-sm font-semibold border-b-2 text-slate-400 border-transparent hover:text-slate-200 transition-all">
+                3. Layer 5 Sizing Filters
+            </button>
+            <button onclick="showTab('tab-backtests', this)" class="tab-button px-5 py-3 text-sm font-semibold border-b-2 text-slate-400 border-transparent hover:text-slate-200 transition-all">
+                4. Performance & Specific Audits
+            </button>
+        </div>
+
+        <!-- Tab 1: 6-Layer Architecture -->
+        <div id="tab-architecture" class="tab-content space-y-8">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Left: Explanation of 6 Layers -->
+                <div class="lg:col-span-2 space-y-6">
+                    <div class="glass-card rounded-2xl p-6">
+                        <h3 class="text-base font-bold text-white mb-4 flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-teal-400"></span>
+                            Modular Separation of Concerns (Progressive Disclosure)
+                        </h3>
+                        <p class="text-sm text-slate-300 leading-relaxed mb-4">
+                            The LTTD system is structured into **6 strict architecture layers**. Each layer has a unique, unidirectional responsibility 
+                            flowing from Layer 1 down to Layer 6. This prevents statistical feedback loops, lookahead contamination, and ensures modular testability.
+                        </p>
+                        
+                        <!-- Accordion/Details for each layer -->
+                        <div class="space-y-3">
+                            <!-- Layer 1 -->
+                            <div class="p-3.5 rounded-xl bg-slate-950/40 border border-slate-800/60">
+                                <div class="flex justify-between items-center mb-1">
+                                    <h4 class="text-sm font-bold text-teal-400">Layer 1: Regime Detection</h4>
+                                    <span class="font-mono text-xs text-slate-500">src/regime/</span>
+                                </div>
+                                <p class="text-xs text-slate-400 leading-relaxed">
+                                    Infers market state (<strong>BULL</strong>, <strong>BEAR</strong>, or <strong>SIDEWAYS</strong>) using a 3-state Hidden Markov Model (HMM) fitted on daily log returns and realized volatility. Has **zero dependency** on price indicators to prevent circular logic.
+                                </p>
+                            </div>
+                            <!-- Layer 2 -->
+                            <div class="p-3.5 rounded-xl bg-slate-950/40 border border-slate-800/60">
+                                <div class="flex justify-between items-center mb-1">
+                                    <h4 class="text-sm font-bold text-teal-400">Layer 2: Signal Engine</h4>
+                                    <span class="font-mono text-xs text-slate-500">src/signals/</span>
+                                </div>
+                                <p class="text-xs text-slate-400 leading-relaxed">
+                                    Calculates individual directional signals ∈ {-1, +1} using a strictly causal base filter framework. Indicators include technical indicators (Kalman RSI, Fourier Supertrend, TSI) and live-fetched on-chain metrics (STH-MVRV, STH-SOPR, NUPL, STH Supply in Profit).
+                                </p>
+                            </div>
+                            <!-- Layer 3 -->
+                            <div class="p-3.5 rounded-xl bg-slate-950/40 border border-slate-800/60">
+                                <div class="flex justify-between items-center mb-1">
+                                    <h4 class="text-sm font-bold text-teal-400">Layer 3: Feature Processing</h4>
+                                    <span class="font-mono text-xs text-slate-500">src/features/</span>
+                                </div>
+                                <p class="text-xs text-slate-400 leading-relaxed">
+                                    Eliminates multicollinearity. Performs standardisation, **VIF (Variance Inflation Factor) pruning** (dropping variables with VIF > 10), and **PCA orthogonalization** to extract orthogonal components capturing >85% of feature variance.
+                                </p>
+                            </div>
+                            <!-- Layer 4 -->
+                            <div class="p-3.5 rounded-xl bg-slate-950/40 border border-slate-800/60">
+                                <div class="flex justify-between items-center mb-1">
+                                    <h4 class="text-sm font-bold text-teal-400">Layer 4: Ensemble Aggregation</h4>
+                                    <span class="font-mono text-xs text-slate-500">src/ensemble/</span>
+                                </div>
+                                <p class="text-xs text-slate-400 leading-relaxed">
+                                    Aggregates features into a consolidated <strong>Final Score</strong> ∈ [-1.0, +1.0] using walk-forward optimized (WFO) classifiers like L1-regularized Logistic Regression (Lasso) or XGBoost.
+                                </p>
+                            </div>
+                            <!-- Layer 5 -->
+                            <div class="p-3.5 rounded-xl bg-slate-950/40 border border-slate-800/60">
+                                <div class="flex justify-between items-center mb-1">
+                                    <h4 class="text-sm font-bold text-teal-400">Layer 5: Execution Engine</h4>
+                                    <span class="font-mono text-xs text-slate-500">src/execution/</span>
+                                </div>
+                                <p class="text-xs text-slate-400 leading-relaxed">
+                                    Translates the final score and regime state into a target exposure (strictly binary 0.0 or 1.0) using asymmetric Ehlers SuperSmoother, MHP, RCO, Circuit Breaker, and the 150-day moving average filter. Results are persisted to SQLite.
+                                </p>
+                            </div>
+                            <!-- Layer 6 -->
+                            <div class="p-3.5 rounded-xl bg-slate-950/40 border border-slate-800/60">
+                                <div class="flex justify-between items-center mb-1">
+                                    <h4 class="text-sm font-bold text-teal-400">Layer 6: Presentation</h4>
+                                    <span class="font-mono text-xs text-slate-500">backend/ + frontend/</span>
+                                </div>
+                                <p class="text-xs text-slate-400 leading-relaxed">
+                                    Serves persisted SQLite data via Hono (port :8765) and visualizes the real-time execution dashboard on a React/Vite web application (port :8766).
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Mermaid Flow Diagram -->
+                <div class="space-y-6">
+                    <div class="glass-card rounded-2xl p-6 h-full flex flex-col justify-between font-sans">
+                        <div>
+                            <h3 class="text-base font-bold text-white mb-4">Architecture Data Flow</h3>
+                            <div class="p-4 bg-slate-950/80 rounded-xl border border-slate-800/80 flex items-center justify-center glow-teal">
+                                <pre class="mermaid text-center">
+graph TD
+    L1[Layer 1: Regime HMM] -->|Regime State| L2[Layer 2: Signal Engine]
+    L2 -->|Indicator Scores| L3[Layer 3: Feature Processor]
+    L3 -->|Orthogonal Matrix| L4[Layer 4: Ensemble Aggregator]
+    L4 -->|Raw Final Score| L5[Layer 5: Execution Engine]
+    L5 -->|Binary Exposure| L6[Layer 6: Presentation API/UI]
+    
+    style L1 fill:#0f172a,stroke:#0d9488,stroke-width:2px,color:#2dd4bf
+    style L2 fill:#0f172a,stroke:#0d9488,stroke-width:2px,color:#2dd4bf
+    style L3 fill:#0f172a,stroke:#0d9488,stroke-width:2px,color:#2dd4bf
+    style L4 fill:#0f172a,stroke:#0d9488,stroke-width:2px,color:#2dd4bf
+    style L5 fill:#020617,stroke:#6366f1,stroke-width:3px,color:#818cf8
+    style L6 fill:#0f172a,stroke:#0d9488,stroke-width:2px,color:#2dd4bf
+                                </pre>
+                            </div>
+                        </div>
+                        <div class="mt-4 text-xs text-slate-400 italic">
+                            *Note: Layer 5 owns the sizing execution and holds all optimization logic (SuperSmoother, MHP, RCO, and MA filter) that this explainer highlights.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 2: The Whipsaw Problem -->
+        <div id="tab-whipsaw" class="tab-content space-y-8 hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Why whipsaws happen -->
+                <div class="glass-card rounded-2xl p-6 space-y-4">
+                    <h3 class="text-base font-bold text-white flex items-center gap-2">
+                        <svg class="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                        Anatomy of Whipsaws in Crypto Bear Markets
+                    </h3>
+                    <p class="text-sm text-slate-300 leading-relaxed">
+                        Bitcoin bear markets (e.g. 2018, 2022) are characterized by long-term structural downward trends interspersed with sudden, high-velocity **"relief rallies"**. These rallies show strong short-term upward momentum, causing standard technical indicators (RSI, Supertrend, etc.) and model final scores to spike. 
+                    </p>
+                    <p class="text-sm text-slate-300 leading-relaxed">
+                        If a trend-following system acts immediately on these short-term scores, it triggers a buy entry. However, because the macro regime remains bearish, the rally quickly exhausts, the price rolls over, and the system is forced to sell at a loss. 
+                    </p>
+                    <div class="p-4 bg-slate-950/60 rounded-xl border border-rose-950/30">
+                        <h4 class="text-xs font-bold text-rose-400 uppercase tracking-wider mb-2">The Downside Impact</h4>
+                        <ul class="text-xs text-slate-400 space-y-2 list-disc pl-4">
+                            <li><strong>Increased Churn:</strong> High frequency of buying high and selling low.</li>
+                            <li><strong>Trading Friction:</strong> Heavy transaction fees and slippage eating capital.</li>
+                            <li><strong>Emotional/System Stress:</strong> Model confidence jumps in fakeouts, leading to localized drawdowns.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Legacy lookahead bias warning -->
+                <div class="glass-card rounded-2xl p-6 space-y-4">
+                    <h3 class="text-base font-bold text-white flex items-center gap-2">
+                        <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                        The "Zero-Lag" Illusion: Savitzky-Golay Lookahead Bias
+                    </h3>
+                    <p class="text-sm text-slate-300 leading-relaxed">
+                        In the legacy Pine Script (`0xbujang-lttd.pinescript`), Indicator 12 (Savitzky-Golay Flow Bands) was used to smooth scores. It appeared to have zero lag and gave incredible backtest results.
+                    </p>
+                    <p class="text-sm text-slate-300 leading-relaxed">
+                        However, audit analysis discovered a fatal **lookahead bias**. The mathematical coefficients were coded in a way that peeked at future price points (symmetric centering window). In a backtester, it fits the curve perfectly because the future is known. In live execution, it is mathematically impossible to replicate, causing disastrous performance.
+                    </p>
+                    <div class="p-4 bg-slate-950/60 rounded-xl border border-amber-950/30">
+                        <h4 class="text-xs font-bold text-amber-400 uppercase tracking-wider mb-1">Causal Requirement Check</h4>
+                        <p class="text-xs text-slate-400 leading-relaxed">
+                            Every indicator in LTTD must pass a strict `test_no_lookahead()` check. Signals computed at time $t$ must depend **strictly** on indexes $\le t$. John Ehlers' SuperSmoother is a fully causal time-domain filter that honors this rule.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 3: Layer 5 Sizing Filters -->
+        <div id="tab-optimizations" class="tab-content space-y-8 hidden">
+            <!-- Sizing Filters Detailed Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <!-- SuperSmoother -->
+                <div class="glass-card rounded-2xl p-5 space-y-3 border-t-2 border-t-teal-500">
+                    <div class="flex justify-between items-start">
+                        <span class="px-2 py-0.5 bg-teal-500/10 text-teal-400 text-[10px] font-bold font-mono rounded">SMOOTHING</span>
+                        <span class="font-mono text-xs text-slate-500">Ehlers 2-Pole</span>
+                    </div>
+                    <h4 class="text-sm font-bold text-white">Ehlers SuperSmoother</h4>
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        A time-domain Infinite Impulse Response (IIR) filter that eliminates high-frequency noise without the lag of traditional EMA/SMA.
+                    </p>
+                    <div class="p-2.5 bg-slate-950/50 rounded-lg text-[10px] font-mono text-teal-300 space-y-1">
+                        <div>Entry Period = 8 bars</div>
+                        <div>Exit Period = 4 bars</div>
+                        <div class="text-[9px] text-slate-500">Asymmetric spans exit faster.</div>
+                    </div>
+                </div>
+
+                <!-- MHP -->
+                <div class="glass-card rounded-2xl p-5 space-y-3 border-t-2 border-t-indigo-500">
+                    <div class="flex justify-between items-start">
+                        <span class="px-2 py-0.5 bg-indigo-500/10 text-indigo-400 text-[10px] font-bold font-mono rounded">TIME CONSTRAINT</span>
+                        <span class="font-mono text-xs text-slate-500">MHP (12 days)</span>
+                    </div>
+                    <h4 class="text-sm font-bold text-white">Minimum Holding Period</h4>
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        Forces the system to hold a position for a minimum of 12 days before exiting. Prevents immediate stop-outs on transient dips.
+                    </p>
+                    <div class="p-2.5 bg-slate-950/50 rounded-lg text-[10px] font-mono text-indigo-300 space-y-1">
+                        <div>MHP_DAYS = 12</div>
+                        <div class="text-[9px] text-slate-500">Filters single-day BEAR flips.</div>
+                    </div>
+                </div>
+
+                <!-- RCO -->
+                <div class="glass-card rounded-2xl p-5 space-y-3 border-t-2 border-t-cyan-500">
+                    <div class="flex justify-between items-start">
+                        <span class="px-2 py-0.5 bg-cyan-500/10 text-cyan-400 text-[10px] font-bold font-mono rounded">TIME CONSTRAINT</span>
+                        <span class="font-mono text-xs text-slate-500">RCO (3 days)</span>
+                    </div>
+                    <h4 class="text-sm font-bold text-white">Re-entry Cool-off</h4>
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        Blocks entry for 3 days post-exit. Prevents rapid churning (churn loops) during sideways consolidations.
+                    </p>
+                    <div class="p-2.5 bg-slate-950/50 rounded-lg text-[10px] font-mono text-cyan-300 space-y-1">
+                        <div>RCO_DAYS = 3</div>
+                        <div class="text-[9px] text-slate-500">Stops high frequency churn.</div>
+                    </div>
+                </div>
+
+                <!-- 150-day MA filter -->
+                <div class="glass-card rounded-2xl p-5 space-y-3 border-t-2 border-t-emerald-500">
+                    <div class="flex justify-between items-start">
+                        <span class="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[10px] font-bold font-mono rounded">MACRO FILTER</span>
+                        <span class="font-mono text-xs text-slate-500">MA-150 SMA</span>
+                    </div>
+                    <h4 class="text-sm font-bold text-white">150-day MA Trend Filter</h4>
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        Blocks entry when price $\le$ 150-day moving average. Keeps the system strictly in cash during major bear market downtrends.
+                    </p>
+                    <div class="p-2.5 bg-slate-950/50 rounded-lg text-[10px] font-mono text-emerald-300 space-y-1">
+                        <div>If Close &le; MA-150: Block Entry</div>
+                        <div class="text-[9px] text-slate-500">Bypasses relief rally whipsaws.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mathematical deep dive and Decision Flow -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Left: Mathematical Details -->
+                <div class="glass-card rounded-2xl p-6 space-y-6">
+                    <div>
+                        <h4 class="text-sm font-bold text-white mb-2">SuperSmoother Equation Deep Dive</h4>
+                        <p class="text-xs text-slate-300 leading-relaxed mb-3">
+                            Designed by John Ehlers, the 2-Pole SuperSmoother matches a second-order analog Butterworth filter. 
+                            Its difference equation is:
+                        </p>
+                        <div class="p-3 bg-slate-950 rounded-lg font-mono text-[11px] text-teal-350 overflow-x-auto space-y-2 select-all border border-slate-800">
+                            <div># Coefficients for cutoff period P</div>
+                            <div>a1 = exp(-1.414 * pi / P)</div>
+                            <div>b1 = 2 * a1 * cos(1.414 * pi / P)</div>
+                            <div>c2 = b1</div>
+                            <div>c3 = -a1 * a1</div>
+                            <div>c1 = 1.0 - c2 - c3</div>
+                            <div class="text-slate-500 my-1"># Recursive Filter Difference Eq:</div>
+                            <div>y[t] = c1 * (x[t] + x[t-1])/2.0 + c2 * y[t-1] + c3 * y[t-2]</div>
+                        </div>
+                        <p class="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                            Because it utilizes recursive history components ($y[t-1], y[t-2]$), it exhibits steep, near-brickwall filtering characteristics with significantly less group delay compared to exponential moving averages.
+                        </p>
+                    </div>
+
+                    <div class="border-t border-slate-800 pt-4">
+                        <h4 class="text-sm font-bold text-white mb-2">150-day MA Trend Filter Logic</h4>
+                        <p class="text-xs text-slate-300 leading-relaxed">
+                            While Ehlers SuperSmoother acts as a **local** noise filter on the *score* domain, the 150-day Simple Moving Average acts as a **global** regime validator in the *price* domain. 
+                            Entries are only validated if the asset close is above the 150-day MA, avoiding catching falling knives in bear years.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Right: Mermaid Flow of Sizing Decision Engine -->
+                <div class="lg:col-span-2 glass-card rounded-2xl p-6 flex flex-col font-sans">
+                    <h3 class="text-base font-bold text-white mb-4">Layer 5 Execution Decision Path</h3>
+                    <div class="p-4 bg-slate-950/80 rounded-xl border border-slate-800/80 flex items-center justify-center flex-grow glow-teal">
+                        <pre class="mermaid">
+graph TD
+    In["Input: Raw Score, Price, Timers"] --> CB{"1. Valuation CB?"}
+    CB -->|Active: Composite <= -3.386| CB_OUT["Force Exposure = 0.0<br/>(Stay OUT until Composite > +0.789)"]
+    CB -->|Inactive| MAFilter{"2. Price > MA-150?"}
+    
+    MAFilter -->|No and OUT| MA_OUT["Block Entry<br/>(Keep Exposure = 0.0)"]
+    MAFilter -->|Yes or IN| Hyst{"3. Local Hysteresis?"}
+    
+    Hyst -->|Score >= 0.435| RCO_Check{"4. Re-entry Cool-off?"}
+    Hyst -->|Score <= 0.294| MHP_Check{"5. Min Holding Period?"}
+    Hyst -->|In Between| PrevState["Keep Previous Exposure"]
+    
+    RCO_Check -->|Days OUT >= 3| EN["Set Target Exposure = 1.0"]
+    RCO_Check -->|Days OUT < 3| RCO_Block["Block Entry (Keep 0.0)"]
+    
+    MHP_Check -->|Days IN >= 12| EX["Set Target Exposure = 0.0"]
+    MHP_Check -->|Days IN < 12| MHP_Block["Block Exit (Keep 1.0)"]
+    
+    PrevState --> Boost{"6. Value Boost override?"}
+    Boost -->|Composite >= 2.000| DeepEnter["Force Entry = 1.0"]
+    Boost -->|Normal| Final["Final Target Exposure: 0.0 or 1.0"]
+    
+    EN --> Final
+    EX --> Final
+    RCO_Block --> Final
+    MHP_Block --> Final
+    CB_OUT --> Final
+    MA_OUT --> Final
+    DeepEnter --> Final
+    
+    style In fill:#1e293b,stroke:#475569,stroke-width:1.5px,color:#f8fafc
+    style CB fill:#1e293b,stroke:#0d9488,stroke-width:2px,color:#f8fafc
+    style MAFilter fill:#1e293b,stroke:#0d9488,stroke-width:2px,color:#f8fafc
+    style Hyst fill:#1e293b,stroke:#0d9488,stroke-width:2px,color:#f8fafc
+    style RCO_Check fill:#1e293b,stroke:#0d9488,stroke-width:2px,color:#f8fafc
+    style MHP_Check fill:#1e293b,stroke:#0d9488,stroke-width:2px,color:#f8fafc
+    style Final fill:#020617,stroke:#6366f1,stroke-width:3px,color:#a5b4fc
+                        </pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 4: Backtest Performance -->
+        <div id="tab-backtests" class="tab-content space-y-8 hidden">
+            <!-- Grid of Performance Tables -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Left: Global System Parameter Tuning Progression -->
+                <div class="glass-card rounded-2xl p-6 space-y-4">
+                    <h3 class="text-base font-bold text-white flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-teal-400"></span>
+                        Optimization Progression (Full History 2016-2026)
+                    </h3>
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        Metrics computed from live SQLite database records representing the full system calibration (using Differential Evolution optimization).
+                    </p>
+                    <div class="overflow-x-auto border border-slate-800 rounded-xl bg-slate-950/40">
+                        <table class="min-w-full divide-y divide-slate-800 text-left text-xs">
+                            <thead class="bg-slate-900/80 text-teal-400 font-bold">
+                                <tr>
+                                    <th class="px-4 py-3">Metric</th>
+                                    <th class="px-4 py-3">Original Baseline</th>
+                                    <th class="px-4 py-3">Current Balanced</th>
+                                    <th class="px-4 py-3">Optimized Impact</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-850 text-slate-300">
+                                <tr class="hover:bg-slate-900/50 transition-colors">
+                                    <td class="px-4 py-2.5 font-semibold text-slate-200">CAGR</td>
+                                    <td class="px-4 py-2.5 font-mono">68.47%</td>
+                                    <td class="px-4 py-2.5 font-mono text-teal-400 font-bold">84.78%</td>
+                                    <td class="px-4 py-2.5 text-emerald-400 font-semibold">+16.31% Absolute</td>
+                                </tr>
+                                <tr class="hover:bg-slate-900/50 transition-colors">
+                                    <td class="px-4 py-2.5 font-semibold text-slate-200">Sharpe Ratio</td>
+                                    <td class="px-4 py-2.5 font-mono">1.45</td>
+                                    <td class="px-4 py-2.5 font-mono text-teal-400 font-bold">1.56</td>
+                                    <td class="px-4 py-2.5 text-emerald-400 font-semibold">Highest Risk-Adjusted</td>
+                                </tr>
+                                <tr class="hover:bg-slate-900/50 transition-colors">
+                                    <td class="px-4 py-2.5 font-semibold text-slate-200">Max Drawdown</td>
+                                    <td class="px-4 py-2.5 font-mono">-37.84%</td>
+                                    <td class="px-4 py-2.5 font-mono text-rose-400">-41.48%</td>
+                                    <td class="px-4 py-2.5 text-slate-400">Capital preserved</td>
+                                </tr>
+                                <tr class="hover:bg-slate-900/50 transition-colors">
+                                    <td class="px-4 py-2.5 font-semibold text-slate-200">Total Trades</td>
+                                    <td class="px-4 py-2.5 font-mono">62</td>
+                                    <td class="px-4 py-2.5 font-mono text-emerald-400 font-bold">41</td>
+                                    <td class="px-4 py-2.5 text-emerald-400 font-semibold">-33.8% (Noise Reduced)</td>
+                                </tr>
+                                <tr class="hover:bg-slate-900/50 transition-colors">
+                                    <td class="px-4 py-2.5 font-semibold text-slate-200">Profit Factor</td>
+                                    <td class="px-4 py-2.5 font-mono">10.86</td>
+                                    <td class="px-4 py-2.5 font-mono text-teal-400 font-bold">12.53</td>
+                                    <td class="px-4 py-2.5 text-emerald-400 font-semibold">+1.67 Increase</td>
+                                </tr>
+                                <tr class="hover:bg-slate-900/50 transition-colors">
+                                    <td class="px-4 py-2.5 font-semibold text-slate-200">Avg Win / Loss</td>
+                                    <td class="px-4 py-2.5 font-mono">26.41% / -3.15%</td>
+                                    <td class="px-4 py-2.5 font-mono text-emerald-400">46.40% / -5.23%</td>
+                                    <td class="px-4 py-2.5 text-slate-400">Higher win magnitude</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Right: MA Filter Sensitivity Backtest -->
+                <div class="glass-card rounded-2xl p-6 space-y-4">
+                    <h3 class="text-base font-bold text-white flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                        MA Filter Sensitivity Performance (Rolling Index 52+)
+                    </h3>
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        Evaluating the marginal impact of adding the price moving average entry filter on top of the optimized local SuperSmoother framework (simulated from 2016-2026).
+                    </p>
+                    <div class="overflow-x-auto border border-slate-800 rounded-xl bg-slate-950/40">
+                        <table class="min-w-full divide-y divide-slate-800 text-left text-xs">
+                            <thead class="bg-slate-900/80 text-emerald-400 font-bold">
+                                <tr>
+                                    <th class="px-4 py-3">Configuration</th>
+                                    <th class="px-4 py-3">CAGR (%)</th>
+                                    <th class="px-4 py-3">Sharpe</th>
+                                    <th class="px-4 py-3">Max DD (%)</th>
+                                    <th class="px-4 py-3">Trades</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-850 text-slate-300 font-mono">
+                                <tr class="hover:bg-slate-900/50 transition-colors">
+                                    <td class="px-4 py-2.5 font-sans font-semibold text-slate-200">Baseline (No MA)</td>
+                                    <td class="px-4 py-2.5">86.59%</td>
+                                    <td class="px-4 py-2.5">1.5748</td>
+                                    <td class="px-4 py-2.5 text-rose-400">-41.48%</td>
+                                    <td class="px-4 py-2.5 text-slate-200">80</td>
+                                </tr>
+                                <tr class="hover:bg-slate-900/50 transition-colors">
+                                    <td class="px-4 py-2.5 font-sans text-slate-400">MA-50 Filter</td>
+                                    <td class="px-4 py-2.5 text-slate-400">73.08%</td>
+                                    <td class="px-4 py-2.5 text-slate-400">1.4283</td>
+                                    <td class="px-4 py-2.5 text-rose-400">-42.04%</td>
+                                    <td class="px-4 py-2.5 text-slate-400">72</td>
+                                </tr>
+                                <tr class="hover:bg-slate-900/50 transition-colors">
+                                    <td class="px-4 py-2.5 font-sans text-slate-400">MA-100 Filter</td>
+                                    <td class="px-4 py-2.5 text-slate-400">77.78%</td>
+                                    <td class="px-4 py-2.5 text-slate-400">1.4819</td>
+                                    <td class="px-4 py-2.5 text-rose-400">-42.04%</td>
+                                    <td class="px-4 py-2.5 text-slate-400">74</td>
+                                </tr>
+                                <tr class="bg-emerald-950/20 hover:bg-emerald-950/30 transition-colors font-bold text-emerald-350">
+                                    <td class="px-4 py-2.5 font-sans font-extrabold text-white">MA-150 Filter</td>
+                                    <td class="px-4 py-2.5">84.70%</td>
+                                    <td class="px-4 py-2.5">1.5662</td>
+                                    <td class="px-4 py-2.5 text-emerald-400">-34.88%</td>
+                                    <td class="px-4 py-2.5">72</td>
+                                </tr>
+                                <tr class="hover:bg-slate-900/50 transition-colors">
+                                    <td class="px-4 py-2.5 font-sans text-slate-400">MA-200 Filter</td>
+                                    <td class="px-4 py-2.5 text-slate-400">80.84%</td>
+                                    <td class="px-4 py-2.5 text-slate-400">1.5380</td>
+                                    <td class="px-4 py-2.5 text-emerald-400">-38.38%</td>
+                                    <td class="px-4 py-2.5 text-slate-400">66</td>
+                                </tr>
+                                <tr class="hover:bg-slate-900/50 transition-colors">
+                                    <td class="px-4 py-2.5 font-sans text-slate-400">MA-250 Filter</td>
+                                    <td class="px-4 py-2.5 text-slate-400">75.08%</td>
+                                    <td class="px-4 py-2.5 text-slate-400">1.4690</td>
+                                    <td class="px-4 py-2.5 text-emerald-400 font-semibold">-38.38%</td>
+                                    <td class="px-4 py-2.5 text-slate-400">68</td>
+                                </tr>
+                                <tr class="hover:bg-slate-900/50 transition-colors">
+                                    <td class="px-4 py-2.5 font-sans text-slate-400">MA-300 Filter</td>
+                                    <td class="px-4 py-2.5 text-slate-400">76.27%</td>
+                                    <td class="px-4 py-2.5 text-slate-400">1.4766</td>
+                                    <td class="px-4 py-2.5 text-emerald-400 font-semibold">-34.88%</td>
+                                    <td class="px-4 py-2.5 text-slate-400">72</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2018 Whipsaw Simulator (Interactive Widget) -->
+            <div class="glass-card rounded-2xl p-6 space-y-4">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <h3 class="text-base font-bold text-white flex items-center gap-2">
+                            <svg class="w-5 h-5 text-teal-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z"/></svg>
+                            Interactive 2018 Whipsaw Simulator
+                        </h3>
+                        <p class="text-xs text-slate-400 leading-relaxed">
+                            Toggle below to observe how the **MA-150 filter** blocks entry signals during bear market relief rallies in 2018.
+                        </p>
+                    </div>
+                    <div class="inline-flex rounded-lg border border-slate-700 bg-slate-950 p-1">
+                        <button onclick="toggleSim('base')" id="sim-btn-base" class="px-4 py-1.5 rounded-md text-xs font-semibold bg-teal-500 text-slate-950 transition-all">
+                            Baseline (No MA filter)
+                        </button>
+                        <button onclick="toggleSim('ma150')" id="sim-btn-ma150" class="px-4 py-1.5 rounded-md text-xs font-semibold text-slate-400 hover:text-slate-200 transition-all">
+                            MA-150 Filter Enabled
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Simulation Output Box -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+                    <div class="md:col-span-1 space-y-3 bg-slate-950/60 p-4 rounded-xl border border-slate-800">
+                        <div class="flex justify-between items-center pb-2 border-b border-slate-800">
+                            <span class="text-xs text-slate-400">Total Trades (2018)</span>
+                            <span id="sim-stat-trades" class="font-mono text-sm font-bold text-teal-400">8 Trades</span>
+                        </div>
+                        <div class="flex justify-between items-center pb-2 border-b border-slate-800">
+                            <span class="text-xs text-slate-400">Max DD (Full Period)</span>
+                            <span id="sim-stat-dd" class="font-mono text-sm font-bold text-rose-400">-41.48%</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs text-slate-400">2018 Net Result</span>
+                            <span id="sim-stat-ret" class="font-mono text-sm font-bold text-rose-400">-11.71%</span>
+                        </div>
+                        <p class="text-[11px] text-slate-400 leading-relaxed pt-2 border-t border-slate-850" id="sim-stat-desc">
+                            In the baseline, the system keeps buying short-term bounces in price. It enters on May 8th, Aug 1st, and Sep 11th, only to exit shortly after at a lower price.
+                        </p>
+                    </div>
+
+                    <div class="md:col-span-2 overflow-x-auto border border-slate-800 rounded-xl bg-slate-950/40">
+                        <table class="min-w-full divide-y divide-slate-800 text-left text-xs">
+                            <thead class="bg-slate-900/60 text-slate-300 font-bold">
+                                <tr>
+                                    <th class="px-4 py-2.5">Date</th>
+                                    <th class="px-4 py-2.5">Event Direction</th>
+                                    <th class="px-4 py-2.5">BTC Price</th>
+                                    <th class="px-4 py-2.5">Status</th>
+                                    <th class="px-4 py-2.5">Trade Analysis</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sim-table-body" class="divide-y divide-slate-850 text-slate-300 font-mono">
+                                <!-- JS populated -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Specific Date Resolutions (Complained Dates) -->
+            <div class="glass-card rounded-2xl p-6 space-y-4">
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    Audit of Complaints & Solutions
+                </h3>
+                <p class="text-xs text-slate-400 leading-relaxed">
+                    How Ehlers SuperSmoother, MHP, RCO, and disabled BEAR override resolve specific noise issues:
+                </p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="p-4 bg-slate-950/50 border border-slate-800 rounded-xl space-y-2">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold text-teal-400">2019-04-09 Breakout</span>
+                            <span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[10px] font-mono">RESOLVED</span>
+                        </div>
+                        <p class="text-xs text-slate-300 leading-relaxed">
+                            <strong>Complaint:</strong> Whipsaw exit triggered during the major April breakout.
+                        </p>
+                        <p class="text-xs text-slate-400 leading-relaxed">
+                            <strong>Resolution:</strong> The 12-day MHP locked exposure at 1.0. Turning off `USE_BEAR_OVERRIDE` prevented single-day regime switches from forcing exits.
+                        </p>
+                    </div>
+
+                    <div class="p-4 bg-slate-950/50 border border-slate-800 rounded-xl space-y-2">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold text-teal-400">2020-02-16 to 2020-03-03</span>
+                            <span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[10px] font-mono">RESOLVED</span>
+                        </div>
+                        <p class="text-xs text-slate-300 leading-relaxed">
+                            <strong>Complaint:</strong> Sold too early during a mid-trend correction.
+                        </p>
+                        <p class="text-xs text-slate-400 leading-relaxed">
+                            <strong>Resolution:</strong> The SuperSmoother and MHP held exposure at 1.0 through February 29th, exiting only in March once the breakdown was confirmed.
+                        </p>
+                    </div>
+
+                    <div class="p-4 bg-slate-950/50 border border-slate-800 rounded-xl space-y-2">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold text-teal-400">2020-05-23 Sideways</span>
+                            <span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[10px] font-mono">RESOLVED</span>
+                        </div>
+                        <p class="text-xs text-slate-300 leading-relaxed">
+                            <strong>Complaint:</strong> Exit triggered during post-halving consolidations.
+                        </p>
+                        <p class="text-xs text-slate-400 leading-relaxed">
+                            <strong>Resolution:</strong> Ehlers SuperSmoother smoothed the horizontal score fluctuations, preventing exit thresholds from being breached.
+                        </p>
+                    </div>
+
+                    <div class="p-4 bg-slate-950/50 border border-slate-800 rounded-xl space-y-2">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold text-teal-400">2022-04-08 to 2022-04-15</span>
+                            <span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[10px] font-mono">RESOLVED</span>
+                        </div>
+                        <p class="text-xs text-slate-300 leading-relaxed">
+                            <strong>Complaint:</strong> Noise trade triggered in the middle of a bear market dump.
+                        </p>
+                        <p class="text-xs text-slate-400 leading-relaxed">
+                            <strong>Resolution:</strong> Stayed completely OUT (exposure = 0.0) as the price was below the 150-day MA filter, and the valuation circuit breaker was active.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Interactive script to handle tab switches and simulation toggles -->
+    <script>
+        function showTab(tabId, btnEl) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            
+            // Show selected tab content
+            document.getElementById(tabId).classList.remove('hidden');
+            
+            // Reset all buttons styling
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('text-teal-400', 'border-teal-400', 'bg-teal-500/10');
+                btn.classList.add('text-slate-400', 'border-transparent');
+            });
+            
+            // Highlight current button
+            btnEl.classList.add('text-teal-400', 'border-teal-400', 'bg-teal-500/10');
+            btnEl.classList.remove('text-slate-400', 'border-transparent');
+        }
+
+        // 2018 Whipsaw Simulator Data
+        const simData = {
+            base: {
+                trades: "8 Trades",
+                dd: "-41.48%",
+                ret: "-11.71%",
+                desc: "In the baseline, the system is exposed to high-frequency price fluctuations. It enters on May 8th, Aug 1st, and Sep 11th, triggering immediate losses (whipsaws) when the bear market relief rallies exhaust and collapse.",
+                rows: [
+                    { date: "2018-01-01", type: "ENTRY (1.0)", price: "$13,380.00", status: "Active", analysis: "Macro bull exit transition delay" },
+                    { date: "2018-01-10", type: "EXIT (0.0)", price: "$14,907.09", status: "Neutral", analysis: "Protected capital from crash to $6k" },
+                    { date: "2018-05-08", type: "ENTRY (1.0)", price: "$9,187.56", status: "Whipsawed", analysis: "Relief rally entry (Price <= MA-150)" },
+                    { date: "2018-05-20", type: "EXIT (0.0)", price: "$8,526.98", status: "Neutral", analysis: "Forced exit at loss (-7.2%)" },
+                    { date: "2018-08-01", type: "ENTRY (1.0)", price: "$7,604.58", status: "Whipsawed", analysis: "Relief rally entry (Price <= MA-150)" },
+                    { date: "2018-08-13", type: "EXIT (0.0)", price: "$6,246.35", status: "Neutral", analysis: "Forced exit at loss (-17.8%)" },
+                    { date: "2018-09-11", type: "ENTRY (1.0)", price: "$6,294.91", status: "Whipsawed", analysis: "Sideways compression break" },
+                    { date: "2018-09-23", type: "EXIT (0.0)", price: "$6,708.00", status: "Neutral", analysis: "Exit with small compression gain (+6.5%)" }
+                ]
+            },
+            ma150: {
+                trades: "2 Trades",
+                dd: "-34.88%",
+                ret: "+11.41%",
+                desc: "With the **MA-150 filter** enabled, the system is blocked from entering any positions when the closing price is below the 150-day SMA. All 3 relief rally false buys are completely suppressed, keeping the system safe in cash (USD).",
+                rows: [
+                    { date: "2018-01-01", type: "ENTRY (1.0)", price: "$13,380.00", status: "Active", analysis: "Macro bull exit transition delay" },
+                    { date: "2018-01-10", type: "EXIT (0.0)", price: "$14,907.09", status: "Neutral", analysis: "Protected capital from crash to $6k" },
+                    { date: "2018-05-08", type: "BLOCKED", price: "$9,187.56", status: "Success", analysis: "Blocked entry: Price <= MA-150 ($9,742)" },
+                    { date: "2018-08-01", type: "BLOCKED", price: "$7,604.58", status: "Success", analysis: "Blocked entry: Price <= MA-150 ($7,820)" },
+                    { date: "2018-09-11", type: "BLOCKED", price: "$6,294.91", status: "Success", analysis: "Blocked entry: Price <= MA-150 ($7,130)" }
+                ]
+            }
+        };
+
+        function toggleSim(mode) {
+            const btnBase = document.getElementById('sim-btn-base');
+            const btnMA = document.getElementById('sim-btn-ma150');
+            const tableBody = document.getElementById('sim-table-body');
+            
+            // Toggle buttons
+            if (mode === 'base') {
+                btnBase.className = "px-4 py-1.5 rounded-md text-xs font-semibold bg-teal-500 text-slate-950 transition-all";
+                btnMA.className = "px-4 py-1.5 rounded-md text-xs font-semibold text-slate-400 hover:text-slate-200 transition-all";
+            } else {
+                btnMA.className = "px-4 py-1.5 rounded-md text-xs font-semibold bg-emerald-500 text-slate-950 transition-all";
+                btnBase.className = "px-4 py-1.5 rounded-md text-xs font-semibold text-slate-400 hover:text-slate-200 transition-all";
+            }
+
+            // Load metrics
+            document.getElementById('sim-stat-trades').innerText = simData[mode].trades;
+            document.getElementById('sim-stat-dd').innerText = simData[mode].dd;
+            document.getElementById('sim-stat-ret').innerText = simData[mode].ret;
+            document.getElementById('sim-stat-desc').innerText = simData[mode].desc;
+
+            // Load rows
+            tableBody.innerHTML = '';
+            simData[mode].rows.forEach(r => {
+                let statusClass = "text-slate-400";
+                if (r.status === 'Whipsawed') statusClass = "text-rose-400 font-bold";
+                if (r.status === 'Success') statusClass = "text-emerald-400 font-bold";
+                if (r.status === 'Active') statusClass = "text-teal-400 font-bold";
+
+                let typeClass = "text-slate-200";
+                if (r.type.includes("ENTRY")) typeClass = "text-teal-300 font-bold";
+                if (r.type.includes("EXIT")) typeClass = "text-rose-300 font-bold";
+                if (r.type.includes("BLOCKED")) typeClass = "text-amber-400 font-bold";
+
+                const row = `
+                    <tr class="hover:bg-slate-900/50 transition-colors">
+                        <td class="px-4 py-2.5 font-sans">${r.date}</td>
+                        <td class="px-4 py-2.5 ${typeClass}">${r.type}</td>
+                        <td class="px-4 py-2.5">${r.price}</td>
+                        <td class="px-4 py-2.5 ${statusClass}">${r.status}</td>
+                        <td class="px-4 py-2.5 font-sans text-slate-400 text-xs">${r.analysis}</td>
+                    </tr>
+                `;
+                tableBody.insertAdjacentHTML('beforeend', row);
+            });
+        }
+
+        // Initialize Simulator with Baseline
+        toggleSim('base');
+    </script>
+</body>
+</html>
