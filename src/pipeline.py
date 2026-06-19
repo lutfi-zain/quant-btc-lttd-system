@@ -128,14 +128,49 @@ class LTTDPipeline:
         logger.info("Running HMM Regime Inference...")
         close_train = df_merged.loc[train_idx, "close"]
         hmm_model, state_to_regime = train_hmm(close_train, window=21)
-        res_regime = infer_regime(hmm_model, state_to_regime, df_merged.loc[:t, "close"], window=21)
+        # Get raw unsmoothed posteriors for features & overrides first
+        res_regime_raw = infer_regime(hmm_model, state_to_regime, df_merged.loc[:t, "close"], window=21, ema_span=1)
         
         # Layer 2 overrides: Apply on-chain overrides on HMM posteriors
         onchain_metrics = {}
         for col in ["sth_mvrv", "sth_nupl"]:
             onchain_metrics[col] = float(df_merged.loc[t, col])
             
-        overridden_posteriors = apply_onchain_overrides(res_regime["posteriors"], onchain_metrics)
+        raw_overridden = apply_onchain_overrides(res_regime_raw["posteriors"], onchain_metrics)
+        
+        # Load past overridden posteriors from DB to apply cross-day smoothing causally
+        from src.execution.database import get_connection
+        past_posteriors = []
+        try:
+            with get_connection(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT date, regime, posterior_prob FROM daily_lttd WHERE date < ? ORDER BY date DESC LIMIT 50",
+                    (t.strftime("%Y-%m-%d"),)
+                )
+                rows = cursor.fetchall()
+                for row in reversed(rows):
+                    p_dom = row["posterior_prob"] if row["posterior_prob"] is not None else 1.0
+                    p_rem = max(0.0, 1.0 - p_dom) / 2.0
+                    post = {"BULL": p_rem, "BEAR": p_rem, "SIDEWAYS": p_rem}
+                    
+                    reg = row["regime"]
+                    if reg in ["BULL", "Strong Bull", "Weak Bull"]:
+                        post["BULL"] = p_dom
+                    elif reg in ["BEAR", "Strong Bear", "Weak Bear"]:
+                        post["BEAR"] = p_dom
+                    else:
+                        post["SIDEWAYS"] = p_dom
+                    past_posteriors.append(post)
+        except Exception as e:
+            logger.warning(f"Could not load past posteriors for cross-day smoothing: {e}")
+            
+        # Combine past overridden and current overridden
+        combined = past_posteriors + [raw_overridden]
+        df_p = pd.DataFrame(combined)
+        df_p_smoothed = df_p.ewm(span=20, adjust=False).mean()
+        
+        overridden_posteriors = df_p_smoothed.iloc[-1].to_dict()
         
         # Note: We determine the final_regime AFTER the ensemble score is computed below.
         final_regime_hmm = max(overridden_posteriors, key=overridden_posteriors.get)

@@ -9,8 +9,8 @@ def test_fetch_latest_success(mocker):
     fetcher = BRKDataFetcher()
     current = datetime.now(timezone.utc)
     
-    # Calculate the correct index for 'current' date
-    days_since_genesis = fetcher.client.date_to_index("day1", current.date())
+    # Calculate the correct index for 'current' date based on genesis 2009-01-03
+    days_since_genesis = (current.date() - datetime(2009, 1, 3).date()).days
     
     mock_response = {
         "version": 163,
@@ -33,7 +33,7 @@ def test_fetch_latest_stale_raises_error(mocker):
     fetcher = BRKDataFetcher()
     stale_date = datetime.now(timezone.utc) - timedelta(days=2)
     
-    days_since_genesis = fetcher.client.date_to_index("day1", stale_date.date())
+    days_since_genesis = (stale_date.date() - datetime(2009, 1, 3).date()).days
     
     mock_response = {
         "version": 163,

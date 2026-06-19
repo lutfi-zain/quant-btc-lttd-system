@@ -140,26 +140,76 @@ def _run_fold(
     hmm_model, state_to_regime = train_hmm(close_train, window=21)
     
     # 2. Predict HMM regime and posteriors for test_idx (day-by-day, causally)
-    test_regimes = []
     test_posteriors = []
     full_close = df_merged["close"]
     
     for date in test_idx:
         close_up_to_date = full_close.loc[:date]
         if len(close_up_to_date) < 200:
-            test_regimes.append("SIDEWAYS")
-            test_posteriors.append({"BULL": 0.0, "BEAR": 0.0, "SIDEWAYS": 1.0})
-            continue
-        res = infer_regime(hmm_model, state_to_regime, close_up_to_date, window=21)
-        test_regimes.append(res["regime"])
-        test_posteriors.append(res["posteriors"])
+            raw_post = {"BULL": 0.0, "BEAR": 0.0, "SIDEWAYS": 1.0}
+        else:
+            res_feat = infer_regime(hmm_model, state_to_regime, close_up_to_date, window=21, ema_span=1)
+            raw_post = res_feat["posteriors"]
+        test_posteriors.append(raw_post)
+        
+    # Get training posteriors for EMA warm-up (already overridden)
+    from src.regime.hmm import infer_regime_history
+    df_train_hmm = infer_regime_history(hmm_model, state_to_regime, close_train, window=21, ema_span=1)
+    
+    warmup_posteriors = []
+    if not df_train_hmm.empty:
+        warmup_subset = df_train_hmm.tail(50)
+        for d, row in warmup_subset.iterrows():
+            train_raw = {
+                "BULL": row["p_bull"],
+                "BEAR": row["p_bear"],
+                "SIDEWAYS": row["p_sideways"]
+            }
+            train_onchain = {}
+            for col in ["sth_mvrv", "sth_nupl"]:
+                if col in df_merged.columns:
+                    val = df_merged.loc[d, col]
+                    train_onchain[col] = float(val) if not pd.isna(val) else 0.0
+                else:
+                    train_onchain[col] = 0.0
+            train_overridden = apply_onchain_overrides(train_raw, train_onchain)
+            warmup_posteriors.append(train_overridden)
+            
+    # Apply overrides to test posteriors immediately to build consistent sequence for smoothing
+    overridden_test_posteriors = []
+    for i, date in enumerate(test_idx):
+        raw_post = test_posteriors[i]
+        onchain_metrics = {}
+        for col in ["sth_mvrv", "sth_nupl"]:
+            if col in df_merged.columns:
+                val = df_merged.loc[date, col]
+                onchain_metrics[col] = float(val) if not pd.isna(val) else 0.0
+            else:
+                onchain_metrics[col] = 0.0
+        overridden = apply_onchain_overrides(raw_post, onchain_metrics)
+        overridden_test_posteriors.append(overridden)
+        
+    # Combine warmup and test overridden posteriors, and causally smooth them across days
+    combined_posteriors = warmup_posteriors + overridden_test_posteriors
+    df_combined = pd.DataFrame(combined_posteriors)
+    df_combined_smoothed = df_combined.ewm(span=20, adjust=False).mean()
+    
+    # Slice back to only the test portion
+    df_test_smoothed = df_combined_smoothed.tail(len(test_idx))
+    
+    test_posteriors_smoothed = []
+    test_regimes = []
+    for idx, row in df_test_smoothed.iterrows():
+        post_dict = row.to_dict()
+        test_posteriors_smoothed.append(post_dict)
+        test_regimes.append(max(post_dict, key=post_dict.get))
         
     # 3. Add HMM posteriors to feature_matrix (locally within the fold to avoid lookahead leak)
     feature_matrix_fold = feature_matrix.copy()
     
     # Train posteriors
     from src.regime.hmm import infer_regime_history
-    df_train_hmm = infer_regime_history(hmm_model, state_to_regime, close_train, window=21)
+    df_train_hmm = infer_regime_history(hmm_model, state_to_regime, close_train, window=21, ema_span=1)
     
     # Test posteriors
     df_test_hmm = pd.DataFrame(test_posteriors, index=test_idx)
@@ -229,8 +279,10 @@ def _run_fold(
     for i, date in enumerate(test_idx):
         date_str = date.strftime("%Y-%m-%d")
         score = float(test_scores.loc[date])
-        regime = test_regimes[i]
-        posteriors_dict = test_posteriors[i]
+        
+        # Use the cross-day smoothed overridden posteriors and regimes
+        overridden_posteriors = test_posteriors_smoothed[i]
+        final_regime = test_regimes[i]
         
         onchain_metrics = {}
         for col in ["sth_mvrv", "sth_nupl"]:
@@ -240,23 +292,11 @@ def _run_fold(
             else:
                 onchain_metrics[col] = 0.0
                 
-        overridden_posteriors = apply_onchain_overrides(posteriors_dict, onchain_metrics)
-        
         # Score is already in [-1.0, 1.0] from predict_score
 
         # Removed score inversion (fixes Hit-Rate Inversion Paradox)
         # Ensure score is strictly within [-1.0, 1.0]
         score = max(-1.0, min(1.0, score))
-
-        # Map final score to strictly BULL, BEAR, or SIDEWAYS
-        if score >= 0.2:
-            final_regime = "BULL"
-        elif score <= -0.2:
-            final_regime = "BEAR"
-        else:
-            final_regime = "SIDEWAYS"
-                
-        # HMM posteriors are still passed but regime is driven by ML score now
                 
         log_ret = float(log_returns_series.loc[date])
         realized_vol = float(realized_vol_series.loc[date])

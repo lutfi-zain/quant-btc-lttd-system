@@ -85,6 +85,7 @@ def infer_regime(
     state_to_regime: Dict[int, str],
     close: pd.Series,
     window: int = 21,
+    ema_span: int = 1,
 ) -> Dict[str, Any]:
     """
     Infer the market regime for the latest day in the provided close prices.
@@ -94,6 +95,7 @@ def infer_regime(
         state_to_regime (Dict[int, str]): Mapping from HMM state index to regime name.
         close (pd.Series): Historical close prices.
         window (int): Rolling volatility window. Default is 21.
+        ema_span (int): Exponential moving average span for posterior smoothing. Default is 1 (no smoothing).
 
     Returns:
         Dict[str, Any]: A dictionary containing:
@@ -109,9 +111,16 @@ def infer_regime(
     if len(features) > 1095:
         features = features[-1095:]
 
-    # Run predict_proba for all samples, and take the last sample (current day)
+    # Run predict_proba for all samples
     proba = model.predict_proba(features)
-    latest_proba = proba[-1]
+    
+    if ema_span > 1:
+        # Smooth posteriors causally using EMA
+        df_proba = pd.DataFrame(proba)
+        df_proba_smoothed = df_proba.ewm(span=ema_span, adjust=False).mean()
+        latest_proba = df_proba_smoothed.iloc[-1].values
+    else:
+        latest_proba = proba[-1]
 
     # Map probabilities to regime names
     posteriors = {state_to_regime[i]: float(latest_proba[i]) for i in range(3)}
@@ -127,6 +136,7 @@ def infer_regime_history(
     state_to_regime: Dict[int, str],
     close: pd.Series,
     window: int = 21,
+    ema_span: int = 1,
 ) -> pd.DataFrame:
     """
     Infer the market regime historically for all days in the prepared features.
@@ -136,6 +146,7 @@ def infer_regime_history(
         state_to_regime (Dict[int, str]): Mapping from HMM state index to regime name.
         close (pd.Series): Historical close prices.
         window (int): Rolling volatility window. Default is 21.
+        ema_span (int): Exponential moving average span for posterior smoothing. Default is 1 (no smoothing).
 
     Returns:
         pd.DataFrame: DataFrame indexed by date with columns:
@@ -162,19 +173,32 @@ def infer_regime_history(
     p_bear = proba[:, bear_col]
     p_sideways = proba[:, side_col]
 
-    regimes = []
-    for idx in range(len(proba)):
-        pb = p_bull[idx]
-        pr = p_bear[idx]
-        ps = p_sideways[idx]
-        state_probs = {"BULL": pb, "BEAR": pr, "SIDEWAYS": ps}
-        regimes.append(max(state_probs, key=state_probs.get))
-
-    res = pd.DataFrame(
+    df_proba = pd.DataFrame(
         {
             "p_bull": p_bull,
             "p_bear": p_bear,
             "p_sideways": p_sideways,
+        },
+        index=features_df.index,
+    )
+
+    if ema_span > 1:
+        df_proba = df_proba.ewm(span=ema_span, adjust=False).mean()
+
+    # Classification logic: choose the state with the highest probability (argmax)
+    regimes = df_proba.idxmax(axis=1).map(
+        {
+            "p_bull": "BULL",
+            "p_bear": "BEAR",
+            "p_sideways": "SIDEWAYS"
+        }
+    ).tolist()
+
+    res = pd.DataFrame(
+        {
+            "p_bull": df_proba["p_bull"],
+            "p_bear": df_proba["p_bear"],
+            "p_sideways": df_proba["p_sideways"],
             "regime": regimes,
         },
         index=features_df.index,

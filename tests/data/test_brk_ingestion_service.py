@@ -71,14 +71,13 @@ def test_fetch_historical(mocker):
     
     # Mock get_series_bulk to return some dummy data
     dummy_bulk = [
-        {"start": 100, "data": [1.1, 1.2, 1.3]},
-        {"start": 100, "data": [0.1, 0.2, 0.3]},
-        {"start": 100, "data": [1.0, 1.0, 1.0]},
-        {"start": 100, "data": [0.7, 0.7, 0.7]}
+        {"start": 6365, "data": [1.1, 1.2, 1.3]},
+        {"start": 6365, "data": [0.1, 0.2, 0.3]},
+        {"start": 6365, "data": [1.0, 1.0, 1.0]},
+        {"start": 6365, "data": [0.7, 0.7, 0.7]}
     ]  # Four series bulk lists
     
     mocker.patch.object(service.client, "get_series_bulk", return_value=dummy_bulk)
-    mocker.patch.object(service.client, "index_to_date", return_value=datetime(2026, 6, 8).date())
     
     df = service.fetch_historical(lookback_days=500)
     

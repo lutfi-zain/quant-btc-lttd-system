@@ -17,7 +17,7 @@ class BRKDataFetcher:
         res = self.client.get_series(series_name, "day1", start=-1)
         value = res["data"][0]
         last_index = res["end"] - 1
-        stamp_date = self.client.index_to_date("day1", last_index)
+        stamp_date = pd.Timestamp("2009-01-03", tz="UTC") + pd.Timedelta(days=last_index)
         stamp = datetime(
             stamp_date.year, stamp_date.month, stamp_date.day, tzinfo=timezone.utc
         )

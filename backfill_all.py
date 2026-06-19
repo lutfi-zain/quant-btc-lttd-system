@@ -51,7 +51,7 @@ def process_single_day(t, df_merged, feature_matrix, log_returns, y):
         # Train HMM and predict regime
         close_train = df_merged.loc[train_idx, "close"]
         hmm_model, state_to_regime = train_hmm(close_train, window=21)
-        res_regime = infer_regime(hmm_model, state_to_regime, df_merged.loc[:t, "close"], window=21)
+        res_regime = infer_regime(hmm_model, state_to_regime, df_merged.loc[:t, "close"], window=21, ema_span=1)
         
         # Apply overrides
         onchain_metrics = {}
@@ -150,7 +150,7 @@ def main():
     from brk_client import BrkClient
     res_price = requests.get('https://bitview.space/api/series/bulk?series=price_ohlc&index=day1&start=-4500').json()
     brk_client = BrkClient()
-    start_date = brk_client.index_to_date("day1", res_price["start"])
+    start_date = pd.Timestamp("2009-01-03", tz="UTC") + pd.Timedelta(days=res_price["start"])
     dates = pd.date_range(start=start_date, periods=len(res_price["data"]), freq="D", tz="UTC", name="timestamp")
     df_ohlcv = pd.DataFrame(res_price["data"], index=dates, columns=["open", "high", "low", "close"])
     df_ohlcv["volume"] = 1.0 # Constant volume fallback for VWMA calculation
@@ -242,6 +242,19 @@ def main():
     # Sort results chronologically
     results = sorted(results, key=lambda x: x["date"])
     print(f"✓ Parallel computation finished. Successfully calculated {len(results)} days.")
+    
+    # Apply Cross-Day Posterior Smoothing on HMM posteriors
+    print("Applying Cross-Day Posterior Smoothing on HMM regimes...")
+    raw_posteriors = [r["posteriors"] for r in results]
+    df_post = pd.DataFrame(raw_posteriors)
+    df_post_smoothed = df_post.ewm(span=20, adjust=False).mean()
+    
+    for idx, r in enumerate(results):
+        smoothed_dict = df_post_smoothed.iloc[idx].to_dict()
+        smoothed_regime = max(smoothed_dict, key=smoothed_dict.get)
+        r["regime"] = smoothed_regime
+        r["posterior_prob"] = smoothed_dict[smoothed_regime]
+        r["posteriors"] = smoothed_dict
     
     # Apply SuperSmoother smoothing and sequential exposure sizing
     print("Applying SuperSmoother smoothing and sequential exposure sizing...")

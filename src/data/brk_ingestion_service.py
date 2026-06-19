@@ -101,7 +101,7 @@ class BRKIngestionService:
         for i, name in enumerate(self.series_list):
             s_data = res[i]
             start_idx = s_data["start"]
-            start_date = self.client.index_to_date("day1", start_idx)
+            start_date = pd.Timestamp("2009-01-03", tz="UTC") + pd.Timedelta(days=start_idx)
             
             # Map indices to DatetimeIndex
             dates = pd.date_range(

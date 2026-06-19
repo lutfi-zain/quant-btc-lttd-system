@@ -2,19 +2,19 @@ import numpy as np
 import pandas as pd
 from typing import Optional, Tuple
 
-# Sizing parameters (optimized via tmp/optimize_winrate_direct.py)
+# Sizing parameters (optimized via search_metrics.py on aligned database)
 SUPERSMOOTHER_PERIOD_ENTRY = 7
-SUPERSMOOTHER_PERIOD_EXIT = 5
-SCORE_ENTRY = 0.32039808689747296
-SCORE_EXIT = 0.3109636587111976
-CB_ACTIVATE = -3.454738910743079
-CB_COOLOFF = 0.8491614227097739
+SUPERSMOOTHER_PERIOD_EXIT = 3
+SCORE_ENTRY = 0.3057132189206123
+SCORE_EXIT = 0.23605001464720393
+CB_ACTIVATE = -2.260661127701853
+CB_COOLOFF = 0.5006400880184867
 COMP_ENTRY_BOOST = 2.000613
 USE_BEAR_OVERRIDE = False
-RCO_DAYS = 1
-MHP_DAYS = 12
+RCO_DAYS = 5
+MHP_DAYS = 17
 USE_MA_FILTER = True
-MA_PERIOD = 156
+MA_PERIOD = 226
 
 def super_smoother(series: pd.Series, period: int) -> pd.Series:
     """

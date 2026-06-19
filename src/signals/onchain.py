@@ -32,7 +32,7 @@ class OnChainFeed:
             s_data = res[i]
             start_idx = s_data["start"]
             # Map index to date
-            start_date = self.fetcher.client.index_to_date("day1", start_idx)
+            start_date = pd.Timestamp("2009-01-03", tz="UTC") + pd.Timedelta(days=start_idx)
             dates = pd.date_range(
                 start=start_date, periods=len(s_data["data"]), freq="D", tz="UTC"
             )
