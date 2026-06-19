@@ -29,6 +29,7 @@ class MockExecutionAdapter:
         self.records: List[Dict[str, Any]] = []
         self.previous_regime: Optional[str] = None
         self.previous_exposure: Optional[float] = None
+        self.previous_circuit_breaker_active: bool = False
         self.transitions: List[Dict[str, Any]] = []
 
     def run(
@@ -40,16 +41,20 @@ class MockExecutionAdapter:
         onchain_metrics: Optional[Dict[str, float]] = None,
         log_return: float = 0.0,
         realized_volatility: float = 0.0,
+        composite_value: float = 0.0,
     ) -> Dict[str, Any]:
         regime_upper = regime
-        target_exposure = calculate_target_exposure(
+        target_exposure, is_cb_active = calculate_target_exposure(
             final_score,
             realized_volatility,
             regime=regime_upper,
             prev_exposure=self.previous_exposure,
-            onchain_metrics=onchain_metrics
+            onchain_metrics=onchain_metrics,
+            composite_value=composite_value,
+            prev_circuit_breaker_active=self.previous_circuit_breaker_active
         )
         self.previous_exposure = target_exposure
+        self.previous_circuit_breaker_active = is_cb_active
         
         # Calculate transition (in-memory)
         transition_occurred = False
@@ -221,6 +226,8 @@ def _run_fold(
         log_ret = float(log_returns_series.loc[date])
         realized_vol = float(realized_vol_series.loc[date])
         
+        comp_val = float(df_merged.loc[date, "composite_value"]) if "composite_value" in df_merged.columns else 0.0
+
         res_record = adapter.run(
             date_str=date_str,
             final_score=score,
@@ -228,7 +235,8 @@ def _run_fold(
             posteriors=overridden_posteriors,
             onchain_metrics=onchain_metrics,
             log_return=log_ret,
-            realized_volatility=realized_vol
+            realized_volatility=realized_vol,
+            composite_value=comp_val
         )
         
         # Extract features for telemetry

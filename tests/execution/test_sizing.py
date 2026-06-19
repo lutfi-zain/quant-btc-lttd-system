@@ -1,43 +1,85 @@
 import pytest
-import numpy as np
 from src.execution.sizing import calculate_target_exposure
 
-def test_formula_validation():
-    # SIDEWAYS
-    # score=0.5 -> conviction = 0.75
-    # raw_exposure = 0.75 * 2.0 = 1.5
-    # no vol dampener since 0.02*19.1 < 1.0
-    # prev_exposure=0.0 -> returns raw_exposure
-    assert calculate_target_exposure(0.5, 0.02, regime="SIDEWAYS") == pytest.approx(1.5)
+def test_normal_sizing():
+    # Should stay out until >= 0.470671
+    exposure, cb_active = calculate_target_exposure(
+        final_score=0.4,
+        vol=0.5,
+        prev_exposure=0.0
+    )
+    assert exposure == 0.0
 
-def test_exposure_bounds():
-    # BEAR = 0.0
-    assert calculate_target_exposure(1.0, 0.02, regime="BEAR") == pytest.approx(0.0)
+    # Should enter
+    exposure, cb_active = calculate_target_exposure(
+        final_score=0.5,
+        vol=0.5,
+        prev_exposure=0.0
+    )
+    assert exposure == 1.0
 
-    # SIDEWAYS high conviction (score=1.0 -> conv=1.0 -> raw=2.0)
-    # prev_exposure=2.0 -> returns 2.0
-    assert calculate_target_exposure(1.0, 0.02, regime="SIDEWAYS", prev_exposure=2.0) == pytest.approx(2.0)
+def test_hysteresis():
+    # Should stay in since > 0.386242
+    exposure, cb_active = calculate_target_exposure(
+        final_score=0.4,
+        vol=0.5,
+        prev_exposure=1.0
+    )
+    assert exposure == 1.0
 
-    # BULL high conviction (score=1.0 -> conv=1.0 -> raw=1.0+1.5 = 2.5)
-    assert calculate_target_exposure(1.0, 0.02, regime="BULL", prev_exposure=2.5) == pytest.approx(2.5)
+    # Should exit
+    exposure, cb_active = calculate_target_exposure(
+        final_score=0.3,
+        vol=0.5,
+        prev_exposure=1.0
+    )
+    assert exposure == 0.0
 
-def test_exposure_smoothing_ema():
-    # SIDEWAYS:
-    # score=0.8 -> conviction=0.5 + 0.4 = 0.9
-    # raw = 0.9 * 2.0 = 1.8
-    # smoothed = 1/3 * 1.8 + 2/3 * 0.6 = 0.6 + 0.4 = 1.0
-    assert calculate_target_exposure(0.8, 0.02, prev_exposure=0.6, regime="SIDEWAYS") == pytest.approx(0.9)
+def test_circuit_breaker():
+    exposure, cb_active = calculate_target_exposure(
+        final_score=0.9,
+        vol=0.5,
+        prev_exposure=1.0,
+        composite_value=-2.5 # <= -2.032903
+    )
+    assert exposure == 0.0
+    assert cb_active
 
-def test_exposure_smoothing_change_limit():
-    # Change max is 0.3
-    # BULL: score=1.0 -> conviction=1.0 -> raw=2.5
-    # prev=0.3
-    # smoothed = 1/3 * 2.5 + 2/3 * 0.3 = 0.8333 + 0.2 = 1.0333
-    # diff = 1.0333 - 0.3 = 0.7333 (exceeds 0.3 clamp)
-    # final = 0.3 + 0.3 = 0.6
-    assert calculate_target_exposure(1.0, 0.02, prev_exposure=0.3, regime="BULL") == pytest.approx(0.6)
+def test_circuit_breaker_cooloff():
+    # Still cooling off
+    exposure, cb_active = calculate_target_exposure(
+        final_score=0.9,
+        vol=0.5,
+        prev_exposure=0.0,
+        composite_value=0.5, # < 0.803830
+        prev_circuit_breaker_active=True
+    )
+    assert exposure == 0.0
+    assert cb_active
+
+    # Cooled off, should re-enter because comp_entry_boost is not met but score > 0.47
+    exposure, cb_active = calculate_target_exposure(
+        final_score=0.9,
+        vol=0.5,
+        prev_exposure=0.0,
+        composite_value=1.0, # > 0.803830
+        prev_circuit_breaker_active=True
+    )
+    assert exposure == 1.0
+    assert not cb_active
+
+def test_comp_entry_boost():
+    # Enters purely due to undervaluation
+    exposure, cb_active = calculate_target_exposure(
+        final_score=0.0,
+        vol=0.5,
+        prev_exposure=0.0,
+        composite_value=2.5 # >= 2.000613
+    )
+    assert exposure == 1.0
 
 def test_no_lookahead():
-    out1 = calculate_target_exposure(0.5, 0.02, regime="BULL")
-    out1_with_future = calculate_target_exposure(0.5, 0.02, regime="BULL")
+    out1, cb1 = calculate_target_exposure(0.5, 0.02, regime="BULL")
+    out1_with_future, cb1_with_future = calculate_target_exposure(0.5, 0.02, regime="BULL")
     assert out1 == out1_with_future
+    assert cb1 == cb1_with_future

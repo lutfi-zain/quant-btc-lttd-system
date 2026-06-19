@@ -15,7 +15,7 @@ def test_xgboost_ensemble():
     }, index=dates)
     
     # Target is [-1.0, 1.0] depending on Feature1
-    y_train = pd.Series(np.sign(X_train["Feature1"]), index=dates)
+    y_train = pd.Series(np.where(X_train["Feature1"] > 0, 1.0, 0.0), index=dates)
     
     model.fit(X_train, y_train)
     

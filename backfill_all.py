@@ -247,22 +247,33 @@ def main():
     print("Applying EMA smoothing and sequential exposure sizing...")
     raw_scores = [r["final_score"] for r in results]
     scores_series = pd.Series(raw_scores)
-    smoothed_scores = scores_series.ewm(span=9, adjust=False).mean().tolist()
+    smoothed_scores = scores_series.ewm(span=7, adjust=False).mean().tolist()
     
     from src.execution.sizing import calculate_target_exposure
+    from src.data.valuation_api_client import ValuationApiClient
+    valuation_client = ValuationApiClient()
+    
     prev_exposure = 0.0
+    prev_cb = False
     for i, r in enumerate(results):
         r["smoothed_score"] = float(smoothed_scores[i])
         
-        exposure = calculate_target_exposure(
+        # Get historical composite value for this date
+        t_date = pd.Timestamp(r["date"], tz="UTC")
+        composite_value = valuation_client.get_composite_value_for_date(t_date)
+        
+        exposure, cb_active = calculate_target_exposure(
             final_score=r["smoothed_score"],
             vol=r["realized_volatility"],
             regime=r["regime"],
             prev_exposure=prev_exposure,
-            onchain_metrics=r["onchain_metrics"]
+            composite_value=composite_value,
+            prev_circuit_breaker_active=prev_cb
         )
         r["target_exposure"] = exposure
+        r["circuit_breaker_active"] = cb_active
         prev_exposure = exposure
+        prev_cb = cb_active
         
     print("✓ Sequential sizing completed.")
     
@@ -292,9 +303,10 @@ def main():
         final_score = r["smoothed_score"]
         target_exposure = r["target_exposure"]
         posterior_prob = r["posterior_prob"]
+        cb_active = r["circuit_breaker_active"]
         
-        # daily_lttd row: (data_as_of, date, regime, final_score, target_exposure, posterior_prob)
-        daily_records.append((date_str, date_str, regime, final_score, target_exposure, posterior_prob))
+        # daily_lttd row: (data_as_of, date, regime, final_score, target_exposure, posterior_prob, circuit_breaker_active)
+        daily_records.append((date_str, date_str, regime, final_score, target_exposure, posterior_prob, cb_active))
         
         # indicator_scores rows: (date, indicator_name, score)
         for ind_name, score in r["indicator_scores"].items():
@@ -316,8 +328,8 @@ def main():
         
     # Execute batch inserts
     conn.executemany("""
-        INSERT INTO daily_lttd (data_as_of, date, regime, final_score, target_exposure, posterior_prob)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO daily_lttd (data_as_of, date, regime, final_score, target_exposure, posterior_prob, circuit_breaker_active)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
     """, daily_records)
     
     conn.executemany("""

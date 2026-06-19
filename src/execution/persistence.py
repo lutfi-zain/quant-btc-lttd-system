@@ -9,21 +9,23 @@ def upsert_daily_lttd(
     db_path=DEFAULT_DB_PATH,
     target_exposure: float = 0.0,
     posterior_prob: Optional[float] = None,
+    circuit_breaker_active: bool = False,
 ):
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute(
             """
-            INSERT INTO daily_lttd (data_as_of, date, regime, final_score, target_exposure, posterior_prob)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO daily_lttd (data_as_of, date, regime, final_score, target_exposure, posterior_prob, circuit_breaker_active)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(data_as_of) DO UPDATE SET
                 date = excluded.date,
                 regime = excluded.regime,
                 final_score = excluded.final_score,
                 target_exposure = excluded.target_exposure,
-                posterior_prob = excluded.posterior_prob
+                posterior_prob = excluded.posterior_prob,
+                circuit_breaker_active = excluded.circuit_breaker_active
         """,
-            (date, date, regime, final_score, target_exposure, posterior_prob),
+            (date, date, regime, final_score, target_exposure, posterior_prob, circuit_breaker_active),
         )
         conn.commit()
 

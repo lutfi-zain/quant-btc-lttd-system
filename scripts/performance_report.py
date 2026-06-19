@@ -162,6 +162,7 @@ def main():
             d.final_score,
             d.target_exposure,
             d.posterior_prob,
+            d.circuit_breaker_active,
             o.close
         FROM daily_lttd d
         JOIN ohlcv o ON DATE(o.timestamp) = d.date
@@ -203,6 +204,12 @@ def main():
     print(f"  ║  MAX DD      {dd_pct:>8.2f}%               ║")
     print(f"  ║  CALMAR      {calmar:>8.2f}               ║")
     print("  ╚═════════════════════════════════════╝")
+
+    # ── Circuit Breaker stats ──────────────────────────────────
+    if "circuit_breaker_active" in df.columns:
+        cb_days = df["circuit_breaker_active"].sum()
+        if cb_days > 0:
+            print(f"\n  [!] Circuit Breaker Active: {int(cb_days)} days")
 
     # ── Trade stats ────────────────────────────────────────────
     ts = trade_stats(eq_df)

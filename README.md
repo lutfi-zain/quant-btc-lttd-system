@@ -38,11 +38,13 @@
 |---|---|
 | **Signal Horizon** | 120 – 350 days (epoch-dependent, OU-derived) |
 | **OU Mean-Reversion Half-Life** | ~300+ days (post-2020 institutional era) |
-| **Technical Indicators** | 12 (PCA-orthogonalized → 3 principal components) |
+| **Technical Indicators (Active)** | 4 (AdvancedStochastic, RSI-50, FourierSupertrend, TrendStrengthIndex) |
+| **Technical Indicators (Design Target)** | 11 (FDI disabled; SGF excluded; 6 not yet ported) |
 | **On-Chain Metrics** | 4 (STH-MVRV, STH-NUPL, STH-SOPR, Supply in Profit) |
 | **On-Chain Data Source** | [bitview.space](https://bitview.space) — free, no auth |
 | **Regime Classes** | BULL · BEAR · SIDEWAYS (3-state Gaussian HMM) |
-| **Aggregation Method** | L1-Lasso Logistic Regression + Walk-Forward Optimization |
+| **Default Ensemble** | XGBoost + ElasticNet (`ensemble_mode="xgboost"`) |
+| **Position Sizing** | Binary 0/1 hysteresis + composite circuit breaker |
 | **Lookahead Bias** | Zero tolerance — every indicator uses `CausalFilter` |
 | **Research Confidence** | 98% (exhaustive, 26 sources, 5 search rounds) |
 
@@ -245,22 +247,22 @@ model = GaussianHMM(n_components=3, covariance_type="full", n_iter=1000)
 
 Each indicator outputs a binary directional score ∈ {-1, +1}. All are implemented with `CausalFilter` — **only past bars referenced; no symmetric windows**.
 
-| # | Indicator | Category | Core Logic |
-|---|---|---|---|
-| 1 | **Kalman Filtered RSI** | Momentum/Trend | N-order Kalman on OHLC4 → RSI(250) → normalized [-0.5, 0.5] |
-| 2 | **Momentum Zenith (LinReg Oscillator)** | Momentum | LinReg deviation + VWAP divergence → centered oscillator |
-| 3 | **Adaptive Supertrend** | Trend | Highest-high channel × multiplier → directional signal |
-| 4 | **FDI Adaptive Oscillator** | Trend/Momentum | Fractal Dimension Index regime filter + RSI/CCI consensus |
-| 5 | **Adaptive Fourier Supertrend** | Spectral/Trend | DFT harmonic decomposition → volatility-band trend channel |
-| 6 | **Relative Trend Index (RTI)** | Trend Strength | Sorted 2σ channel boundaries → percentile position signal |
-| 7 | **MadTrend** | Trend | Multi-MA consensus with volatility normalization |
-| 8 | **Quantile DEMA Supertrend** | Trend/Volatility | DEMA + percentile ATR bands → directional flip |
-| 9 | **Inverted SD-DEMA RSI** | Momentum | DEMA + std dev envelope → RSI threshold crossing |
-| 10 | **Stochastic ForLoop** | Momentum | Ensemble of Stoch(1..129) → average directional score |
-| 11 | **VWMA Trend Strength Index** | Volume/Trend | (Close − VWMA) / ATR → z-scored trend intensity |
-| 12 | **Savitzky Flow Bands** ⚠️ | Smoothing | **REMOVED — lookahead bias; see Pine Script Audit** |
+| # | Indicator | Category | Status | Core Logic |
+|---|---|---|---|---|
+| 1 | **Kalman Filtered RSI** | Momentum/Trend | ✅ Active | N-order Kalman on OHLC4 → RSI(250) → normalized [-0.5, 0.5] |
+| 2 | **Momentum Zenith (LinReg Oscillator)** | Momentum | ❌ Not yet ported | LinReg deviation + VWAP divergence → centered oscillator |
+| 3 | **Adaptive Supertrend** | Trend | ❌ Not yet ported | Highest-high channel × multiplier → directional signal |
+| 4 | **FDI Adaptive Oscillator** | Trend/Momentum | ⚠️ Built, disabled | Non-directional; breaks linear consensus — excluded from feature matrix |
+| 5 | **Adaptive Fourier Supertrend** | Spectral/Trend | ✅ Active | DFT harmonic decomposition → volatility-band trend channel |
+| 6 | **Relative Trend Index (RTI)** | Trend Strength | ❌ Not yet ported | Sorted 2σ channel boundaries → percentile position signal |
+| 7 | **MadTrend** | Trend | ❌ Not yet ported | Multi-MA consensus with volatility normalization |
+| 8 | **Quantile DEMA Supertrend** | Trend/Volatility | ✅ Active | DEMA + percentile ATR bands → directional flip (`AdvancedStochastic`) |
+| 9 | **Inverted SD-DEMA RSI** | Momentum | ❌ Not yet ported | DEMA + std dev envelope → RSI threshold crossing |
+| 10 | **Stochastic ForLoop** | Momentum | ❌ Not yet ported | Ensemble of Stoch(1..129) → average directional score |
+| 11 | **VWMA Trend Strength Index** | Volume/Trend | ✅ Active | (Close − VWMA) / ATR → z-scored trend intensity (`TrendStrengthIndex`) |
+| 12 | **Savitzky Flow Bands** ⚠️ | Smoothing | ❌ Excluded | **Lookahead bias; see Pine Script Audit** |
 
-> **Why only 11 active?** Indicator 12 (Savitzky-Golay) was identified as having a fatal lookahead bias in the original Pine Script. It is excluded from the Python implementation. See the [Pine Script Audit](#pine-script-audit) section.
+> **Production signal count: 4 active.** Indicators marked ❌ are part of the design target but not yet ported from Pine Script to Python. Indicator 4 (FDI) exists in `src/signals/fdi.py` but is excluded from `FeatureMatrixBuilder` due to non-directional output.
 
 ### On-Chain Metrics (4) — via BRK API
 
@@ -319,6 +321,8 @@ After PCA, Pratt's measure (`dⱼ = βⱼ · rⱼ / R²`) identifies which origi
 
 ### L1-Lasso Logistic Regression
 
+The `L1LassoEnsemble` class (used in `backfill_all.py` for historical runs) fits an L1-regularized logistic regression on PCA-orthogonalized features:
+
 ```python
 from sklearn.linear_model import LogisticRegression
 
@@ -334,7 +338,7 @@ model = LogisticRegression(
 model.fit(PC_train, y_train)
 ```
 
-The **L1 penalty** simultaneously aggregates and prunes — redundant indicator components get their β coefficient shrunk to exactly zero, leaving only the most robust, non-correlated signal drivers.
+The **default live mode** (`run_pipeline.py`) uses `XGBoostEnsemble` instead. Both models are available via `LTTDPipeline(ensemble_mode="...")`. The L1 penalty simultaneously aggregates and prunes — redundant indicator components get their β coefficient shrunk to exactly zero.
 
 ### Walk-Forward Optimization (WFO)
 
@@ -466,6 +470,8 @@ source .venv/bin/activate   # Windows: .venv\Scripts\activate
 python -m pip install -r requirements.txt
 ```
 
+> ⚠️ **Prerequisite:** The LTTD system's circuit breaker fetches a Composite Oscillator value from the `quant-btc-valuation-system` at `http://localhost:5173/api/composite`. Start that system before running `backfill_all.py` or `run_pipeline.py`, or the circuit breaker will silently default to disabled.
+
 ### Core Dependencies
 
 ```txt
@@ -523,7 +529,7 @@ python -m pytest -xvs tests/test_regime.py
 quant-btc-lttd-system/
 │
 ├── backend/                             # Hono v4 API (Bun runtime)
-│   ├── index.ts                         # All REST endpoints
+│   ├── index.ts                         # All REST endpoints (port :8765)
 │   ├── db.ts                            # SQLite connection (WAL mode)
 │   ├── package.json                     # Bun dependencies
 │   └── tsconfig.json
@@ -552,46 +558,50 @@ quant-btc-lttd-system/
 │   └── schema.sql                       # Table definitions
 │
 ├── src/
+│   ├── data/                        # Data ingestion & external APIs
+│   │   ├── exchange_adapter.py      # Binance OHLCV adapter
+│   │   ├── brk_ingestion_service.py # BRK bulk fetcher + freshness guard
+│   │   ├── brk_fetcher.py           # Low-level BRK HTTP client
+│   │   ├── target_loader.py         # Regime target labels for WFO
+│   │   ├── valuation_api_client.py  # Composite oscillator from valuation system ⚠️
+│   │   ├── db.py                    # SQLite cache helpers
+│   │   └── pipeline.py              # OHLCV fetch pipeline
+│   │
 │   ├── regime/                      # Layer 1: HMM regime classification
-│   │   ├── hmm_model.py             # 3-state Gaussian HMM
-│   │   ├── state_classifier.py      # Posterior probability → regime label
-│   │   └── regime_transitions.py    # Transition logging
+│   │   ├── hmm.py                   # 3-state Gaussian HMM
+│   │   ├── filter.py                # On-chain override (STH-MVRV / STH-NUPL)
+│   │   └── features.py              # HMM posterior history extraction
 │   │
 │   ├── signals/                     # Layer 2: Causal indicator engine
 │   │   ├── base.py                  # CausalFilter abstract base class
-│   │   ├── technical/               # 11 technical indicators (no SGF)
-│   │   │   ├── kalman_rsi.py        # Indicator 1
-│   │   │   ├── linreg_zenith.py     # Indicator 2
-│   │   │   ├── adaptive_supertrend.py  # Indicator 3
-│   │   │   ├── fdi_oscillator.py    # Indicator 4
-│   │   │   ├── fft_supertrend.py    # Indicator 5
-│   │   │   ├── rti.py               # Indicator 6
-│   │   │   ├── madtrend.py          # Indicator 7
-│   │   │   ├── quantile_dema.py     # Indicator 8
-│   │   │   ├── sd_dema_rsi.py       # Indicator 9
-│   │   │   └── stoch_forloop.py     # Indicator 10
-│   │   │   └── vwma_tsi.py          # Indicator 11
-│   │   └── onchain/                 # 4 on-chain metric signals
-│   │       ├── brk_feed.py          # BRK API client (typed interface)
-│   │       ├── sth_mvrv.py          # STH-MVRV signal
-│   │       ├── sth_nupl.py          # STH-NUPL signal
-│   │       ├── sth_sopr.py          # STH-SOPR (sth_sopr_24h)
-│   │       └── supply_profit.py     # STH Supply in Profit
+│   │   ├── kalman_rsi.py            # Indicator 1 ✅
+│   │   ├── fourier_supertrend.py    # Indicator 5 ✅
+│   │   ├── quantile_dema.py         # Indicator 8 ✅ (AdvancedStochastic)
+│   │   ├── trend_strength.py        # Indicator 11 ✅
+│   │   ├── fdi.py                   # Indicator 4 ⚠️ (built, disabled)
+│   │   ├── advanced_stochastic.py   # Stochastic ensemble helper
+│   │   └── onchain.py               # On-chain signal helpers
 │   │
 │   ├── features/                    # Layer 3: PCA + VIF orthogonalization
-│   │   ├── standardizer.py          # Z-score standardization
-│   │   ├── vif_filter.py            # Variance Inflation Factor check
-│   │   ├── pca_engine.py            # PCA orthogonalization
-│   │   └── pratt_measure.py         # Pratt's relative importance
+│   │   ├── builder.py               # FeatureMatrixBuilder (4 active signals)
+│   │   ├── processor.py             # VIF pruning + PCA transform
+│   │   ├── pca.py                   # CausalPCA wrapper
+│   │   ├── vif.py                   # VIF filter + pruning
+│   │   ├── importance.py            # Pratt's relative importance
+│   │   ├── normalizer.py            # Z-score standardization
+│   │   └── ou_calibration.py        # OU half-life estimator
 │   │
-│   ├── ensemble/                    # Layer 4: L1-Lasso + WFO
-│   │   ├── lasso_model.py           # L1-regularized logistic regression
-│   │   ├── wfo.py                   # Walk-forward optimization
-│   │   └── score_engine.py          # Final Score ∈ [-1.0, +1.0]
+│   ├── ensemble/                    # Layer 4: L1-Lasso + XGBoost + PCA
+│   │   ├── model.py                 # MLConsensusEngine, L1LassoEnsemble, PCAConsensusEnsemble
+│   │   ├── xgboost_model.py         # XGBoostEnsemble (default live mode)
+│   │   └── wfo.py                   # Walk-forward optimization
 │   │
 │   └── execution/                   # Layer 5: Regime-weighted sizing
-│       ├── position_sizer.py        # Regime posterior × Final Score
-│       └── signal_publisher.py      # Output: BULL / BEAR / SIDEWAYS
+│       ├── engine.py                # ExecutionEngine coordinator
+│       ├── sizing.py                # Binary hysteresis + circuit breaker
+│       ├── persistence.py           # SQLite upsert helpers
+│       ├── database.py              # DB init + connection
+│       └── logger.py                # Regime transition logging
 │
 ├── tests/                           # pytest test suite
 │   ├── test_no_lookahead.py         # ⭐ Lookahead bias detection for all indicators
@@ -635,12 +645,14 @@ Same proven stack as `quant-btc-valuation-system` and `lttf-system`.
 | `GET /api/regime` | Current HMM regime + posteriors | `{regime, p_bull, p_bear, p_sideways, stamp}` |
 | `GET /api/score` | Final Score time-series | `{data: [{date, score, direction}]}` |
 | `GET /api/score/latest` | Current Final Score | `{score, direction, regime, stamp}` |
-| `GET /api/indicators` | All 11 technical indicator scores | `{data: [{name, score, category}]}` |
+| `GET /api/indicators` | All active technical indicator scores | `{data: [{name, score, category}]}` |
 | `GET /api/onchain` | 4 on-chain metrics history | `{data: [{date, sth_mvrv, sth_nupl, sth_sopr_24h, sth_supply_in_profit}]}` |
 | `GET /api/pca` | PCA component loadings | `{components, explained_variance, pratt_measures}` |
 | `GET /api/wfo` | Walk-forward fold results | `{folds, summary: {mean_sharpe, mean_accuracy}}` |
 | `GET /api/regime/history` | HMM state history | `{data: [{date, regime, p_bull, p_bear, p_sideways}]}` |
 | `GET /api/ohlc` | BTC daily OHLC | `{data: [{date, open, high, low, close}]}` |
+
+> **Ports:** Backend runs on `:8765`, frontend preview on `:8766`. Use `bash scripts/start_all.sh` to start both simultaneously.
 
 ### Frontend — React SPA Components
 
@@ -661,12 +673,14 @@ Same proven stack as `quant-btc-valuation-system` and `lttf-system`.
 ```sql
 -- Core time-series output
 CREATE TABLE daily_lttd (
-  date          TEXT PRIMARY KEY,
-  final_score   REAL,          -- ∈ [-1.0, +1.0]
-  regime        TEXT,          -- 'BULL' | 'BEAR' | 'SIDEWAYS'
-  p_bull        REAL,          -- HMM posterior
-  p_bear        REAL,
-  p_sideways    REAL
+  date                   TEXT PRIMARY KEY,
+  final_score            REAL,          -- ∈ [-1.0, +1.0]
+  regime                 TEXT,          -- 'BULL' | 'BEAR' | 'SIDEWAYS'
+  p_bull                 REAL,          -- HMM posterior
+  p_bear                 REAL,
+  p_sideways             REAL,
+  target_exposure        REAL,          -- 0.0 or 1.0 (binary sizing output)
+  circuit_breaker_active INTEGER        -- 0 or 1 (composite oscillator trip flag)
 );
 
 -- Per-indicator scores

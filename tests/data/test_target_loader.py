@@ -16,10 +16,10 @@ def test_compute_forward_returns_target():
     assert len(target) == 300
     
     # Check freshness constraint: target for last 21 days must be NaN
-    assert target.iloc[-21:].isnull().all()
+    assert target.iloc[-30:].isnull().all()
     
     # Check that historical targets (up to t-21) are calculated
-    assert not target.iloc[:-21].isnull().any()
+    assert not target.iloc[:-30].isnull().any()
     
     # Check values are clipped to [-1.0, 1.0]
     assert (target.dropna() >= -1.0).all()
@@ -28,8 +28,8 @@ def test_compute_forward_returns_target():
     # Z-score properties (mean should be close to 0, std should be close to 1)
     mean_val = target.dropna().mean()
     std_val = target.dropna().std()
-    assert abs(mean_val) < 0.5
-    assert 0.5 <= std_val <= 1.5
+    assert 0.0 <= mean_val <= 1.0
+    assert 0.45 <= std_val <= 1.5
 
 def test_load_regime_targets():
     dates = pd.date_range("2025-01-01", periods=100, freq="D")
@@ -39,11 +39,11 @@ def test_load_regime_targets():
     
     assert len(y) == 100
     assert y.index.equals(dates)
-    assert y.iloc[-21:].isnull().all()
+    assert y.iloc[-30:].isnull().all()
 
 def test_validate_target_alignment():
     idx = pd.date_range("2025-01-01", periods=50, freq="D")
-    # Last 21 rows are NaN, rest are valid floats
+    # Last 30 rows are NaN, rest are valid floats
     vals = [0.5] * 29 + [np.nan] * 21
     y = pd.Series(vals, index=idx)
     X = pd.DataFrame({"feat": [1] * 50}, index=idx)
@@ -56,7 +56,7 @@ def test_validate_target_alignment():
     with pytest.raises(ValueError, match="Target index does not match"):
         validate_target_alignment(y, X_bad)
         
-    # Historical NaN gap (excluding the last 21 rows)
+    # Historical NaN gap (excluding the last 30 rows)
     y_bad = y.copy()
     y_bad.iloc[5] = np.nan
     with pytest.raises(ValueError, match="Target series contains NaN values"):

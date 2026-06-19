@@ -13,7 +13,7 @@ context: |
   (BULL / BEAR / SIDEWAYS) over a 120–350 day horizon using an orthogonal
   ensemble of technical indicators and on-chain metrics.
 
-  ## Architecture (5-Layer Pipeline)
+  ## Architecture (6-Layer Pipeline)
   ```
   Layer 1: Regime Detection     → 3-state HMM on daily log returns + realized vol
   Layer 2: Signal Engine        → Causal-only indicators, output ∈ {-1, +1}
@@ -40,6 +40,11 @@ context: |
   - Architecture now has 6 layers: Regime → Signal → Feature → Ensemble → Execution → Presentation
   - pytest + pytest-cov (testing)
   - OpenSpec (change management: proposal → specs → design → tasks → implement)
+  - ValuationApiClient (src/data/valuation_api_client.py):
+      Fetches Composite Oscillator from quant-btc-valuation-system local API
+      Default URL: http://localhost:5173/api/composite
+      Hard dependency for live execution and backfill — defaults to 0.0 on failure
+      WARNING: 0.0 default silently disables circuit breaker
 
   ## Domain Language (Ubiquitous Language — always use these exact terms)
   - LTTD: Long-Term Trend Direction (the macro signal this system produces)
@@ -65,6 +70,12 @@ context: |
   - PCA Orthogonalization: Applied to indicator matrix before aggregation
   - BRK Stamp: The `stamp` field in every BRK API response; use as `data_as_of` timestamp, NOT datetime.now()
   - BRK Series: Name-indexed time-series from bitview.space (e.g., sth_mvrv, nupl, realized_price)
+  - Composite Oscillator: External signal from quant-btc-valuation-system normalising
+      macro cycle exhaustion; values <= -2.032903 trigger a hard circuit breaker
+  - Circuit Breaker: Hard stop in Layer 5 sizing — overrides HMM and ensemble score
+      when composite_value <= -2.032903; cool-off resets at composite_value > 0.803830
+  - Binary Sizing: Production exposure model — only 0.0 or 1.0, never fractional
+      Hysteresis: enter at final_score >= 0.470671, exit at final_score <= 0.386242
 
   ## Critical Research Findings (from pi_final_research_lttd_01.md)
   1. Bitcoin's OU half-life expanded to 300+ days post-2020 (institutional era)
@@ -83,6 +94,10 @@ context: |
     - Always check response `stamp` field >= yesterday before using data in ensemble
   6. Glassnode feature discovery study found optimal BTC uptrend detection uses 800-1,200 day windows
   7. HMM + specialized sub-models per regime achieves R² = 0.93 on BTC forecasting
+  8. Active technical signal set is 4 (not 11 or 12): AdvancedStochastic, RSI-50,
+     FourierSupertrend, TrendStrengthIndex. FDI excluded. SGF excluded. 6 not yet ported.
+  9. Binary Hysteresis Sizing is in production: exposure is strictly 0 or 1.
+     Smooth conviction-weighted sizing replaced by binary state machine during optimisation.
 
   ## Conventions
   - Package manager: pip (python -m pip install)
@@ -94,6 +109,9 @@ context: |
   - Commit format: feat(layer): description (e.g., feat(regime): add 3-state HMM)
   - Branch format: feature/LTTD-{issue}-{short-desc}
   - Never force push; always git pull --rebase before pushing
+  - Start quant-btc-valuation-system BEFORE running pipeline/backfill
+  - Canonical local startup: bash scripts/start_all.sh (backend:8765, frontend:8766)
+  - ValuationApiClient base_url default: http://localhost:5173
 
 rules:
   proposal:
@@ -118,10 +136,13 @@ rules:
     - Specify the WFO window parameters (train/validate/test split)
     - Document the Glassnode API endpoint + field name for any on-chain metric used
     - If using PCA, specify minimum explained variance threshold (default: 85%)
+    - Document whether the change touches the Composite Oscillator circuit breaker; justify
+      threshold changes with backtest. Any sizing.py threshold change MUST be preceded by
+      optimize_binary.py run.
 
   tasks:
     - Break tasks into units completable in one coding session (≤ 2 hours)
     - Every indicator implementation task MUST include a paired task: "Write test_no_lookahead() for [indicator]"
     - "Tag tasks by layer: [REGIME], [SIGNAL], [FEATURE], [ENSEMBLE], [EXECUTION]"
     - Include a final task: "Run WFO backtest and document Sharpe/MaxDD delta vs baseline"
-    - "Mark tasks that modify the on-chain data pipeline with [DATA] — these require Glassnode API key"
+    - "Mark tasks that modify the on-chain data pipeline with [DATA] — BRK/bitview.space requires NO API key; Valuation API requires quant-btc-valuation-system to be running locally"

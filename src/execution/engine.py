@@ -85,7 +85,30 @@ class ExecutionEngine:
         except Exception as e:
             logger.warning(f"Could not fetch previous target_exposure from DB: {e}")
             
-        return None
+    def get_previous_circuit_breaker_from_db(self, date_str: str, db_path=None) -> bool:
+        """
+        Queries the database to find the last recorded circuit_breaker_active prior to the current date.
+        """
+        from src.execution.database import get_connection
+        
+        db_args = {}
+        if db_path is not None:
+            db_args["db_path"] = db_path
+
+        try:
+            with get_connection(**db_args) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT circuit_breaker_active FROM daily_lttd WHERE date < ? ORDER BY date DESC LIMIT 1",
+                    (date_str,),
+                )
+                row = cursor.fetchone()
+                if row and "circuit_breaker_active" in row.keys():
+                    return bool(row["circuit_breaker_active"])
+        except Exception as e:
+            logger.warning(f"Could not fetch previous circuit_breaker_active from DB: {e}")
+            
+        return False
 
     def run(
         self,
@@ -95,6 +118,7 @@ class ExecutionEngine:
         posteriors: Optional[Dict[str, float]] = None,
         log_return: float = 0.0,
         realized_volatility: float = 0.0,
+        composite_value: Optional[float] = None,
         db_path=None,
     ) -> Dict[str, Any]:
         """
@@ -111,13 +135,16 @@ class ExecutionEngine:
 
         # Retrieve previous exposure from database
         prev_exposure = self.get_previous_exposure_from_db(date_str, db_path=db_path)
+        prev_cb = self.get_previous_circuit_breaker_from_db(date_str, db_path=db_path)
 
         # 1. Calculate target exposure
-        target_exposure = calculate_target_exposure(
+        target_exposure, circuit_breaker_active = calculate_target_exposure(
             final_score,
             realized_volatility,
             regime_upper,
-            prev_exposure=prev_exposure
+            prev_exposure=prev_exposure,
+            composite_value=composite_value,
+            prev_circuit_breaker_active=prev_cb
         )
 
         # 2. Extract posteriors
@@ -153,6 +180,7 @@ class ExecutionEngine:
             final_score=final_score,
             target_exposure=target_exposure,
             posterior_prob=active_posterior,
+            circuit_breaker_active=circuit_breaker_active,
             **persist_kwargs,
         )
 
@@ -177,5 +205,6 @@ class ExecutionEngine:
             "regime": regime_upper,
             "final_score": final_score,
             "target_exposure": target_exposure,
+            "circuit_breaker_active": circuit_breaker_active,
             "transition_occurred": transition_payload is not None,
         }

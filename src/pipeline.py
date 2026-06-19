@@ -15,6 +15,7 @@ from src.ensemble.model import MLConsensusEngine
 from src.execution.engine import ExecutionEngine
 from src.execution.database import init_db
 from src.regime.filter import apply_onchain_overrides
+from src.data.valuation_api_client import ValuationApiClient
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ class LTTDPipeline:
     def __init__(self, db_path: Optional[str] = None, base_url: str = "https://bitview.space", ensemble_mode: str = "xgboost"):
         self.db_path = db_path
         self.brk_ingestion = BRKIngestionService(base_url=base_url)
+        self.valuation_client = ValuationApiClient()
         self.execution_engine = ExecutionEngine()
         self.ensemble_mode = ensemble_mode
         
@@ -217,6 +219,10 @@ class LTTDPipeline:
         
         date_str = t.strftime("%Y-%m-%d")
         
+        # Fetch composite value for circuit breaker
+        logger.info(f"Fetching valuation composite for {date_str}...")
+        composite_value = self.valuation_client.get_composite_value_for_date(t)
+
         # Run execution engine coordinator
         exec_res = self.execution_engine.run(
             date_str=date_str,
@@ -225,6 +231,7 @@ class LTTDPipeline:
             posteriors=overridden_posteriors,
             log_return=log_ret,
             realized_volatility=realized_vol,
+            composite_value=composite_value,
             db_path=self.db_path
         )
 

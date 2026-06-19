@@ -19,11 +19,14 @@ python -m pytest --cov
 # Install dependencies
 python -m pip install -r requirements.txt
 
-# Backtest run (when implemented)
+# Backtest run
 python -m src.backtest.runner --walk-forward --start 2017-01-01 --end 2025-01-01
 
 # Performance report (DB-only, no backend/frontend)
 python scripts/performance_report.py
+
+# One-shot local startup (backend :8765 + frontend :8766, opens Chrome)
+bash scripts/start_all.sh
 ```
 
 Run all tests and confirm they pass before finalizing any change.
@@ -42,7 +45,10 @@ Run all tests and confirm they pass before finalizing any change.
 | **Indicator Score** | Binary directional signal from a single indicator, ∈ {-1, +1} |
 | **Final Score** | Weighted ensemble output over all indicator scores, range [-1.0, +1.0] |
 | **Technical Indicator** | Price-derived signal computed from OHLCV data (e.g., Kalman RSI, FDI, Supertrend variants) |
-| **On-Chain Metric** | Blockchain-behavioral metric: STH-MVRV, STH-SOPR, NUPL, Supply In Profit (pulled live from Glassnode API) |
+| **On-Chain Metric** | Blockchain-behavioral metric: STH-MVRV, STH-SOPR, NUPL, Supply In Profit (fetched live via BRK API at bitview.space — no API key required) |
+| **Composite Oscillator** | External cross-cycle valuation signal from `quant-btc-valuation-system`; normalises macro tops to a bounded exhaustion value; sourced from `ValuationApiClient` |
+| **Circuit Breaker** | Hard stop in Layer 5 Sizing — forces `target_exposure = 0.0` when `composite_value <= -2.032903`; cool-off resets when `composite_value > 0.803830` |
+| **Binary Sizing** | Production exposure model: only `0.0` or `1.0` output — never fractional. Hysteresis: enter when `final_score >= 0.470671`, exit when `final_score <= 0.386242` |
 | **STH (Short-Term Holder)** | BTC addresses that held coins for fewer than 155 days — key cohort for MVRV/SOPR signals |
 | **LTH (Long-Term Holder)** | BTC addresses that held coins for more than 155 days — capitulation/conviction baseline |
 | **PCA Orthogonalization** | Principal Component Analysis applied to the indicator matrix to eliminate multicollinearity before aggregation |
@@ -86,6 +92,7 @@ LAYER 6: PRESENTATION            (backend/ + frontend/)
 - `src/features/` owns all multicollinearity detection. Run VIF check before adding any new indicator.
 - `src/ensemble/` applies WFO. No single static fit on full history.
 - `src/execution/` receives ONLY the `Final Score` + regime state. No raw indicators.
+- `src/data/valuation_api_client.py` — `ValuationApiClient` fetches the Composite Oscillator from the local `quant-btc-valuation-system` API (`http://localhost:5173/api/composite`). On failure, defaults silently to `0.0` — which **disables the circuit breaker**. This system must be running before `run_pipeline.py` or `backfill_all.py`.
 - `backend/` reads ONLY from SQLite (`lttd.db`). Never imports Python src directly.
 - `frontend/` fetches ONLY from `backend/` REST endpoints. No direct DB or Python calls.
 
@@ -102,12 +109,13 @@ LAYER 6: PRESENTATION            (backend/ + frontend/)
 
 ### HARD PROHIBITIONS (will cause invalid backtests or live losses)
 
-- ❌ **Never hardcode on-chain data as static arrays.** The Pine Script pattern (`F1_data = array.from("2024-01-01|1", ...)`) bypasses real-time latency and API revisions. All on-chain metrics MUST be fetched live via Glassnode API (or equivalent).
+- ❌ **Never hardcode on-chain data as static arrays.** The Pine Script pattern (`F1_data = array.from("2024-01-01|1", ...)`) bypasses real-time latency and API revisions. All on-chain metrics MUST be fetched live via the BRK API (bitview.space) — no Glassnode key needed.
 - ❌ **Never use symmetric/centered filters in real-time execution.** Savitzky-Golay with a centered window references future bars. Any filter using `source[i]` for negative `i` (or future offsets in Python: `series[t+k]`) introduces lookahead bias. Use `CausalFilter` base class only.
 - ❌ **Never stack raw correlated indicators.** Never average 12 RSI/DEMA variants and call it "multi-indicator." Always run VIF analysis first. Drop or orthogonalize indicators with VIF > 10.
 - ❌ **Never fit the ensemble on the full historical dataset.** Always use Walk-Forward Optimization. Static fits overfit to the market regime that no longer exists.
 - ❌ **Never assume on-chain data timestamp = event timestamp.** BRK data is derived from on-chain settled state; always use the `stamp` field from the API response as the `data_as_of` value, not `datetime.now()`.
 - ❌ **Never use Pine Script `calc_on_every_tick = true` patterns in Python.** All indicator computations run on closed/confirmed bars (`barstate.isconfirmed` equivalent = using `shift(1)` in pandas to avoid leakage).
+- ❌ **Never run `backfill_all.py` or `run_pipeline.py` without the `quant-btc-valuation-system` API running.** The `ValuationApiClient` defaults to `0.0` on failure, which silently disables the circuit breaker for all affected dates — producing invalid exposure signals.
 
 ### REQUIRED PRACTICES
 
@@ -116,6 +124,7 @@ LAYER 6: PRESENTATION            (backend/ + frontend/)
 - ✅ All on-chain metrics must be fetched via the BRK API (`https://bitview.space/api/series/{name}/day`) or `brk-client`. Use a typed `BRKFeed` interface (not raw `requests` dict access)
 - ✅ Use the correct BRK series names: `sth_mvrv`, `sth_nupl`, `sth_sopr_24h`, `sth_supply_in_profit` (NOT Glassnode names)
 - ✅ Log every `Regime` transition with timestamp, posterior probability, and triggering metrics
+- ✅ When adding a new signal to `FeatureMatrixBuilder`, register it in **both** `src/features/builder.py` AND `src/features/processor.py → tech_indicators_list`. Missing the latter means the indicator is built but never VIF-pruned or PCA-transformed.
 
 ---
 
@@ -123,18 +132,35 @@ LAYER 6: PRESENTATION            (backend/ + frontend/)
 
 ### Ensemble Model Defaults
 
-- The default ensemble model is **`PCAConsensusEnsemble`** (Option A) which orthogonalizes the feature matrix and weights indicators by their explained variance.
-- Alternative models include `Lasso` regression (ElasticNet consensus) and `XGBoost` regression.
+The **default ensemble mode** is **`xgboost`** (configured in `LTTDPipeline(ensemble_mode="xgboost")`).
+Alternative modes selectable at runtime:
 
-### Conviction-Weighted Position Sizing
+| Mode | Class | Notes |
+|---|---|---|
+| `"xgboost"` (default) | `XGBoostEnsemble` | `src/ensemble/xgboost_model.py` |
+| `"pca_consensus"` | `PCAConsensusEnsemble` | PCA-weighted voting on PC1 loadings |
+| `"lasso"` | `MLConsensusEngine` | L1-regularized Lasso regression |
 
-Target exposure is calculated dynamically on closed bars using the following sequence:
+> **Note:** `backfill_all.py` (historical backfill) uses `L1LassoEnsemble` directly — a different code path from `run_pipeline.py`.
 
-1. **Base Exposure**: $E_{\text{base}} = 0.5 + 0.5 \cdot |S_{\text{final}}|$ where $S_{\text{final}} \in [-1.0, 1.0]$ is the momentum-oriented final score.
-2. **Volatility Scalar**: $S_{\text{vol}} = \max\left(0.3, 1.0 - \frac{\sigma_{\text{realized}}}{0.8}\right)$ where $\sigma_{\text{realized}}$ is the 21-day rolling realized daily log returns volatility.
-3. **Raw Exposure**: $E_{\text{raw}} = E_{\text{base}} \cdot S_{\text{vol}}$ bounded within $[0.3, 1.0]$.
-4. **EMA Smoothing**: Smoothed using a 5-day EMA ($\alpha = \frac{1}{3}$): $E_{\text{smoothed}} = \alpha \cdot E_{\text{raw}} + (1 - \alpha) \cdot E_{\text{prev}}$.
-5. **Daily Change Clamping**: The daily exposure change is clamped to a maximum of $\pm 0.2$ to minimize live slippage and execution costs.
+### Binary Hysteresis Position Sizing (Production)
+
+Exposure is computed as a **strict binary state machine** (`src/execution/sizing.py`). Output is always `0.0` or `1.0`.
+
+**Tier 1 — Composite Oscillator Circuit Breaker (highest priority):**
+- **Activate** when `composite_value <= -2.032903` → force `target_exposure = 0.0`
+- **Cool-off**: stays at `0.0` until `composite_value > 0.803830`, then normal logic resumes
+
+**Tier 2 — Score-based Hysteresis Entry/Exit:**
+- If currently IN (`prev_exposure >= 0.9`): EXIT when `final_score <= 0.386242`
+- If currently OUT: ENTER when `final_score >= 0.470671`
+
+**Tier 3 — Deep Value Accumulation Override:**
+- If `composite_value >= 2.000613` AND `exposure == 0.0`: force entry `exposure = 1.0`
+
+> **⚠️ Do NOT change these thresholds arbitrarily.** They were derived from `scripts/optimize_binary.py`. Any threshold change must be preceded by a full WFO backtest comparison (CAGR + Max DD vs baseline).
+
+> The original smooth EMA-based conviction sizing described in research specs was replaced by this binary model during optimisation. Do not revert without a documented backtest justification.
 
 ---
 
@@ -146,7 +172,7 @@ Target exposure is calculated dynamically on closed bars using the following seq
   - `feat(regime): add 3-state HMM training pipeline`
   - `feat(signals): implement causal Kalman RSI`
   - `fix(ensemble): correct PCA component selection threshold`
-  - `data(onchain): update Glassnode API client for MVRV endpoint`
+  - `data(onchain): update BRK ingestion service for MVRV endpoint`
   - `backtest(wfo): implement walk-forward optimization runner`
   - `refactor(features): replace VIF threshold from 10 to 8`
 - **PR Rules:** Every PR must include a backtest delta summary (Sharpe before/after, max drawdown change)
@@ -229,6 +255,14 @@ openspec list
 
 - **[2026-06-07] Multicollinearity in 12 Technical Indicators:** The legacy script stacks 12 indicators all measuring the same underlying signal (momentum/trend direction via different MA variants). VIF analysis would reveal 9 of 12 have VIF > 10. Simple averaging inflates model confidence and causes synchronized failure during regime shifts. After PCA orthogonalization, the first 3 components capture >85% of variance — the remaining 9 indicators add noise, not signal.
 
+- **[2026-06-19] Active Signal Set is 4, not 11:** `FeatureMatrixBuilder` (`src/features/builder.py`) currently computes 4 technical signals: `AdvancedStochastic`, `RSI-50`, `FourierSupertrend`, `TrendStrengthIndex`. `FDI` is built but disabled (non-directional; breaks linear consensus). The 12-indicator count in research specs represents the **design target**, not current production state. Any new indicator must pass VIF < 10 AND directional-linearity validation before being added.
+
+- **[2026-06-19] Composite Circuit Breaker is Live:** `src/execution/sizing.py` implements a composite oscillator circuit breaker with optimised thresholds (`-2.032903` entry, `+0.803830` reset). This completely overrides HMM regime and ensemble score during bubble exhaustion phases. The thresholds were found via `scripts/optimize_binary.py` — do not modify without a full backtest.
+
+- **[2026-06-19] Binary Sizing Replaced Smooth EMA Model:** The smooth conviction-weighted EMA sizing (base × vol-scalar × EMA) described in the original research spec was replaced during optimisation by a binary 0/1 hysteresis state machine. The production output is always exactly `0.0` or `1.0`. Do not re-introduce fractional sizing without a WFO backtest justification.
+
+- **[2026-06-19] Port Reality:** Backend runs on `:8765`, frontend preview on `:8766` (set in `scripts/start_all.sh`). Old references to `:4000` (backend) and `:5173` (frontend) are incorrect — `:5173` is used by `quant-btc-valuation-system`, not this project's frontend.
+
 ---
 
 ## How to Run the Project Locally
@@ -250,24 +284,28 @@ python backfill_all.py
 python backfill.py
 ```
 
-**2. Start the Backend API**
-The Hono backend connects to the SQLite database and serves the data:
+**0. Prerequisite: Start quant-btc-valuation-system**
+The circuit breaker in `sizing.py` fetches the Composite Oscillator from this system. Start it first or the circuit breaker defaults to disabled:
 
 ```bash
-cd backend
-bun install
-# Runs on http://localhost:4000 by default
-bun run index.ts
+# In a separate terminal — run in the quant-btc-valuation-system directory
+bash scripts/start_all.sh   # or equivalent for that repo
 ```
 
-**3. Start the Frontend Application**
-Open a new terminal session for the React SPA:
+**2. Start the Backend API + Frontend (one-shot)**
 
 ```bash
-cd frontend
-bun install
-# Runs on Vite default port (usually http://localhost:5173)
-bun run dev
+# Recommended: start everything at once (backend :8765, frontend :8766)
+bash scripts/start_all.sh
+```
+
+Or manually:
+```bash
+# Backend (http://localhost:8765)
+cd backend && bun install && PORT=8765 bun index.ts
+
+# Frontend (http://localhost:8766) — new terminal
+cd frontend && bun install && VITE_API_URL=http://localhost:8765 bun run dev
 ```
 
 **4. Performance Report (Optional)**  
@@ -283,5 +321,5 @@ Output: Sharpe, CAGR, max DD, trade stats, regime breakdown, yearly/monthly retu
 Finally, open Google Chrome to view the dashboard:
 
 ```bash
-google-chrome http://localhost:5173
+google-chrome http://localhost:8766
 ```
