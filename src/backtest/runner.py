@@ -43,9 +43,17 @@ class MockExecutionAdapter:
         realized_volatility: float = 0.0,
         composite_value: float = 0.0,
     ) -> Dict[str, Any]:
+        from src.execution.sizing import calculate_target_exposure, EMA_SPAN
+        
+        # Calculate EMA smoothed score using historical raw scores in self.records
+        past_scores = [r["final_score"] for r in self.records]
+        all_scores = past_scores + [final_score]
+        scores_series = pd.Series(all_scores)
+        smoothed_score = float(scores_series.ewm(span=EMA_SPAN, adjust=False).mean().iloc[-1])
+
         regime_upper = regime
         target_exposure, is_cb_active = calculate_target_exposure(
-            final_score,
+            smoothed_score,
             realized_volatility,
             regime=regime_upper,
             prev_exposure=self.previous_exposure,

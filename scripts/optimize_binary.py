@@ -41,7 +41,9 @@ def load_data():
     val_df = val_client._historical_cache
     if val_df is not None:
         val_df = val_df.copy()
-        val_df["date"] = pd.to_datetime(val_df["date"]).dt.tz_convert(None)
+        val_df["date"] = pd.to_datetime(val_df["date"])
+        if val_df["date"].dt.tz is not None:
+            val_df["date"] = val_df["date"].dt.tz_convert(None)
         val_df.set_index("date", inplace=True)
         df = df.join(val_df[["composite_value"]], how="left")
     df["composite_value"] = df["composite_value"].fillna(0.0)
@@ -307,7 +309,7 @@ def main():
         "ema_span": max(2, int(round(x[0]))),
         "score_entry": x[1],
         "score_exit": x[2],
-        "use_bear_override": x[6] > 0.5,
+        "use_bear_override": bool(x[6] > 0.5),
         "cb_activate": x[3],
         "cb_cooloff": x[4],
         "comp_entry_boost": x[5],

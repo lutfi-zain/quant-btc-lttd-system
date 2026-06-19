@@ -8,25 +8,32 @@ def test_mock_execution_adapter():
     adapter = MockExecutionAdapter()
     
     # 1. First record (no transition should be logged since previous_regime is None)
-    # Score 0.70 > 0.65 (enter_thresh) => exposure = 1.0
+    # Score 0.70 > SCORE_ENTRY => exposure = 1.0
     res1 = adapter.run("2026-01-01", 0.7, "BULL", {"BULL": 0.8, "BEAR": 0.1, "SIDEWAYS": 0.1})
     assert res1["target_exposure"] == 1.0
     assert res1["regime"] == "BULL"
     assert res1["transition_occurred"] is False
     assert len(adapter.transitions) == 0
     
-    # 2. Second record (transition from BULL to BEAR)
-    res2 = adapter.run("2026-01-02", -0.2, "BEAR", {"BULL": 0.0, "BEAR": 0.9, "SIDEWAYS": 0.1})
-    assert res2["target_exposure"] == pytest.approx(0.0)
+    # 2. Second record (transition from BULL to BEAR score-wise, but EMA smoothing keeps us in)
+    res2 = adapter.run("2026-01-02", -1.0, "BEAR", {"BULL": 0.0, "BEAR": 0.9, "SIDEWAYS": 0.1})
+    assert res2["target_exposure"] == 1.0
     assert res2["regime"] == "BEAR"
     assert res2["transition_occurred"] is True
+    assert len(adapter.transitions) == 1
+    
+    # 3. Third record (EMA score falls below SCORE_EXIT => we exit)
+    res3 = adapter.run("2026-01-03", -1.0, "BEAR", {"BULL": 0.0, "BEAR": 0.9, "SIDEWAYS": 0.1})
+    assert res3["target_exposure"] == pytest.approx(0.0)
+    assert res3["regime"] == "BEAR"
+    assert res3["transition_occurred"] is False
     assert len(adapter.transitions) == 1
     assert adapter.transitions[0]["from_regime"] == "BULL"
     assert adapter.transitions[0]["to_regime"] == "BEAR"
     
-    # 3. Retrieve dataframe
+    # 4. Retrieve dataframe
     df = adapter.get_dataframe()
-    assert len(df) == 2
+    assert len(df) == 3
     assert "target_exposure" in df.columns
     assert "regime" in df.columns
 

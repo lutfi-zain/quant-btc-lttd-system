@@ -18,7 +18,7 @@ class ValuationApiClient:
         self._cached_value: float = 0.0
         self._historical_cache: Optional[pd.DataFrame] = None
 
-    def get_latest_composite_value(self, timeout: int = 5) -> float:
+    def get_latest_composite_value(self, timeout: int = 15) -> float:
         """
         Fetches the latest composite oscillator value.
         Uses a basic cache to avoid repeatedly fetching the same data on the same day.
@@ -60,7 +60,7 @@ class ValuationApiClient:
             logger.warning(f"Failed to parse Valuation API response: {e}. Defaulting composite to 0.0.")
             return 0.0
 
-    def get_composite_value_for_date(self, target_date: pd.Timestamp, timeout: int = 5) -> float:
+    def get_composite_value_for_date(self, target_date: pd.Timestamp, timeout: int = 15) -> float:
         """
         Fetches the composite oscillator value exactly as of or immediately prior to the given target_date.
         """

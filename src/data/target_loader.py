@@ -5,12 +5,12 @@ from src.data.pipeline import ohlcv_pipeline
 
 def compute_forward_returns_target(close_series: pd.Series) -> pd.Series:
     """
-    Computes 21-day forward log return, z-score normalized using a rolling 252-day window,
+    Computes 10-day forward log return, z-score normalized using a rolling 252-day window,
     and clipped to [-1, +1].
     """
-    # 21-day forward log return: log(close[t+21] / close[t])
+    # 10-day forward log return: log(close[t+10] / close[t])
     log_close = np.log(close_series)
-    fwd_ret = log_close.shift(-21) - log_close
+    fwd_ret = log_close.shift(-10) - log_close
     
     # Rolling 252-day window volatility normalization (NO mean subtraction!)
     rolling_std = fwd_ret.rolling(window=252, min_periods=120).std()
@@ -32,10 +32,10 @@ def compute_forward_returns_target(close_series: pd.Series) -> pd.Series:
     # This teaches the model that bounce rallies in a macro bear are not profitable buy signals
     target.loc[macro_bear_mask & (target > 0)] = 0.0
     
-    # Explicitly ensure target for date t is NaN if t+21 is not in the close_series index
-    # (i.e. we don't have price data for t+21)
-    if len(target) >= 21:
-        target.iloc[-21:] = np.nan
+    # Explicitly ensure target for date t is NaN if t+10 is not in the close_series index
+    # (i.e. we don't have price data for t+10)
+    if len(target) >= 10:
+        target.iloc[-10:] = np.nan
     else:
         target.iloc[:] = np.nan
             
@@ -62,24 +62,24 @@ def load_regime_targets(index: pd.DatetimeIndex, close_series: pd.Series = None)
     aligned_targets = targets.reindex(index)
     
     # Forward fill then backward fill to handle alignment bounds
-    # but only up to the last 21 rows (to avoid leakage/fake data filling)
-    if len(aligned_targets) > 21:
-        non_nan_part = aligned_targets.iloc[:-21].ffill().bfill()
-        aligned_targets.iloc[:-21] = non_nan_part
+    # but only up to the last 10 rows (to avoid leakage/fake data filling)
+    if len(aligned_targets) > 10:
+        non_nan_part = aligned_targets.iloc[:-10].ffill().bfill()
+        aligned_targets.iloc[:-10] = non_nan_part
         
     return aligned_targets
 
 def validate_target_alignment(y: pd.Series, X: pd.DataFrame) -> None:
     """
     Validates that the target series y perfectly aligns with feature dataframe X.
-    NaNs are permitted in the last 21 rows of y (freshness warmup).
+    NaNs are permitted in the last 10 rows of y (freshness warmup).
     """
     if not y.index.equals(X.index):
         raise ValueError("Target index does not match Feature index. Misalignment detected.")
         
-    # Check for NaNs except in the last 21 rows of the dataset
-    if len(y) > 21:
-        non_fresh_y = y.iloc[:-21]
+    # Check for NaNs except in the last 10 rows of the dataset
+    if len(y) > 10:
+        non_fresh_y = y.iloc[:-10]
         if non_fresh_y.isnull().any():
             raise ValueError("Target series contains NaN values (gaps) in historical period.")
     else:

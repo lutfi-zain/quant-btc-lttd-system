@@ -110,6 +110,31 @@ class ExecutionEngine:
             
         return False
 
+    def get_previous_scores_from_db(self, date_str: str, db_path=None) -> list:
+        """
+        Queries the database to find recent raw final_scores prior to the current date.
+        """
+        from src.execution.database import get_connection
+        
+        db_args = {}
+        if db_path is not None:
+            db_args["db_path"] = db_path
+
+        try:
+            with get_connection(**db_args) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT final_score FROM daily_lttd WHERE date < ? ORDER BY date DESC LIMIT 100",
+                    (date_str,),
+                )
+                rows = cursor.fetchall()
+                # Rows are ordered descending (newest first). Reverse to make chronological.
+                return [row["final_score"] for row in reversed(rows)]
+        except Exception as e:
+            logger.warning(f"Could not fetch previous scores from DB: {e}")
+            
+        return []
+
     def run(
         self,
         date_str: str,
@@ -125,21 +150,28 @@ class ExecutionEngine:
         Coordinated Layer 5 pipeline run.
         Computes target exposure, logs regime transitions, and persists state to SQLite.
         """
-        from src.execution.sizing import calculate_target_exposure
+        from src.execution.sizing import calculate_target_exposure, EMA_SPAN
         from src.execution.logger import RegimeTransitionLogger
         from src.execution.persistence import upsert_daily_lttd, log_regime_transition
         import json
+        import pandas as pd
 
         # Use exact regime case
         regime_upper = regime
 
-        # Retrieve previous exposure from database
+        # Retrieve previous exposure and circuit breaker state
         prev_exposure = self.get_previous_exposure_from_db(date_str, db_path=db_path)
         prev_cb = self.get_previous_circuit_breaker_from_db(date_str, db_path=db_path)
 
-        # 1. Calculate target exposure
+        # Compute EMA smoothed score
+        past_scores = self.get_previous_scores_from_db(date_str, db_path=db_path)
+        all_scores = past_scores + [final_score]
+        scores_series = pd.Series(all_scores)
+        smoothed_score = float(scores_series.ewm(span=EMA_SPAN, adjust=False).mean().iloc[-1])
+
+        # 1. Calculate target exposure using the smoothed score
         target_exposure, circuit_breaker_active = calculate_target_exposure(
-            final_score,
+            smoothed_score,
             realized_volatility,
             regime_upper,
             prev_exposure=prev_exposure,

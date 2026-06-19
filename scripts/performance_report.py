@@ -28,11 +28,11 @@ def connect():
 def sim_equity(signals: pd.DataFrame) -> pd.DataFrame:
     """
     Simulate equity curve from daily signals.
-    - Position = sign(final_score) * target_exposure
-    - Daily return = position.shift(1) * log_return
+    - Position = target_exposure
+    - Daily return = position.shift(1) * simple_return
     """
     df = signals.copy().sort_values("date")
-    df["position"] = np.sign(df["final_score"]) * df["target_exposure"].abs()
+    df["position"] = df["target_exposure"].abs()
     df["strat_return"] = df["position"].shift(1) * df["simple_return"]
     df["strat_return"] = df["strat_return"].fillna(0.0)
     df["equity"] = (1 + df["strat_return"]).cumprod()

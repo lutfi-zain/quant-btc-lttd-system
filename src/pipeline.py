@@ -183,8 +183,8 @@ class LTTDPipeline:
             idx_all = feature_matrix.index[feature_matrix.index <= t]
             all_scores = model.predict_score(feature_matrix.loc[idx_all])
             
-            # Smooth PCA scores to reduce noise (3-day EMA based on opt)
-            smoothed = all_scores.ewm(span=9, adjust=False).mean()
+            # Smooth PCA scores to reduce noise
+            smoothed = all_scores.ewm(span=14, adjust=False).mean()
             final_score = float(smoothed.iloc[-1])
 
         elif self.ensemble_mode == "xgboost":

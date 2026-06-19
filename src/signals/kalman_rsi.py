@@ -127,9 +127,9 @@ class KalmanRSI(CausalFilter):
         eff_period = int(lookbacks.median()) if len(lookbacks) > 0 else self.rsi_period
         rsi = self._pandas_rsi(filtered_price, eff_period)
 
-        # 3. Normalize over 100-day window (Pine Script: lowest/highest(rsi, 100))
-        lowest_100 = rsi.rolling(window=100, min_periods=1).min()
-        highest_100 = rsi.rolling(window=100, min_periods=1).max()
+        # 3. Normalize over 30-day window (to reduce lag)
+        lowest_100 = rsi.rolling(window=30, min_periods=1).min()
+        highest_100 = rsi.rolling(window=30, min_periods=1).max()
         
         denom = highest_100 - lowest_100
         # Avoid division by zero

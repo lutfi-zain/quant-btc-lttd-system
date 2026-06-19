@@ -247,9 +247,10 @@ def main():
     print("Applying EMA smoothing and sequential exposure sizing...")
     raw_scores = [r["final_score"] for r in results]
     scores_series = pd.Series(raw_scores)
-    smoothed_scores = scores_series.ewm(span=7, adjust=False).mean().tolist()
     
-    from src.execution.sizing import calculate_target_exposure
+    from src.execution.sizing import calculate_target_exposure, EMA_SPAN
+    smoothed_scores = scores_series.ewm(span=EMA_SPAN, adjust=False).mean().tolist()
+    
     from src.data.valuation_api_client import ValuationApiClient
     valuation_client = ValuationApiClient()
     
@@ -299,8 +300,8 @@ def main():
     for r in results:
         date_str = r["date"]
         regime = r["regime"]
-        # Save smoothed score instead of raw score
-        final_score = r["smoothed_score"]
+        # Save raw score to DB so optimize_binary can simulate different EMA spans
+        final_score = r["final_score"]
         target_exposure = r["target_exposure"]
         posterior_prob = r["posterior_prob"]
         cb_active = r["circuit_breaker_active"]

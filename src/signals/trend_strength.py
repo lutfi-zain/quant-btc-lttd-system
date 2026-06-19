@@ -14,7 +14,7 @@ class TrendStrengthIndex(CausalFilter):
     def __init__(
         self,
         dynamic_lookback=None,
-        vwma_length=179,
+        vwma_length=90,
         atr_length=25,
         trend_enter=1.5,
         trend_exit=1.0,
