@@ -31,6 +31,8 @@ def test_feature_matrix_builder_shape(sample_data):
             "FourierSupertrend",
             "TrendStrengthIndex",
             "Ichimoku",
+            "Entropy",
+            "ER",
         ]
     )
     # Check no NaN values are present at the end of the series
@@ -89,7 +91,7 @@ def test_feature_matrix_onchain_momentum_pruning(sample_data):
     data["sth_supply_in_profit"] = data["sth_sopr_24h"]
 
     builder = FeatureMatrixBuilder()
-    matrix = builder.build_matrix(data)
+    matrix = builder.build_matrix(data).dropna()
 
     assert "sth_mvrv_roc_7" in matrix.columns
     assert "sth_nupl_roc_7" in matrix.columns

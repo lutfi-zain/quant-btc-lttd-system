@@ -46,6 +46,9 @@ class MockExecutionAdapter:
         composite_value: float = 0.0,
         price: Optional[float] = None,
         ma_val: Optional[float] = None,
+        entropy_val: Optional[float] = None,
+        er_val: Optional[float] = None,
+        cloud_min: Optional[float] = None,
     ) -> Dict[str, Any]:
         from src.execution.sizing import (
             calculate_target_exposure,
@@ -83,7 +86,10 @@ class MockExecutionAdapter:
             days_since_exit=self.days_since_exit,
             days_in_position=self.days_in_position,
             price=price,
-            ma_val=ma_val
+            ma_val=ma_val,
+            entropy_val=entropy_val,
+            er_val=er_val,
+            cloud_min=cloud_min
         )
         self.previous_exposure = target_exposure
         self.previous_circuit_breaker_active = is_cb_active
@@ -276,6 +282,23 @@ def _run_fold(
     from src.execution.sizing import MA_PERIOD, USE_MA_FILTER
     ma_series = df_merged["close"].rolling(MA_PERIOD).mean() if USE_MA_FILTER else None
     
+    # Pre-calculate gates on df_merged
+    from src.signals.entropy import ShannonEntropyFilter
+    entropy_filter = ShannonEntropyFilter()
+    entropy_series = entropy_filter.compute(df_merged)
+    
+    from src.signals.efficiency_ratio import KaufmanEfficiencyRatioFilter
+    er_filter = KaufmanEfficiencyRatioFilter()
+    er_series = er_filter.compute(df_merged)
+    
+    high_m = df_merged["high"]
+    low_m = df_merged["low"]
+    tenkan_m = (high_m.rolling(20).max() + low_m.rolling(20).min()) / 2
+    kijun_m = (high_m.rolling(60).max() + low_m.rolling(60).min()) / 2
+    sa_m = ((tenkan_m + kijun_m) / 2).shift(60)
+    sb_m = ((high_m.rolling(120).max() + low_m.rolling(120).min()) / 2).shift(60)
+    cloud_min_series = np.minimum(sa_m, sb_m)
+    
     for i, date in enumerate(test_idx):
         date_str = date.strftime("%Y-%m-%d")
         score = float(test_scores.loc[date])
@@ -306,6 +329,10 @@ def _run_fold(
         price = float(df_merged.loc[date, "close"])
         ma_val = float(ma_series.loc[date]) if (USE_MA_FILTER and not pd.isna(ma_series.loc[date])) else None
 
+        entropy_val = float(entropy_series.loc[date]) if not pd.isna(entropy_series.loc[date]) else None
+        er_val = float(er_series.loc[date]) if not pd.isna(er_series.loc[date]) else None
+        cloud_min = float(cloud_min_series.loc[date]) if not pd.isna(cloud_min_series.loc[date]) else None
+
         res_record = adapter.run(
             date_str=date_str,
             final_score=score,
@@ -316,12 +343,19 @@ def _run_fold(
             realized_volatility=realized_vol,
             composite_value=comp_val,
             price=price,
-            ma_val=ma_val
+            ma_val=ma_val,
+            entropy_val=entropy_val,
+            er_val=er_val,
+            cloud_min=cloud_min
         )
         
         # Extract features for telemetry
         indicator_scores = feature_matrix.loc[date, processor.tech_indicators_list].to_dict()
         indicator_scores = {k: float(v) if not pd.isna(v) else 0.0 for k, v in indicator_scores.items()}
+        if "Entropy" in feature_matrix.columns:
+            indicator_scores["Entropy"] = float(feature_matrix.loc[date, "Entropy"]) if not pd.isna(feature_matrix.loc[date, "Entropy"]) else 0.0
+        if "ER" in feature_matrix.columns:
+            indicator_scores["ER"] = float(feature_matrix.loc[date, "ER"]) if not pd.isna(feature_matrix.loc[date, "ER"]) else 0.0
         
         pca_cols = [c for c in X_test_proc.columns if c.startswith("PC")]
         pca_components = X_test_proc.loc[date, pca_cols].to_dict()

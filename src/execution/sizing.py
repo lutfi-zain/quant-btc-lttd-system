@@ -16,6 +16,11 @@ MHP_DAYS = 17
 USE_MA_FILTER = True
 MA_PERIOD = 226
 
+# Ichimoku & Noise Gates parameters
+ER_ENTRY = 0.25
+ENTROPY_THRESH = 2.40
+USE_CLOUD_GATE = True
+
 def super_smoother(series: pd.Series, period: int) -> pd.Series:
     """
     John Ehlers' 2-pole SuperSmoother filter.
@@ -52,7 +57,10 @@ def calculate_target_exposure(
     days_since_exit: Optional[int] = None,
     days_in_position: Optional[int] = None,
     price: Optional[float] = None,
-    ma_val: Optional[float] = None
+    ma_val: Optional[float] = None,
+    entropy_val: Optional[float] = None,
+    er_val: Optional[float] = None,
+    cloud_min: Optional[float] = None
 ) -> Tuple[float, bool]:
     """
     Computes target exposure based on tiered state machine using asymmetric spans, RCO, and MHP.
@@ -89,7 +97,22 @@ def calculate_target_exposure(
             if USE_MA_FILTER and price is not None and ma_val is not None:
                 ma_condition = (price > ma_val)
                 
-            if smoothed_score_entry >= SCORE_ENTRY and ma_condition:
+            # Kaufman Efficiency Ratio Gate
+            er_condition = True
+            if er_val is not None:
+                er_condition = (er_val >= ER_ENTRY)
+
+            # Shannon Entropy Gate
+            entropy_condition = True
+            if entropy_val is not None:
+                entropy_condition = (entropy_val <= ENTROPY_THRESH)
+
+            # Ichimoku Cloud Gate
+            cloud_condition = True
+            if USE_CLOUD_GATE and cloud_min is not None and price is not None:
+                cloud_condition = (price >= cloud_min)
+
+            if smoothed_score_entry >= SCORE_ENTRY and ma_condition and er_condition and entropy_condition and cloud_condition:
                 exposure = 1.0
 
     # 3. BEAR regime override

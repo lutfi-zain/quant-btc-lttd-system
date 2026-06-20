@@ -91,7 +91,7 @@ def test_pipeline_run_daily_success(tmp_path, mock_ohlcv_data, mock_onchain_data
             
             # Verify telemetry persistence
             cursor.execute("SELECT COUNT(*) FROM indicator_scores WHERE date = '2023-07-24'")
-            assert cursor.fetchone()[0] == 5 # exactly 5 technical indicators
+            assert cursor.fetchone()[0] == 7 # exactly 7 technical indicators
             
             cursor.execute("SELECT COUNT(*) FROM pca_components WHERE date = '2023-07-24'")
             assert cursor.fetchone()[0] > 0 # PCA components persisted

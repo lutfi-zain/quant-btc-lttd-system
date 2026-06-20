@@ -42,7 +42,7 @@ class BRKExchangeAdapter(ExchangeAdapter):
             data[m] = pd.Series(res["data"])
 
         idx_range = range(start_idx, end_idx + 1)
-        dates = [pd.Timestamp("2009-01-03", tz="UTC") + pd.Timedelta(days=i) for i in idx_range]
+        dates = [pd.Timestamp("2009-01-01", tz="UTC") + pd.Timedelta(days=i) for i in idx_range]
 
         df = pd.DataFrame({
             "open": data["price_open"].values,

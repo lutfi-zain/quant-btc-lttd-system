@@ -47,12 +47,33 @@ def init_db(db_path=DEFAULT_DB_PATH):
         except sqlite3.OperationalError:
             pass # Column probably already exists
 
+        # Check if existing indicator_scores table has the check constraint
+        cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='indicator_scores'")
+        row = cursor.fetchone()
+        if row and "CHECK" in row[0] and "score >= -1.0" in row[0]:
+            # Migrate table to remove CHECK constraint (allows values like Shannon Entropy)
+            cursor.execute("ALTER TABLE indicator_scores RENAME TO indicator_scores_old")
+            cursor.execute("""
+                CREATE TABLE indicator_scores (
+                    date TEXT,
+                    indicator_name TEXT,
+                    score REAL NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (date, indicator_name)
+                )
+            """)
+            cursor.execute("""
+                INSERT INTO indicator_scores (date, indicator_name, score, created_at)
+                SELECT date, indicator_name, score, created_at FROM indicator_scores_old
+            """)
+            cursor.execute("DROP TABLE indicator_scores_old")
+
         # Create indicator_scores table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS indicator_scores (
                 date TEXT,
                 indicator_name TEXT,
-                score REAL CHECK(score >= -1.0 AND score <= 1.0) NOT NULL,
+                score REAL NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (date, indicator_name)
             )

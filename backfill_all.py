@@ -102,6 +102,10 @@ def process_single_day(t, df_merged, feature_matrix, log_returns, y):
         # Get indicator scores and PCA components
         indicator_scores = feature_matrix_t.loc[t, processor.tech_indicators_list].to_dict()
         indicator_scores = {k: float(v) if not pd.isna(v) else 0.0 for k, v in indicator_scores.items()}
+        if "Entropy" in feature_matrix_t.columns:
+            indicator_scores["Entropy"] = float(feature_matrix_t.loc[t, "Entropy"]) if not pd.isna(feature_matrix_t.loc[t, "Entropy"]) else 0.0
+        if "ER" in feature_matrix_t.columns:
+            indicator_scores["ER"] = float(feature_matrix_t.loc[t, "ER"]) if not pd.isna(feature_matrix_t.loc[t, "ER"]) else 0.0
         
         pca_cols = [c for c in X_test_proc.columns if c.startswith("PC")]
         pca_components = X_test_proc.loc[t, pca_cols].to_dict()
@@ -150,7 +154,7 @@ def main():
     from brk_client import BrkClient
     res_price = requests.get('https://bitview.space/api/series/bulk?series=price_ohlc&index=day1&start=-4500').json()
     brk_client = BrkClient()
-    start_date = pd.Timestamp("2009-01-03", tz="UTC") + pd.Timedelta(days=res_price["start"])
+    start_date = pd.Timestamp("2009-01-01", tz="UTC") + pd.Timedelta(days=res_price["start"])
     dates = pd.date_range(start=start_date, periods=len(res_price["data"]), freq="D", tz="UTC", name="timestamp")
     df_ohlcv = pd.DataFrame(res_price["data"], index=dates, columns=["open", "high", "low", "close"])
     df_ohlcv["volume"] = 1.0 # Constant volume fallback for VWMA calculation
@@ -272,8 +276,27 @@ def main():
     smoothed_entry_list = super_smoother(scores_series, period=SUPERSMOOTHER_PERIOD_ENTRY).tolist()
     smoothed_exit_list = super_smoother(scores_series, period=SUPERSMOOTHER_PERIOD_EXIT).tolist()
     
-    # Pre-calculate MA on df_merged
+    # Pre-calculate gates on df_merged
     ma_series = df_merged["close"].rolling(MA_PERIOD).mean() if USE_MA_FILTER else None
+    
+    # Entropy
+    from src.signals.entropy import ShannonEntropyFilter
+    entropy_filter = ShannonEntropyFilter()
+    entropy_series = entropy_filter.compute(df_merged)
+    
+    # Kaufman ER
+    from src.signals.efficiency_ratio import KaufmanEfficiencyRatioFilter
+    er_filter = KaufmanEfficiencyRatioFilter()
+    er_series = er_filter.compute(df_merged)
+    
+    # Ichimoku Cloud min causally
+    high_m = df_merged["high"]
+    low_m = df_merged["low"]
+    tenkan_m = (high_m.rolling(20).max() + low_m.rolling(20).min()) / 2
+    kijun_m = (high_m.rolling(60).max() + low_m.rolling(60).min()) / 2
+    sa_m = ((tenkan_m + kijun_m) / 2).shift(60)
+    sb_m = ((high_m.rolling(120).max() + low_m.rolling(120).min()) / 2).shift(60)
+    cloud_min_series = np.minimum(sa_m, sb_m)
     
     from src.data.valuation_api_client import ValuationApiClient
     valuation_client = ValuationApiClient()
@@ -302,6 +325,11 @@ def main():
         price = float(df_merged.loc[t_date, "close"])
         ma_val = float(ma_series.loc[t_date]) if (USE_MA_FILTER and not pd.isna(ma_series.loc[t_date])) else None
         
+        # Get gate values
+        entropy_val = float(entropy_series.loc[t_date]) if not pd.isna(entropy_series.loc[t_date]) else None
+        er_val = float(er_series.loc[t_date]) if not pd.isna(er_series.loc[t_date]) else None
+        cloud_min = float(cloud_min_series.loc[t_date]) if not pd.isna(cloud_min_series.loc[t_date]) else None
+
         exposure, cb_active = calculate_target_exposure(
             smoothed_score_entry=r["smoothed_score_entry"],
             smoothed_score_exit=r["smoothed_score_exit"],
@@ -313,7 +341,10 @@ def main():
             days_since_exit=days_since_exit,
             days_in_position=days_in_position,
             price=price,
-            ma_val=ma_val
+            ma_val=ma_val,
+            entropy_val=entropy_val,
+            er_val=er_val,
+            cloud_min=cloud_min
         )
         r["target_exposure"] = exposure
         r["circuit_breaker_active"] = cb_active

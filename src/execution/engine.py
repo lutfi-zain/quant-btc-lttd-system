@@ -211,6 +211,9 @@ class ExecutionEngine:
         db_path=None,
         price: Optional[float] = None,
         ma_val: Optional[float] = None,
+        entropy_val: Optional[float] = None,
+        er_val: Optional[float] = None,
+        cloud_min: Optional[float] = None,
     ) -> Dict[str, Any]:
         """
         Coordinated Layer 5 pipeline run.
@@ -256,7 +259,10 @@ class ExecutionEngine:
             days_since_exit=days_since_exit,
             days_in_position=days_in_position,
             price=price,
-            ma_val=ma_val
+            ma_val=ma_val,
+            entropy_val=entropy_val,
+            er_val=er_val,
+            cloud_min=cloud_min
         )
 
         # 2. Extract posteriors

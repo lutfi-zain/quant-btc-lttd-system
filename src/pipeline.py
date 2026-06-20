@@ -266,6 +266,20 @@ class LTTDPipeline:
             ma_series = df_merged["close"].rolling(MA_PERIOD).mean()
             ma_val = float(ma_series.loc[t]) if not pd.isna(ma_series.loc[t]) else None
 
+        # Compute dynamic noise gates: Entropy, ER, and Ichimoku Cloud Min
+        entropy_val = float(feature_matrix.loc[t, "Entropy"]) if "Entropy" in feature_matrix.columns else None
+        er_val = float(feature_matrix.loc[t, "ER"]) if "ER" in feature_matrix.columns else None
+        
+        # Calculate Ichimoku Cloud min causally
+        high_m = df_merged["high"]
+        low_m = df_merged["low"]
+        tenkan_m = (high_m.rolling(20).max() + low_m.rolling(20).min()) / 2
+        kijun_m = (high_m.rolling(60).max() + low_m.rolling(60).min()) / 2
+        sa_m = ((tenkan_m + kijun_m) / 2).shift(60)
+        sb_m = ((high_m.rolling(120).max() + low_m.rolling(120).min()) / 2).shift(60)
+        cloud_min_series = np.minimum(sa_m, sb_m)
+        cloud_min = float(cloud_min_series.loc[t]) if not pd.isna(cloud_min_series.loc[t]) else None
+
         # Run execution engine coordinator
         exec_res = self.execution_engine.run(
             date_str=date_str,
@@ -277,12 +291,19 @@ class LTTDPipeline:
             composite_value=composite_value,
             db_path=self.db_path,
             price=price,
-            ma_val=ma_val
+            ma_val=ma_val,
+            entropy_val=entropy_val,
+            er_val=er_val,
+            cloud_min=cloud_min
         )
 
         # Retrieve raw indicator scores and transformed PCA component values for telemetry
         indicator_scores = feature_matrix.loc[t, processor.tech_indicators_list].to_dict()
         indicator_scores = {k: float(v) if not pd.isna(v) else 0.0 for k, v in indicator_scores.items()}
+        if "Entropy" in feature_matrix.columns:
+            indicator_scores["Entropy"] = float(feature_matrix.loc[t, "Entropy"]) if not pd.isna(feature_matrix.loc[t, "Entropy"]) else 0.0
+        if "ER" in feature_matrix.columns:
+            indicator_scores["ER"] = float(feature_matrix.loc[t, "ER"]) if not pd.isna(feature_matrix.loc[t, "ER"]) else 0.0
         
         pca_cols = [c for c in X_test_proc.columns if c.startswith("PC")]
         pca_components = X_test_proc.loc[t, pca_cols].to_dict()

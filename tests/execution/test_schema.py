@@ -60,23 +60,20 @@ def test_daily_lttd_constraints(db_conn):
 def test_indicator_scores_constraints(db_conn):
     cursor = db_conn.cursor()
 
-    # Valid insert
+    # Valid insert within [-1.0, 1.0]
     cursor.execute(
         "INSERT INTO indicator_scores (date, indicator_name, score) VALUES ('2023-01-01', 'rsi', 1.0)"
     )
     db_conn.commit()
 
-    # Invalid score (too low)
-    with pytest.raises(sqlite3.IntegrityError):
-        cursor.execute(
-            "INSERT INTO indicator_scores (date, indicator_name, score) VALUES ('2023-01-02', 'rsi', -1.5)"
-        )
-        
-    # Invalid score (too high)
-    with pytest.raises(sqlite3.IntegrityError):
-        cursor.execute(
-            "INSERT INTO indicator_scores (date, indicator_name, score) VALUES ('2023-01-03', 'rsi', 1.5)"
-        )
+    # Scores outside [-1.0, 1.0] (like Shannon Entropy, which can be 2.5+) should be allowed now
+    cursor.execute(
+        "INSERT INTO indicator_scores (date, indicator_name, score) VALUES ('2023-01-02', 'entropy', 2.5)"
+    )
+    cursor.execute(
+        "INSERT INTO indicator_scores (date, indicator_name, score) VALUES ('2023-01-03', 'entropy_negative', -2.5)"
+    )
+    db_conn.commit()
 
 
 def test_regime_transitions_constraints(db_conn):

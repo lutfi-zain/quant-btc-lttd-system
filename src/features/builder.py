@@ -6,6 +6,8 @@ from src.signals.kalman_rsi import KalmanRSI
 from src.signals.fourier_supertrend import AdaptiveFourierSupertrend
 from src.signals.trend_strength import TrendStrengthIndex
 from src.signals.ichimoku import IchimokuCausalFilter
+from src.signals.entropy import ShannonEntropyFilter
+from src.signals.efficiency_ratio import KaufmanEfficiencyRatioFilter
 
 
 class FeatureMatrixBuilder:
@@ -23,6 +25,8 @@ class FeatureMatrixBuilder:
         )
         self.trend_strength = TrendStrengthIndex(dynamic_lookback=dynamic_lookback)
         self.ichimoku = IchimokuCausalFilter(dynamic_lookback=dynamic_lookback)
+        self.entropy = ShannonEntropyFilter()
+        self.er = KaufmanEfficiencyRatioFilter()
 
     def build_matrix(self, data: pd.DataFrame, onchain_df: pd.DataFrame = None) -> pd.DataFrame:
         """
@@ -41,6 +45,8 @@ class FeatureMatrixBuilder:
         fourier_scores = self.fourier_supertrend.compute(data)
         ts_scores = self.trend_strength.compute(data)
         ichimoku_scores = self.ichimoku.compute(data)
+        entropy_scores = self.entropy.compute(data)
+        er_scores = self.er.compute(data)
 
         matrix = pd.DataFrame(
             {
@@ -50,6 +56,8 @@ class FeatureMatrixBuilder:
                 "FourierSupertrend": fourier_scores,
                 "TrendStrengthIndex": ts_scores,
                 "Ichimoku": ichimoku_scores,
+                "Entropy": entropy_scores,
+                "ER": er_scores,
             },
             index=data.index,
         )

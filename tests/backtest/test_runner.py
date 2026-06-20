@@ -4,7 +4,11 @@ import pytest
 from src.backtest.runner import BacktestRunner, MockExecutionAdapter
 
 
-def test_mock_execution_adapter():
+def test_mock_execution_adapter(monkeypatch):
+    import src.execution.sizing
+    monkeypatch.setattr(src.execution.sizing, "MHP_DAYS", 10)
+    monkeypatch.setattr(src.execution.sizing, "RCO_DAYS", 5)
+    
     adapter = MockExecutionAdapter()
     
     # Day 1: entry

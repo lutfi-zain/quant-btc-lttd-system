@@ -76,7 +76,7 @@ async function fetchOnChainData(): Promise<any[]> {
       series.data.forEach((val, idx) => {
         if (val === null || val === undefined) return;
         const index = startIdx + idx;
-        const dateStr = new Date(Date.UTC(2009, 0, 3 + index)).toISOString().substring(0, 10);
+        const dateStr = new Date(Date.UTC(2009, 0, 1 + index)).toISOString().substring(0, 10);
         if (!dateMap.has(dateStr)) {
           dateMap.set(dateStr, { date: dateStr });
         }
