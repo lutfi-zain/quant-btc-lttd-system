@@ -1,7 +1,8 @@
 #!/bin/bash
 # Start backend and frontend simultaneously
 
-PROJECT_ROOT="/run/media/lutfizain/Work/Projects/1.WORKING/quant-btc-lttd-system"
+PROJECT_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." &>/dev/null && pwd )"
+
 
 BACKEND_PORT=8765
 FRONTEND_PORT=8766
@@ -18,11 +19,12 @@ done
 
 echo "Installing backend dependencies..."
 cd "$PROJECT_ROOT/backend" || exit 1
-bun install 2>&1 | tail -2
+bun install --registry https://registry.npmjs.org/ 2>&1 | tail -2
 
 echo "Installing frontend dependencies..."
 cd "$PROJECT_ROOT/frontend" || exit 1
-bun install 2>&1 | tail -2
+bun install --registry https://registry.npmjs.org/ 2>&1 | tail -2
+
 
 echo "Starting Backend..."
 cd "$PROJECT_ROOT/backend" || exit 1
