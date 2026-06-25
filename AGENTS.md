@@ -101,7 +101,7 @@ LAYER 6: PRESENTATION            (backend/ + frontend/)
 > Agents: Read these before creating new components. They define the expected code quality and patterns.
 
 - **Architecture Blueprint:** [`pi_final_research_lttd_01.md`](./pi_final_research_lttd_01.md) — mathematical proofs, layer design, indicator audit decisions. **Primary source of truth for ALL design decisions.**
-- **Legacy Reference (Do NOT copy patterns):** [`0xbujang-lttd.pinescript`](./0xbujang-lttd.pinescript) — audit completed; contains critical flaws (SGF lookahead, hardcoded arrays, multicollinearity). Referenced only as a historical baseline for indicator naming.
+- **Legacy Reference (Do NOT copy patterns):** `0xbujang-lttd.pinescript` (removed from repo; recoverable via `git show HEAD~1:0xbujang-lttd.pinescript`) — audit completed; contains critical flaws (SGF lookahead, hardcoded arrays, multicollinearity). Referenced only as a historical baseline for indicator naming.
 
 ---
 

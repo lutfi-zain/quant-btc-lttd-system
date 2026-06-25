@@ -39,5 +39,17 @@ logs/
 
 # Scratch / temp
 scratch/
-# Local Pi runtime state
+tmp/
+
+# Cache files
+brk_cache.json
+database/*.csv
+
+# Generated reports / outputs
+/*.html
+/*.csv
+!docs/**/*.csv
+
+# Legacy runtime state
 .atl/
+.pi/
