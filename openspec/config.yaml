@@ -19,7 +19,8 @@ context: |
   Layer 2: Signal Engine        → Causal-only indicators, output ∈ {-1, +1}
   Layer 3: Feature Processing   → PCA orthogonalization + VIF pruning (threshold: 10)
   Layer 4: Ensemble Aggregation → L1-Lasso Logistic Regression, WFO-trained
-  Layer 5: Execution Engine     → Regime-weighted position sizing
+  Layer 5: Execution Engine     → Regime-weighted position sizing (Binary 0/1 hysteresis)
+  Layer 6: Presentation Layer   → Hono API (Bun) + React SPA dashboard
   ```
 
   ## Technology Stack
@@ -134,7 +135,7 @@ rules:
     - Justify filter choice by proving it is causal (no future bar access)
     - Include a VIF analysis plan when adding new technical indicators
     - Specify the WFO window parameters (train/validate/test split)
-    - Document the Glassnode API endpoint + field name for any on-chain metric used
+    - Document the BRK/bitview.space API series name + field name for any on-chain metric used
     - If using PCA, specify minimum explained variance threshold (default: 85%)
     - Document whether the change touches the Composite Oscillator circuit breaker; justify
       threshold changes with backtest. Any sizing.py threshold change MUST be preceded by
