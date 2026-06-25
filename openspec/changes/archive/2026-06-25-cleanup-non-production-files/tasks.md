@@ -56,4 +56,4 @@
 - [x] 10.1 Run `python -m pytest -xvs` to confirm all production tests pass
 - [x] 10.2 Run `git ls-files | grep -E '(^tmp/|^fix_|^tmp_|^try_|^build_src|^scratch/|\.log$|^brk_cache|^random_search|^backtest_chart|^XGB_|^pi-statistic|^research_architecture|^0xbujang)'` and verify zero matches
 - [x] 10.3 Run `git status` to verify clean working tree with only the planned deletions staged
-- [ ] 10.4 Commit with message: `chore(repo): remove non-production files and update .gitignore`
+- [x] 10.4 Commit with message: `chore(repo): remove non-production files and update .gitignore`
