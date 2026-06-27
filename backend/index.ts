@@ -306,6 +306,8 @@ app.post("/api/actions/run", async (c) => {
       command = ["python3", "run_pipeline.py"];
     } else if (action === "recover_10d") {
       command = ["python3", "backfill.py"];
+    } else if (action === "sync_gap") {
+      command = ["python3", "backfill_gap.py", "--non-interactive"];
     } else if (action === "full_repopulation") {
       command = ["python3", "backfill_all.py"];
     } else if (action === "reset_db") {

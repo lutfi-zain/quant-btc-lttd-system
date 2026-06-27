@@ -168,6 +168,7 @@ export const Dashboard: React.FC = () => {
                 >
                   <option value="sync_today">Sync Today</option>
                   <option value="recover_10d">Recover 10d</option>
+                  <option value="sync_gap">Sync Gap</option>
                   <option value="full_repopulation">Full Backfill</option>
                   <option value="vif_audit">VIF Audit</option>
                   <option value="reset_db">Reset DB</option>

@@ -6,7 +6,8 @@ import {
   Terminal, 
   ChartLineUp, 
   WarningCircle, 
-  CheckCircle 
+  CheckCircle,
+  Lightning
 } from "@phosphor-icons/react";
 
 interface LogEntry {
@@ -80,6 +81,13 @@ export const ControlCenter: React.FC = () => {
       description: "Run backfill.py",
       icon: <ArrowsClockwise weight="bold" className="w-5 h-5" />,
       color: "text-[#1F6C9F] bg-[#E1F3FE] border-[var(--color-border)]",
+    },
+    {
+      id: "sync_gap",
+      name: "Sync Gap",
+      description: "Auto-detect gap & backfill missing days",
+      icon: <Lightning weight="bold" className="w-5 h-5" />,
+      color: "text-[#B45309] bg-[#FEF3C7] border-[var(--color-border)]",
     },
     {
       id: "vif_audit",
