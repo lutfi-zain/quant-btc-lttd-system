@@ -411,43 +411,6 @@ curl "https://bitview.space/api/series/sth_mvrv/day/latest"
 
 ---
 
-## Pine Script Audit
-
-The original system was prototyped in `0xbujang-lttd.pinescript` — a 1,900-line Pine Script strategy aggregating 12 technical + 4 on-chain indicators. The exhaustive research audit identified **3 fatal flaws** that invalidate its backtest results.
-
-### 🔴 Fatal Flaw 1: Savitzky-Golay Lookahead Bias (Indicator 12)
-
-The SGF implementation in `savitzky_golay_filter_w_15_vectors()` uses a coefficient loop structure that produces a near-zero-lag curve in TradingView's historical replay mode. This is mathematically impossible in real-time execution — a causal filter cannot have zero lag. In live trading, the filter produces heavily lagged signals while the backtest shows perfect top/bottom timing.
-
-**Fix:** Remove Indicator 12 entirely. Use the Adaptive Fourier Transform Supertrend (Indicator 5) for zero-lag cycle-tuned smoothing.
-
-### 🔴 Fatal Flaw 2: Hardcoded On-Chain Date Arrays
-
-On-chain signals (F1–F4) are encoded as static string arrays:
-
-```pinescript
-var string[] F1_data = array.from("2015-09-10|1", "2015-09-12|1", ... "2024-10-25|-1")
-```
-
-After the last date entry, `F1_score` defaults to `0`. The strategy **silently becomes purely technical in live trading** with no error or warning. All backtest on-chain performance is non-reproducible.
-
-**Fix:** Fetch live via BRK API. Use `sth_mvrv`, `sth_nupl`, `sth_sopr_24h`, `sth_supply_in_profit`.
-
-### 🔴 Fatal Flaw 3: Multicollinearity (12 Correlated Indicators)
-
-Nine of twelve technical indicators are variations of momentum computed on RSI/DEMA/VWMA:
-
-```python
-# The simple average in Pine Script
-final_score := sum_scores / count_indicators   # ← treats VIF-10 indicators as independent
-```
-
-When a regime shift occurs, all 12 simultaneously flip from +1 to -1. The mean model assigns full confidence to what is effectively one signal sampled 12 times. **VIF analysis would show 9 of 12 with VIF > 10.**
-
-**Fix:** PCA orthogonalization + L1-Lasso to prune redundant components to zero.
-
----
-
 ## Getting Started
 
 ### Prerequisites
