@@ -110,3 +110,21 @@ def test_ml_consensus_engine():
     assert set(regimes.unique()).issubset({"BULL", "BEAR", "SIDEWAYS"})
 
 
+def test_ml_consensus_engine_discretize_thresholds():
+    from src.ensemble.model import MLConsensusEngine
+    scores = pd.Series([0.5, 0.3, 0.29, 0.0, -0.29, -0.3, -0.5])
+    regimes = MLConsensusEngine.discretize(scores)
+    
+    expected = pd.Series([
+        "BULL",      # 0.5 >= 0.3
+        "BULL",      # 0.3 >= 0.3
+        "SIDEWAYS",  # 0.29 is between -0.3 and 0.3
+        "SIDEWAYS",  # 0.0 is between -0.3 and 0.3
+        "SIDEWAYS",  # -0.29 is between -0.3 and 0.3
+        "BEAR",      # -0.3 <= -0.3
+        "BEAR"       # -0.5 <= -0.3
+    ])
+    pd.testing.assert_series_equal(regimes, expected)
+
+
+

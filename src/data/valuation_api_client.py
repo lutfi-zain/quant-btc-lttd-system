@@ -1,7 +1,7 @@
 import logging
 import requests
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ class ValuationApiClient:
         Uses a basic cache to avoid repeatedly fetching the same data on the same day.
         Returns 0.0 on failure.
         """
-        today_str = datetime.utcnow().strftime("%Y-%m-%d")
+        today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         
         # Return cached value if we already fetched it today
         if self._cache_date == today_str:

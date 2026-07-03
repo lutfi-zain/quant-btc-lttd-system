@@ -61,11 +61,11 @@ class MLConsensusEngine:
     @staticmethod
     def discretize(scores: pd.Series) -> pd.Series:
         """
-        Discretizes continuous [0.0, 1.0] intensities into 3 discrete regimes.
+        Discretizes continuous [-1.0, 1.0] intensities into 3 discrete regimes.
         """
         regimes = pd.Series("SIDEWAYS", index=scores.index)
-        regimes[scores >= 0.6] = "BULL"
-        regimes[scores <= 0.4] = "BEAR"
+        regimes[scores >= 0.3] = "BULL"
+        regimes[scores <= -0.3] = "BEAR"
         return regimes
 
 

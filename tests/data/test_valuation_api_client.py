@@ -5,8 +5,8 @@ import pandas as pd
 import requests
 
 def test_get_latest_composite_value_success():
-    from datetime import datetime
-    today_str = datetime.utcnow().strftime("%Y-%m-%d")
+    from datetime import datetime, timezone
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     client = ValuationApiClient()
     mock_response = MagicMock()
     mock_response.json.return_value = [{"date": today_str, "composite_value": -1.5}]
