@@ -34,7 +34,7 @@ class MLConsensusEngine:
 
     def predict_score(self, X: pd.DataFrame) -> pd.Series:
         """
-        Predicts a continuous Final Score ∈ [0.0, 1.0].
+        Predicts a continuous Final Score ∈ [-1.0, +1.0].
         """
         if not self.fitted:
             raise ValueError("Model must be fitted before calling predict_score.")
@@ -44,7 +44,7 @@ class MLConsensusEngine:
 
         preds = self.model.predict(X)
         # Bound strictly
-        preds = np.clip(preds, 0.0, 1.0)
+        preds = np.clip(preds, -1.0, 1.0)
 
         return pd.Series(preds, index=X.index)
 

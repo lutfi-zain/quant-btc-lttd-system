@@ -45,6 +45,22 @@ class ValuationApiClient:
             df['date'] = pd.to_datetime(df['date'])
             df = df.sort_values('date', ascending=True)
             
+            latest_date_in_cache = df.iloc[-1]['date']
+            if latest_date_in_cache.tzinfo is None:
+                latest_date_in_cache = latest_date_in_cache.tz_localize('UTC')
+            else:
+                latest_date_in_cache = latest_date_in_cache.tz_convert('UTC')
+
+            utc_now = pd.Timestamp.utcnow()
+            
+            # Check for stale data (older than 2 days compared to current UTC time)
+            if latest_date_in_cache < utc_now - pd.Timedelta(days=2):
+                logger.warning(
+                    f"Valuation API returned STALE data! Latest date in response: "
+                    f"{latest_date_in_cache.strftime('%Y-%m-%d')}, current UTC time is: {utc_now.strftime('%Y-%m-%d')}. Defaulting to 0.0."
+                )
+                return 0.0
+                
             latest_val = float(df.iloc[-1]['composite_value'])
             
             # Cache it
@@ -54,10 +70,10 @@ class ValuationApiClient:
             return latest_val
 
         except requests.exceptions.RequestException as e:
-            logger.warning(f"Failed to fetch from Valuation API: {e}. Defaulting composite to 0.0.")
+            logger.error(f"Valuation API circuit breaker triggered: Unreachable or Connection Error: {e}. Defaulting composite to 0.0.")
             return 0.0
         except (KeyError, ValueError, IndexError) as e:
-            logger.warning(f"Failed to parse Valuation API response: {e}. Defaulting composite to 0.0.")
+            logger.error(f"Failed to parse Valuation API response: {e}. Defaulting composite to 0.0.")
             return 0.0
 
     def get_composite_value_for_date(self, target_date: pd.Timestamp, timeout: int = 15) -> float:
@@ -91,6 +107,15 @@ class ValuationApiClient:
             else:
                 target_date = target_date.tz_convert('UTC')
                 
+            # Check for stale data: latest date in historical cache should not be too far behind target_date
+            latest_date_in_cache = df['date'].max()
+            if latest_date_in_cache < target_date - pd.Timedelta(days=2):
+                logger.warning(
+                    f"Valuation API historical cache is STALE! Latest date: "
+                    f"{latest_date_in_cache.strftime('%Y-%m-%d')}, target date: {target_date.strftime('%Y-%m-%d')}. Defaulting to 0.0."
+                )
+                return 0.0
+                
             df_past = df[df['date'] <= target_date]
             if df_past.empty:
                 return 0.0
@@ -98,7 +123,7 @@ class ValuationApiClient:
             return float(df_past.iloc[-1]['composite_value'])
 
         except Exception as e:
-            logger.warning(f"Failed to fetch historical composite value for {target_date}: {e}. Defaulting to 0.0.")
+            logger.error(f"Valuation API circuit breaker triggered: historical fetch failed: {e}. Defaulting to 0.0.")
             if self._historical_cache is None:
                 self._historical_cache = pd.DataFrame(columns=['date', 'composite_value'])
             return 0.0

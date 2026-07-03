@@ -82,3 +82,31 @@ def test_pca_consensus_ensemble():
     assert model_fallback.fitted
     assert np.allclose(model_fallback.weights, [1/3, 1/3, 1/3])
 
+
+def test_ml_consensus_engine():
+    from src.ensemble.model import MLConsensusEngine
+    np.random.seed(42)
+    X = pd.DataFrame({
+        "x1": np.random.randn(100),
+        "x2": np.random.randn(100)
+    })
+    # Continuous target that can be negative
+    y = X["x1"] + 0.5 * X["x2"] + np.random.normal(0, 0.1, 100)
+    
+    # Fit MLConsensusEngine
+    engine = MLConsensusEngine(alpha=0.01)
+    engine.fit(X, y)
+    
+    assert engine.fitted
+    scores = engine.predict_score(X)
+    
+    # Assert bounds
+    assert (scores >= -1.0).all()
+    assert (scores <= 1.0).all()
+    
+    # Verify discrete regimes map correctly
+    regimes = engine.predict_regime(X)
+    assert len(regimes) == 100
+    assert set(regimes.unique()).issubset({"BULL", "BEAR", "SIDEWAYS"})
+
+

@@ -30,7 +30,7 @@ class LTTDPipeline:
     - Layer 4: Ensemble model fitting (L1-Lasso Logistic Regression)
     - Layer 5: Execution Engine Sizing & Persistence (SQLite WAL mode)
     """
-    def __init__(self, db_path: Optional[str] = None, base_url: str = "https://bitview.space", ensemble_mode: str = "xgboost"):
+    def __init__(self, db_path: Optional[str] = None, base_url: str = "https://bitview.space", ensemble_mode: str = "pca_consensus"):
         self.db_path = db_path
         self.brk_ingestion = BRKIngestionService(base_url=base_url)
         self.valuation_client = ValuationApiClient()
@@ -113,8 +113,11 @@ class LTTDPipeline:
 
         # 6. Recalibrate OU half-life to dynamically adjust trend lookback window
         log_returns = np.log(df_merged["close"] / df_merged["close"].shift(1)).fillna(0.0)
-        log_prices = np.log(df_merged["close"])
-        dynamic_lookback = estimate_ou_halflife(log_prices.loc[train_idx], min_bars=250, is_returns=False)
+        if self.ensemble_mode == "pca_consensus":
+            dynamic_lookback = 200.0
+        else:
+            log_prices = np.log(df_merged["close"])
+            dynamic_lookback = estimate_ou_halflife(log_prices.loc[train_idx], min_bars=250, is_returns=False)
 
         # 7. Compute indicators and features (cautiously ensuring zero lookahead)
         builder = FeatureMatrixBuilder(dynamic_lookback=dynamic_lookback)

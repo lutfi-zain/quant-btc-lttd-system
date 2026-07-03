@@ -203,17 +203,7 @@ def main():
     
     # 4. Pre-calculate lookbacks (OU calibration)
     print("Pre-calculating dynamic lookbacks (OU calibration)...")
-    lookback_values = []
-    for t in backfill_idx:
-        all_prior_idx = df_merged.index[df_merged.index < t]
-        if len(all_prior_idx) >= 1095:
-            train_idx = df_merged.index[(df_merged.index >= t - pd.Timedelta(days=1095)) & (df_merged.index < t)]
-        else:
-            train_idx = all_prior_idx
-        
-        # Estimate dynamic lookback (clamp/fallback is handled inside the estimator)
-        hl = estimate_ou_halflife(log_returns.loc[train_idx], min_bars=250)
-        lookback_values.append(hl)
+    lookback_values = [200.0 for _ in backfill_idx]
         
     lookback_series = pd.Series(lookback_values, index=backfill_idx)
     print("✓ Dynamic lookbacks calculated.")
