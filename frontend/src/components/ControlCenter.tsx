@@ -35,7 +35,7 @@ export const ControlCenter: React.FC = () => {
     ]);
 
     try {
-      const response = await fetch("http://localhost:4000/api/actions/run", {
+      const response = await fetch("/api/actions/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: actionId }),

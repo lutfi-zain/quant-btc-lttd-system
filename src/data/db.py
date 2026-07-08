@@ -12,9 +12,12 @@ class SQLiteCache:
 
     @contextmanager
     def get_connection(self):
-        conn = sqlite3.connect(self.db_path)
+        import sys
+        if "/home/ubuntu/projects" not in sys.path:
+            sys.path.insert(0, "/home/ubuntu/projects")
+        from db_connector import get_wal_connection
+        conn = get_wal_connection(self.db_path)
         try:
-            conn.execute("PRAGMA journal_mode=WAL;")
             yield conn
         finally:
             conn.close()

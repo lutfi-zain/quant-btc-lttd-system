@@ -23,6 +23,12 @@ export interface HealthStatus {
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "";
 
+// Helper to build absolute URLs that work regardless of what IP the page is served from
+function apiUrl(path: string): string {
+  const base = API_BASE_URL || (typeof window !== "undefined" ? window.location.origin : "");
+  return `${base}${path}`;
+}
+
 
 /**
  * Custom Error class for API call failures
@@ -41,7 +47,7 @@ export class APIError extends Error {
  */
 export async function fetchHealthStatus(): Promise<HealthStatus> {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/health`);
+    const res = await fetch(apiUrl("/api/health"));
     if (!res.ok) {
       throw new APIError(`HTTP error! status: ${res.status}`, res.status);
     }
@@ -56,7 +62,7 @@ export async function fetchHealthStatus(): Promise<HealthStatus> {
  */
 export async function fetchLatestLTTD(): Promise<LTTDRecord> {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/lttd/latest`);
+    const res = await fetch(apiUrl("/api/lttd/latest"));
     if (!res.ok) {
       const errorBody = await res.json().catch(() => ({}));
       throw new APIError(
@@ -80,7 +86,7 @@ export async function fetchLTTDHistory(
   end?: string
 ): Promise<LTTDRecord[]> {
   try {
-    const url = new URL(`${API_BASE_URL}/api/lttd/history`);
+    const url = new URL(apiUrl("/api/lttd/history"));
     if (start) url.searchParams.append("start", start);
     if (end) url.searchParams.append("end", end);
 
@@ -135,7 +141,7 @@ export interface OnChainRecord {
 
 export async function fetchChartData(start?: string, end?: string): Promise<ChartRecord[]> {
   try {
-    const url = new URL(`${API_BASE_URL}/api/chart`);
+    const url = new URL(apiUrl("/api/chart"));
     if (start) url.searchParams.append("start", start);
     if (end) url.searchParams.append("end", end);
     const res = await fetch(url.toString());
@@ -149,7 +155,7 @@ export async function fetchChartData(start?: string, end?: string): Promise<Char
 
 export async function fetchRegimeData(start?: string, end?: string): Promise<RegimeRecord[]> {
   try {
-    const url = new URL(`${API_BASE_URL}/api/regime`);
+    const url = new URL(apiUrl("/api/regime"));
     if (start) url.searchParams.append("start", start);
     if (end) url.searchParams.append("end", end);
     const res = await fetch(url.toString());
@@ -163,7 +169,7 @@ export async function fetchRegimeData(start?: string, end?: string): Promise<Reg
 
 export async function fetchDiagnosticsData(start?: string, end?: string): Promise<DiagnosticsRecord[]> {
   try {
-    const url = new URL(`${API_BASE_URL}/api/diagnostics`);
+    const url = new URL(apiUrl("/api/diagnostics"));
     if (start) url.searchParams.append("start", start);
     if (end) url.searchParams.append("end", end);
     const res = await fetch(url.toString());
@@ -177,7 +183,7 @@ export async function fetchDiagnosticsData(start?: string, end?: string): Promis
 
 export async function fetchOnChainData(start?: string, end?: string): Promise<OnChainRecord[]> {
   try {
-    const url = new URL(`${API_BASE_URL}/api/onchain`);
+    const url = new URL(apiUrl("/api/onchain"));
     if (start) url.searchParams.append("start", start);
     if (end) url.searchParams.append("end", end);
     const res = await fetch(url.toString());
@@ -191,7 +197,7 @@ export async function fetchOnChainData(start?: string, end?: string): Promise<On
 
 export async function triggerAction(action: string): Promise<{ success: boolean; output: string; error_output: string }> {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/actions/run`, {
+    const res = await fetch(apiUrl("/api/actions/run"), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action }),

@@ -99,7 +99,7 @@ export const Dashboard: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-[var(--color-canvas)] text-[var(--color-bear)] px-6 text-center">
         <h2 className="text-2xl font-[var(--font-display)] mb-2">Connection Error</h2>
-        <p className="text-sm text-[var(--color-text-muted)] max-w-md mb-6">Unable to connect to the quantitative backend on port 4000.</p>
+        <p className="text-sm text-[var(--color-text-muted)] max-w-md mb-6">Unable to connect to the quantitative backend on port 8765.</p>
         <button onClick={handleRefresh} className="px-6 py-2 bg-[var(--color-accent)] text-[var(--color-canvas)] rounded-md text-sm">Retry Connection</button>
       </div>
     );

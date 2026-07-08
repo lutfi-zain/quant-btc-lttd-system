@@ -7,14 +7,13 @@ DEFAULT_DB_PATH = os.environ.get("DB_PATH", "database/lttd.db")
 
 @contextmanager
 def get_connection(db_path=DEFAULT_DB_PATH, timeout=10.0):
-    db_dir = os.path.dirname(os.path.abspath(db_path))
-    if db_dir:
-        os.makedirs(db_dir, exist_ok=True)
-    conn = sqlite3.connect(db_path, timeout=timeout)
+    import sys
+    if "/home/ubuntu/projects" not in sys.path:
+        sys.path.insert(0, "/home/ubuntu/projects")
+    from db_connector import get_wal_connection
+    conn = get_wal_connection(db_path, timeout=timeout)
     conn.row_factory = sqlite3.Row
     try:
-        conn.execute("PRAGMA journal_mode=WAL;")
-        conn.execute(f"PRAGMA busy_timeout={int(timeout * 1000)};")
         yield conn
     finally:
         conn.close()
